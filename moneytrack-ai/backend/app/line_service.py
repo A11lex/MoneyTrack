@@ -1,0 +1,64 @@
+from datetime import date
+
+from pydantic import BaseModel, Field
+
+from .database import create_transaction, list_transactions
+from .message_parser import ParseError, parse_transaction_message
+
+
+class LineWebhookPayload(BaseModel):
+    line_user_id: str = Field(min_length=1)
+    message: str = Field(min_length=1)
+
+
+class LineWebhookResponse(BaseModel):
+    reply: str
+    handled: bool
+
+
+def handle_line_message(
+    line_user_id: str,
+    message: str,
+    db_path: str | None = None,
+    today: date | None = None,
+) -> LineWebhookResponse:
+    current_date = today or date.today()
+    normalized = message.strip()
+    if normalized in {"สรุปวันนี้", "วันนี้ใช้ไปเท่าไหร่", "รายรับวันนี้"}:
+        return LineWebhookResponse(reply=_daily_summary_reply(db_path, current_date), handled=True)
+
+    try:
+        transaction = parse_transaction_message(normalized, today=current_date)
+    except ParseError:
+        return LineWebhookResponse(reply="ยังบันทึกไม่ได้: กรุณาระบุจำนวนเงิน เช่น ข้าว 80", handled=False)
+
+    saved = create_transaction(transaction, db_path)
+    return LineWebhookResponse(reply=_transaction_reply(saved.type.value, saved.amount, saved.category, saved.mode.value), handled=True)
+
+
+def _transaction_reply(transaction_type: str, amount: float, category: str, mode: str) -> str:
+    type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
+    mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
+    return f"บันทึกแล้ว: {type_label} {_format_baht(amount)}\nหมวด: {category}\nโหมด: {mode_label}"
+
+
+def _daily_summary_reply(db_path: str | None, today: date) -> str:
+    transactions = [transaction for transaction in list_transactions(db_path) if transaction.date == today]
+    income = sum(transaction.amount for transaction in transactions if transaction.type.value == "income")
+    expense = sum(transaction.amount for transaction in transactions if transaction.type.value == "expense")
+    net = income - expense
+    return (
+        "สรุปวันนี้\n"
+        f"รายรับ: {_format_baht(income)}\n"
+        f"รายจ่าย: {_format_baht(expense)}\n"
+        f"สุทธิ: {_format_signed_baht(net)}"
+    )
+
+
+def _format_baht(amount: float) -> str:
+    return f"{amount:,.0f} บาท"
+
+
+def _format_signed_baht(amount: float) -> str:
+    sign = "+" if amount >= 0 else "-"
+    return f"{sign}{abs(amount):,.0f} บาท"

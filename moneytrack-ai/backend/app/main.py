@@ -1,0 +1,113 @@
+import os
+from typing import Any
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+
+from .database import (
+    create_transaction,
+    delete_transaction,
+    list_transactions,
+    seed_demo_data,
+    update_transaction,
+)
+from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
+from .line_adapter import handle_line_events
+from .line_client import send_line_reply
+from .line_security import verify_line_signature
+from .line_service import LineWebhookPayload, LineWebhookResponse, handle_line_message
+from .models import EXPENSE_CATEGORIES, INCOME_CATEGORIES, Transaction, TransactionCreate, TransactionUpdate, WhatIfScenario
+
+app = FastAPI(title="MoneyTrack AI API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:3002",
+        "http://127.0.0.1:3002",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.on_event("startup")
+def startup() -> None:
+    seed_demo_data()
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok"}
+
+
+@app.get("/categories")
+def categories() -> dict:
+    return {"income": INCOME_CATEGORIES, "expense": EXPENSE_CATEGORIES}
+
+
+@app.get("/transactions", response_model=list[Transaction])
+def get_transactions() -> list[Transaction]:
+    return list_transactions()
+
+
+@app.post("/transactions", response_model=Transaction, status_code=201)
+def post_transaction(payload: TransactionCreate) -> Transaction:
+    return create_transaction(payload)
+
+
+@app.put("/transactions/{transaction_id}", response_model=Transaction)
+def put_transaction(transaction_id: int, payload: TransactionUpdate) -> Transaction:
+    transaction = update_transaction(transaction_id, payload)
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return transaction
+
+
+@app.delete("/transactions/{transaction_id}", status_code=204)
+def remove_transaction(transaction_id: int) -> None:
+    deleted = delete_transaction(transaction_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+
+
+@app.get("/dashboard")
+def dashboard() -> dict:
+    transactions = list_transactions()
+    return {
+        "summary": calculate_summary(transactions),
+        "charts": chart_data(transactions),
+        "advisor": advisor(transactions),
+        "health": financial_health_score(transactions),
+    }
+
+
+@app.post("/what-if")
+def what_if(payload: WhatIfScenario) -> dict:
+    return simulate_what_if(list_transactions(), payload)
+
+
+@app.post("/line/webhook")
+async def line_webhook(request: Request) -> dict[str, Any] | LineWebhookResponse:
+    body = await request.body()
+    payload = await request.json()
+    if "events" in payload:
+        channel_secret = os.getenv("LINE_CHANNEL_SECRET")
+        if channel_secret and not verify_line_signature(body, request.headers.get("X-Line-Signature"), channel_secret):
+            raise HTTPException(status_code=401, detail="Invalid LINE signature")
+
+        replies = handle_line_events(payload)
+        access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+        if access_token:
+            for reply in replies:
+                if reply.get("reply_token") and reply.get("reply"):
+                    send_line_reply(reply["reply_token"], reply["reply"], access_token)
+        return {"replies": replies, "handled": any(reply["handled"] for reply in replies)}
+
+    mock_payload = LineWebhookPayload.model_validate(payload)
+    return handle_line_message(mock_payload.line_user_id, mock_payload.message)
