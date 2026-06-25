@@ -25,6 +25,7 @@ The included `backend/render.yaml` can also be used as a Render blueprint.
 Environment variables:
 
 ```text
+PYTHON_VERSION=3.12.13
 DATABASE_URL=moneytrack.db
 LINE_CHANNEL_SECRET=your-line-channel-secret
 LINE_CHANNEL_ACCESS_TOKEN=your-line-channel-access-token
