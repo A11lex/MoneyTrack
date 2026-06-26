@@ -6,16 +6,20 @@ import httpx
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 
 
-def build_reply_payload(reply_token: str, reply_text: str) -> dict[str, Any]:
+LineReplyMessage = str | dict[str, Any]
+
+
+def build_reply_payload(reply_token: str, reply_message: LineReplyMessage) -> dict[str, Any]:
+    message = {"type": "text", "text": reply_message} if isinstance(reply_message, str) else reply_message
     return {
         "replyToken": reply_token,
-        "messages": [{"type": "text", "text": reply_text}],
+        "messages": [message],
     }
 
 
 def send_line_reply(
     reply_token: str,
-    reply_text: str,
+    reply_message: LineReplyMessage,
     access_token: str,
     post: Callable[..., Any] = httpx.post,
 ) -> None:
@@ -25,7 +29,7 @@ def send_line_reply(
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json",
         },
-        json=build_reply_payload(reply_token, reply_text),
+        json=build_reply_payload(reply_token, reply_message),
         timeout=10,
     )
     response.raise_for_status()

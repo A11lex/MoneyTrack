@@ -1,8 +1,10 @@
 from datetime import date
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 from .database import create_transaction, list_transactions
+from .line_messages import build_transaction_success_flex
 from .message_parser import ParseError, parse_transaction_message
 
 
@@ -16,24 +18,52 @@ class LineWebhookResponse(BaseModel):
     handled: bool
 
 
+class LineMessageResult(BaseModel):
+    reply: str
+    handled: bool
+    line_message: dict[str, Any] | None = None
+
+
 def handle_line_message(
     line_user_id: str,
     message: str,
     db_path: str | None = None,
     today: date | None = None,
 ) -> LineWebhookResponse:
+    result = handle_line_message_detail(line_user_id, message, db_path, today)
+    return LineWebhookResponse(reply=result.reply, handled=result.handled)
+
+
+def handle_line_message_detail(
+    line_user_id: str,
+    message: str,
+    db_path: str | None = None,
+    today: date | None = None,
+) -> LineMessageResult:
     current_date = today or date.today()
     normalized = message.strip()
     if normalized in {"สรุปวันนี้", "วันนี้ใช้ไปเท่าไหร่", "รายรับวันนี้"}:
-        return LineWebhookResponse(reply=_daily_summary_reply(db_path, current_date), handled=True)
+        return LineMessageResult(reply=_daily_summary_reply(db_path, current_date), handled=True)
 
     try:
         transaction = parse_transaction_message(normalized, today=current_date)
     except ParseError:
-        return LineWebhookResponse(reply="ยังบันทึกไม่ได้: กรุณาระบุจำนวนเงิน เช่น ข้าว 80", handled=False)
+        return LineMessageResult(reply="ยังบันทึกไม่ได้: กรุณาระบุจำนวนเงิน เช่น ข้าว 80", handled=False)
 
     saved = create_transaction(transaction, db_path)
-    return LineWebhookResponse(reply=_transaction_reply(saved.type.value, saved.amount, saved.category, saved.mode.value), handled=True)
+    line_message = build_transaction_success_flex(
+        transaction_type=saved.type.value,
+        amount=saved.amount,
+        category=saved.category,
+        description=saved.description,
+        mode=saved.mode.value,
+        transaction_date=saved.date,
+    )
+    return LineMessageResult(
+        reply=_transaction_reply(saved.type.value, saved.amount, saved.category, saved.mode.value),
+        handled=True,
+        line_message=line_message,
+    )
 
 
 def _transaction_reply(transaction_type: str, amount: float, category: str, mode: str) -> str:

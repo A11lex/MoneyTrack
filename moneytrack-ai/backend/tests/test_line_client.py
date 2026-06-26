@@ -8,6 +8,15 @@ def test_build_reply_payload_formats_line_text_message() -> None:
     }
 
 
+def test_build_reply_payload_accepts_flex_message_object() -> None:
+    flex_message = {"type": "flex", "altText": "จดสำเร็จ", "contents": {"type": "bubble"}}
+
+    assert build_reply_payload("reply-token-001", flex_message) == {
+        "replyToken": "reply-token-001",
+        "messages": [flex_message],
+    }
+
+
 def test_send_line_reply_posts_to_line_reply_api() -> None:
     calls = []
 

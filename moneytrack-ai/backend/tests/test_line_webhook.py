@@ -67,17 +67,13 @@ def test_line_webhook_accepts_line_messaging_api_event_payload(tmp_path, monkeyp
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "replies": [
-            {
-                "reply_token": "reply-token-001",
-                "line_user_id": "line-user-001",
-                "reply": "บันทึกแล้ว: รายรับ 2,500 บาท\nหมวด: Business Revenue\nโหมด: ธุรกิจ",
-                "handled": True,
-            }
-        ],
-        "handled": True,
-    }
+    data = response.json()
+    assert data["handled"] is True
+    assert data["replies"][0]["reply_token"] == "reply-token-001"
+    assert data["replies"][0]["line_user_id"] == "line-user-001"
+    assert data["replies"][0]["reply"] == "บันทึกแล้ว: รายรับ 2,500 บาท\nหมวด: Business Revenue\nโหมด: ธุรกิจ"
+    assert data["replies"][0]["line_message"]["type"] == "flex"
+    assert data["replies"][0]["line_message"]["altText"] == "จดสำเร็จ: รายรับ 2,500 บาท"
     transactions = database.list_transactions(db_path)
     assert len(transactions) == 1
     assert transactions[0].type == "income"
@@ -93,8 +89,8 @@ def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(
     monkeypatch.setattr(
         main_module,
         "send_line_reply",
-        lambda reply_token, reply_text, access_token: sent_replies.append(
-            {"reply_token": reply_token, "reply_text": reply_text, "access_token": access_token}
+        lambda reply_token, reply_message, access_token: sent_replies.append(
+            {"reply_token": reply_token, "reply_message": reply_message, "access_token": access_token}
         ),
     )
     client = TestClient(app)
@@ -124,10 +120,12 @@ def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(
     assert sent_replies == [
         {
             "reply_token": "reply-token-001",
-            "reply_text": "บันทึกแล้ว: รายจ่าย 80 บาท\nหมวด: Food\nโหมด: ส่วนตัว",
+            "reply_message": sent_replies[0]["reply_message"],
             "access_token": "access-token-001",
         }
     ]
+    assert sent_replies[0]["reply_message"]["type"] == "flex"
+    assert sent_replies[0]["reply_message"]["altText"] == "จดสำเร็จ: รายจ่าย 80 บาท"
 
 
 def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkeypatch) -> None:

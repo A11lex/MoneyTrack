@@ -24,9 +24,12 @@ def test_handle_line_events_processes_line_text_message_payload(tmp_path) -> Non
             "reply_token": "reply-token-001",
             "line_user_id": "line-user-001",
             "reply": "บันทึกแล้ว: รายจ่าย 80 บาท\nหมวด: Food\nโหมด: ส่วนตัว",
+            "line_message": result[0]["line_message"],
             "handled": True,
         }
     ]
+    assert result[0]["line_message"]["type"] == "flex"
+    assert result[0]["line_message"]["contents"]["body"]["contents"][1]["contents"][1]["text"] == "฿80"
     transactions = list_transactions(db_path)
     assert len(transactions) == 1
     assert transactions[0].description == "ข้าว"

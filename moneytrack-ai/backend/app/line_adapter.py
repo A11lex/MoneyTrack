@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from .line_service import handle_line_message
+from .line_service import handle_line_message_detail
 
 
 def handle_line_events(
@@ -28,7 +28,7 @@ def handle_line_events(
             )
             continue
 
-        result = handle_line_message(
+        result = handle_line_message_detail(
             line_user_id=line_user_id,
             message=message.get("text", ""),
             db_path=db_path,
@@ -39,6 +39,7 @@ def handle_line_events(
                 "reply_token": reply_token,
                 "line_user_id": line_user_id,
                 "reply": result.reply,
+                "line_message": result.line_message,
                 "handled": result.handled,
             }
         )

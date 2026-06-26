@@ -105,8 +105,9 @@ async def line_webhook(request: Request) -> dict[str, Any] | LineWebhookResponse
         access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
         if access_token:
             for reply in replies:
-                if reply.get("reply_token") and reply.get("reply"):
-                    send_line_reply(reply["reply_token"], reply["reply"], access_token)
+                reply_message = reply.get("line_message") or reply.get("reply")
+                if reply.get("reply_token") and reply_message:
+                    send_line_reply(reply["reply_token"], reply_message, access_token)
         return {"replies": replies, "handled": any(reply["handled"] for reply in replies)}
 
     mock_payload = LineWebhookPayload.model_validate(payload)
