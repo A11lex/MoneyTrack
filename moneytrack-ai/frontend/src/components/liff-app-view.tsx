@@ -135,31 +135,37 @@ function SummaryScreen({ dashboard, latest, onEdit }: { dashboard: DashboardData
   const isPositive = net >= 0;
 
   return (
-    <div className="space-y-4">
-      <section className="overflow-hidden rounded-md border border-black/10 bg-white shadow-sm">
-        <div className="bg-[#0d4a2b] px-4 py-4 text-white">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-white/65">MoneyTrack AI</p>
-              <h2 className="mt-1 text-xl font-black">ภาพรวมเดือนนี้</h2>
-            </div>
-            <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-black text-white">มิ.ย. 2569</span>
+    <div className="space-y-5">
+      <SummaryProfileCard />
+
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xl font-black">สรุป</h2>
+        <button type="button" className="inline-flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-black shadow-sm">
+          26 มิ.ย. - 30 มิ.ย. 2569
+          <ChevronRight className="h-4 w-4 rotate-90 text-[#8a928e]" />
+        </button>
+      </div>
+
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <div className="text-center">
+          <div className="inline-flex items-center gap-2">
+            <p className="text-base font-bold text-[#151b18]">เหลือเก็บ</p>
+            <span className="rounded-md border border-black/10 bg-white px-2 py-1 text-sm font-black shadow-sm">รอบงบนี้ ⇄</span>
           </div>
-          <div className="mt-6">
-            <p className="text-sm font-semibold text-white/70">คงเหลือสุทธิ</p>
-            <p className={`mt-1 text-4xl font-black leading-none ${isPositive ? "text-[#6dc5ad]" : "text-[#ffb4c2]"}`}>{formatBaht(net)}</p>
-          </div>
+          <p className={`mt-2 text-3xl font-black leading-none ${isPositive ? "text-[#10b95f]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
         </div>
-        <div className="grid grid-cols-2 gap-3 p-3">
+        <div className="mt-8 grid grid-cols-2 gap-3">
           <MetricBox label="รายจ่าย" value={expense} tone="expense" />
           <MetricBox label="รายรับ" value={income} tone="income" />
         </div>
-        <Link href="/liff/insights" className="mx-3 mb-3 flex h-10 items-center justify-center rounded-md bg-[#eef8f5] text-sm font-black text-[#0d4a2b]">
-          ดูรายละเอียดการเงิน
+        <Link href="/liff/insights" className="mx-auto mt-8 flex h-10 w-24 items-center justify-center gap-1 rounded-full border border-black/10 bg-white text-sm font-black text-[#DC143C] shadow-sm">
+          ดูเพิ่ม
+          <ChevronRight className="h-4 w-4 rotate-90" />
         </Link>
       </section>
+
       <SectionTitle title="รายการล่าสุด" actionHref="/liff/transactions" action="ดูทั้งหมด" />
-      {latest.length > 0 ? <TransactionList transactions={latest} onEdit={onEdit} /> : <EmptyState title="ยังไม่มีข้อมูลรายการ" body="ลองพิมพ์ในแชท เช่น ข้าว 80 หรือ รับเงินลูกค้า 2500" />}
+      {latest.length > 0 ? <SummaryTransactionList transactions={latest} onEdit={onEdit} /> : <EmptyState title="ยังไม่มีข้อมูลรายการ" body="ลองพิมพ์ในแชท เช่น ข้าว 80 หรือ รับเงินลูกค้า 2500" />}
     </div>
   );
 }
@@ -335,12 +341,25 @@ function SettingsScreen() {
   );
 }
 
-function MetricBox({ label, value, tone }: { label: string; value: number; tone: "expense" | "income" }) {
-  const classes = tone === "expense" ? "bg-[#fff3f5] text-[#DC143C]" : "bg-[#eef8f5] text-[#0d4a2b]";
+function SummaryProfileCard() {
   return (
-    <div className={`rounded-md p-3 ${classes}`}>
+    <section className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
+      <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={48} height={48} className="h-12 w-12 rounded-full object-cover" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-2xl font-black">เงินไปไหน?</p>
+        <p className="mt-1 text-xs font-semibold text-[#8a928e]">หลานฟรี</p>
+      </div>
+      <Image src="/brand/moneytrack-pro.png" alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover opacity-80" />
+    </section>
+  );
+}
+
+function MetricBox({ label, value, tone }: { label: string; value: number; tone: "expense" | "income" }) {
+  const classes = tone === "expense" ? "border-[#DC143C]/70 bg-[#fff3f5] text-[#DC143C]" : "border-[#6dc5ad]/80 bg-[#eef8f5] text-[#5fc8ba]";
+  return (
+    <div className={`rounded-md border-2 p-3 shadow-sm ${classes}`}>
       <p className="text-xs font-bold text-[#55605b]">{label}</p>
-      <p className="mt-1 truncate text-lg font-black">{formatBaht(value)}</p>
+      <p className="mt-2 truncate text-xl font-black">{formatBaht(value)}</p>
     </div>
   );
 }
@@ -395,6 +414,33 @@ function TransactionList({ transactions, onEdit }: { transactions: Transaction[]
           </p>
         </button>
       ))}
+    </div>
+  );
+}
+
+function SummaryTransactionList({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (transaction: Transaction) => void }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-semibold text-[#8a928e]">{formatThaiShortDate(transactions[0]?.date)}</p>
+      <div className="space-y-2 border-t border-black/10 pt-2">
+        {transactions.map((transaction) => (
+          <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left shadow-sm active:bg-[#f7f8f7]">
+            <div className="min-w-0">
+              <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-xs font-semibold text-[#8a928e]">{formatTimeFallback(transaction.date)}</span>
+                <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#6b756f]">{transaction.category}</span>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <p className={`text-sm font-black ${transaction.type === "income" ? "text-[#10b95f]" : "text-[#DC143C]"}`}>
+                {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
+              </p>
+              <ChevronRight className="h-4 w-4 text-[#9aa1a0]" />
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -580,6 +626,20 @@ function BottomNav({ active }: { active: LiffTab }) {
 function titleFor(tab: LiffTab) {
   const found = tabs.find((item) => item.id === tab);
   return found?.label ?? "เงินไปไหน?";
+}
+
+function formatThaiShortDate(value?: string) {
+  if (!value) return "วันนี้";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+}
+
+function formatTimeFallback(value?: string) {
+  if (!value || !value.includes("T")) return "วันนี้";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "วันนี้";
+  return date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
 }
 
 function formatBaht(value: number) {
