@@ -124,8 +124,14 @@ async def line_webhook(request: Request) -> dict[str, Any] | LineWebhookResponse
 
         replies = handle_line_events(payload)
         access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+        main_rich_menu_id = os.getenv("LINE_RICH_MENU_MAIN_ID")
         if access_token:
             for reply in replies:
+                if reply.get("refresh_main_rich_menu") and main_rich_menu_id:
+                    try:
+                        link_user_rich_menu(reply["line_user_id"], main_rich_menu_id, access_token)
+                    except Exception:
+                        logger.exception("Failed to refresh LINE main rich menu for user %s", reply["line_user_id"])
                 reply_message = reply.get("line_message") or reply.get("reply")
                 if reply.get("reply_token") and reply_message:
                     send_line_reply(reply["reply_token"], reply_message, access_token)

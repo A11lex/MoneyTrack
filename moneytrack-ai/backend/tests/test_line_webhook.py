@@ -128,6 +128,59 @@ def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(
     assert sent_replies[0]["reply_message"]["altText"] == "จดสำเร็จ: รายจ่าย 80 บาท"
 
 
+def test_line_webhook_refreshes_main_rich_menu_for_existing_user(monkeypatch) -> None:
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
+    monkeypatch.setenv("LINE_RICH_MENU_MAIN_ID", "richmenu-main-002")
+    sent_replies = []
+    linked_menus = []
+    monkeypatch.setattr(
+        main_module,
+        "send_line_reply",
+        lambda reply_token, reply_message, access_token: sent_replies.append(
+            {"reply_token": reply_token, "reply_message": reply_message, "access_token": access_token}
+        ),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "link_user_rich_menu",
+        lambda line_user_id, rich_menu_id, access_token: linked_menus.append(
+            {"line_user_id": line_user_id, "rich_menu_id": rich_menu_id, "access_token": access_token}
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/line/webhook",
+        json={
+            "events": [
+                {
+                    "type": "message",
+                    "replyToken": "reply-token-001",
+                    "source": {"userId": "line-user-001"},
+                    "message": {"type": "text", "text": "รีเฟรชเมนู"},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["handled"] is True
+    assert linked_menus == [
+        {
+            "line_user_id": "line-user-001",
+            "rich_menu_id": "richmenu-main-002",
+            "access_token": "access-token-001",
+        }
+    ]
+    assert sent_replies == [
+        {
+            "reply_token": "reply-token-001",
+            "reply_message": "อัปเดตเมนูให้แล้วค่ะ ลองปิดแล้วเปิดห้องแชทใหม่ ถ้ายังไม่เปลี่ยนให้รอสักครู่",
+            "access_token": "access-token-001",
+        }
+    ]
+
+
 def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkeypatch) -> None:
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "test-secret")
     client = TestClient(app)

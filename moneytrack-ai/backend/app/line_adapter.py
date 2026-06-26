@@ -28,9 +28,22 @@ def handle_line_events(
             )
             continue
 
+        text = message.get("text", "").strip()
+        if text in {"รีเฟรชเมนู", "เปิดเมนูใหม่", "เปลี่ยนเมนู"}:
+            replies.append(
+                {
+                    "reply_token": reply_token,
+                    "line_user_id": line_user_id,
+                    "reply": "อัปเดตเมนูให้แล้วค่ะ ลองปิดแล้วเปิดห้องแชทใหม่ ถ้ายังไม่เปลี่ยนให้รอสักครู่",
+                    "handled": True,
+                    "refresh_main_rich_menu": True,
+                }
+            )
+            continue
+
         result = handle_line_message_detail(
             line_user_id=line_user_id,
-            message=message.get("text", ""),
+            message=text,
             db_path=db_path,
             today=today,
         )
