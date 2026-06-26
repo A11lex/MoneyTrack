@@ -40,6 +40,21 @@ const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType 
 
 const expenseCategories = ["อาหาร", "เดินทาง", "ที่พัก", "ค่าโทรศัพท์", "ค่าเน็ต", "ค่าน้ำค่าไฟ", "ช้อปปิ้ง", "Subscription", "กาแฟ", "ผ่อนรถ", "อื่นๆ"];
 const incomeCategories = ["เงินเดือน", "ธุรกิจส่วนตัว", "งานพิเศษ", "ค่าคอมมิชชั่น", "ขายของ", "เงินปันผล", "อื่นๆ"];
+const categoryNameMap: Record<string, string> = {
+  "Business Cost": "ธุรกิจ",
+  "Business Revenue": "ธุรกิจส่วนตัว",
+  "Debt Payment": "ผ่อนรถ",
+  Food: "อาหาร",
+  Freelance: "งานพิเศษ",
+  Health: "สุขภาพ",
+  "Other Expense": "อื่นๆ",
+  "Other Income": "อื่นๆ",
+  "Rent / Home": "ที่พัก",
+  Salary: "เงินเดือน",
+  Shopping: "ช้อปปิ้ง",
+  Transport: "เดินทาง",
+  Utilities: "ค่าน้ำค่าไฟ",
+};
 
 export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -245,7 +260,7 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
           {categories.length > 0 && <span className="text-xs font-bold text-[#8a928e]">Top 5</span>}
         </div>
         <div className="mt-4 space-y-4">
-          {categories.length > 0 ? categories.slice(0, 5).map((item) => <CategoryBar key={item.category} label={item.category} amount={item.amount} max={maxCategory} />) : <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />}
+          {categories.length > 0 ? categories.slice(0, 5).map((item) => <CategoryBar key={item.category} label={displayCategory(item.category, "expense")} amount={item.amount} max={maxCategory} />) : <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />}
         </div>
       </section>
     </div>
@@ -255,7 +270,7 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
 function CategoriesScreen() {
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [storedExpenseCategories, setStoredExpenseCategories] = useState<string[]>(() => loadStoredExpenseCategories());
-  const [customIncomeCategories, setCustomIncomeCategories] = useState<string[]>([]);
+  const [storedIncomeCategories, setStoredIncomeCategories] = useState<string[]>(() => loadStoredIncomeCategories());
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
   const [showBudgetCycleModal, setShowBudgetCycleModal] = useState(false);
@@ -264,7 +279,7 @@ function CategoriesScreen() {
   const [budgetCycle, setBudgetCycle] = useState<BudgetCycle>(() => loadStoredBudgetCycle());
   const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
   const [totalBudget, setTotalBudget] = useState(() => loadStoredTotalBudget());
-  const items = kind === "expense" ? storedExpenseCategories : [...incomeCategories, ...customIncomeCategories];
+  const items = kind === "expense" ? storedExpenseCategories : storedIncomeCategories;
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
   const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
@@ -348,7 +363,11 @@ function CategoriesScreen() {
           existingCategories={items}
           onClose={() => setShowIncomeCategoryModal(false)}
           onSave={(category) => {
-            setCustomIncomeCategories((current) => [...current, category]);
+            setStoredIncomeCategories((current) => {
+              const next = [...current, category];
+              saveStoredIncomeCategories(next);
+              return next;
+            });
             setShowIncomeCategoryModal(false);
           }}
         />
@@ -808,7 +827,7 @@ function TransactionList({ transactions, onEdit }: { transactions: Transaction[]
         <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 border-b border-black/5 px-4 py-3 text-left last:border-b-0 active:bg-[#f7f8f7]">
           <div className="min-w-0">
             <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{transaction.date} · {transaction.category}</p>
+            <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{transaction.date} · {displayCategory(transaction.category, transaction.type)}</p>
           </div>
           <p className={`shrink-0 text-base font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
@@ -830,7 +849,7 @@ function SummaryTransactionList({ transactions, onEdit }: { transactions: Transa
               <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-xs font-semibold text-[#8a928e]">{formatTimeFallback(transaction.date)}</span>
-                <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#6b756f]">{transaction.category}</span>
+                <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#6b756f]">{displayCategory(transaction.category, transaction.type)}</span>
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -857,13 +876,13 @@ function TransactionCreateModal({
     date: todayInputValue(),
     type: "expense",
     amount: 0,
-    category: "Other Expense",
+    category: transactionCategories("expense")[0] ?? "อื่นๆ",
     description: "",
     mode: "personal",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const categories = draft.type === "income" ? ["Salary", "Freelance", "Business Revenue", "Other Income"] : ["Food", "Transport", "Rent / Home", "Utilities", "Debt Payment", "Shopping", "Health", "Business Cost", "Other Expense"];
+  const categories = ensureCategoryOption(transactionCategories(draft.type), draft.category);
 
   async function save() {
     if (!draft.description.trim() || Number(draft.amount) <= 0) {
@@ -906,10 +925,10 @@ function TransactionCreateModal({
           <section>
             <p className="text-base font-black">ประเภทรายการ</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: "Other Expense" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
                 รายจ่าย
               </button>
-              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: "Other Income" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
                 รายรับ
               </button>
             </div>
@@ -959,10 +978,10 @@ function TransactionEditModal({
   onDeleted: (transactionId: number) => void;
   onSaved: (transaction: Transaction) => void;
 }) {
-  const [draft, setDraft] = useState<Transaction>(transaction);
+  const [draft, setDraft] = useState<Transaction>(() => ({ ...transaction, category: displayCategory(transaction.category, transaction.type) }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const categories = draft.type === "income" ? ["Salary", "Freelance", "Business Revenue", "Other Income"] : ["Food", "Transport", "Rent / Home", "Utilities", "Debt Payment", "Shopping", "Health", "Business Cost", "Other Expense"];
+  const categories = ensureCategoryOption(transactionCategories(draft.type), draft.category);
 
   async function save() {
     setSaving(true);
@@ -1022,10 +1041,10 @@ function TransactionEditModal({
           <section>
             <p className="text-base font-black">ประเภทรายการ</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: "Other Expense" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
                 รายจ่าย
               </button>
-              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: "Other Income" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
                 รายรับ
               </button>
             </div>
@@ -1151,10 +1170,48 @@ function loadStoredExpenseCategories(): string[] {
   }
 }
 
+function loadStoredIncomeCategories(): string[] {
+  if (typeof window === "undefined") return incomeCategories;
+  try {
+    const value = JSON.parse(window.localStorage.getItem("moneytrack_income_categories") ?? "null");
+    return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : incomeCategories;
+  } catch {
+    return incomeCategories;
+  }
+}
+
 function saveStoredExpenseCategories(value: string[]) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem("moneytrack_expense_categories", JSON.stringify(value));
   }
+}
+
+function saveStoredIncomeCategories(value: string[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_income_categories", JSON.stringify(value));
+  }
+}
+
+function transactionCategories(type: "expense" | "income") {
+  return type === "income" ? loadStoredIncomeCategories() : loadStoredExpenseCategories();
+}
+
+function ensureCategoryOption(categories: string[], category: string) {
+  return categories.includes(category) ? categories : [...categories, category];
+}
+
+function displayCategory(category: string, type: "expense" | "income") {
+  const mapped = categoryNameMap[category] ?? category;
+  const defaults = type === "income" ? incomeCategories : expenseCategories;
+  const stored = transactionCategories(type);
+  if (stored.includes(mapped)) return mapped;
+
+  const defaultIndex = defaults.indexOf(mapped);
+  if (defaultIndex >= 0 && stored[defaultIndex]) {
+    return stored[defaultIndex];
+  }
+
+  return mapped;
 }
 
 function saveStoredBudgetMode(value: BudgetMode) {
