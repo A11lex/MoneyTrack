@@ -64,3 +64,27 @@ export type WhatIfResult = {
   original_risk_level: string;
   new_risk_level: string;
 };
+
+export type LineUserSetup = {
+  line_user_id: string;
+  display_name: string;
+  picture_url?: string | null;
+  onboarding_completed: boolean;
+  discovery_source?: string | null;
+  expense_categories: string[];
+  income_categories: string[];
+  monthly_budgets: Record<string, number>;
+};
+
+export type LineUserInput = {
+  line_user_id: string;
+  display_name: string;
+  picture_url?: string | null;
+};
+
+export type OnboardingInput = {
+  discovery_source?: string | null;
+  expense_categories: string[];
+  income_categories: string[];
+  monthly_budgets: Record<string, number>;
+};

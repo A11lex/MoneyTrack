@@ -1,4 +1,13 @@
-import type { DashboardData, Transaction, TransactionInput, WhatIfResult, WhatIfScenario } from "./types";
+import type {
+  DashboardData,
+  LineUserInput,
+  LineUserSetup,
+  OnboardingInput,
+  Transaction,
+  TransactionInput,
+  WhatIfResult,
+  WhatIfScenario,
+} from "./types";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -47,6 +56,20 @@ export function deleteTransaction(id: number): Promise<void> {
 
 export function runWhatIf(payload: WhatIfScenario): Promise<WhatIfResult> {
   return request<WhatIfResult>("/what-if", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function upsertLineUser(payload: LineUserInput): Promise<LineUserSetup> {
+  return request<LineUserSetup>("/users/line", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function saveLineUserOnboarding(lineUserId: string, payload: OnboardingInput): Promise<LineUserSetup> {
+  return request<LineUserSetup>(`/users/line/${encodeURIComponent(lineUserId)}/onboarding`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
