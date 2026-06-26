@@ -254,7 +254,12 @@ function CategoriesScreen() {
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [customIncomeCategories, setCustomIncomeCategories] = useState<string[]>([]);
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
+  const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
+  const [showBudgetCycleModal, setShowBudgetCycleModal] = useState(false);
+  const [budgetCycle, setBudgetCycle] = useState<"daily" | "weekly" | "monthly">("monthly");
+  const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>({});
   const items = kind === "expense" ? expenseCategories : [...incomeCategories, ...customIncomeCategories];
+  const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
 
   return (
     <div className="space-y-5">
@@ -284,6 +289,20 @@ function CategoriesScreen() {
             <p className="font-black">เงินสำรองฉุกเฉิน</p>
             <p className="mt-1 text-sm font-semibold">เริ่มจากตั้งงบเก็บเดือนละนิดก่อนก็ได้</p>
           </div>
+          <div className="mt-5 flex items-center justify-between border-t border-black/5 pt-4">
+            <div className="flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-[#FCECEF] text-[#DC143C]">
+                <CalendarDays className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-black">รอบงบ</p>
+                <p className="text-sm font-semibold text-[#8a928e]">{budgetCycleLabel} (วันที่ 1)</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setShowBudgetCycleModal(true)} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-black shadow-sm">
+              ตั้งค่า
+            </button>
+          </div>
         </section>
       )}
       <button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-base font-black shadow-sm">
@@ -291,12 +310,10 @@ function CategoriesScreen() {
       </button>
       <div className="space-y-3">
         {items.map((item) => (
-          <button key={item} type="button" className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
+          <button key={item} type="button" onClick={() => kind === "expense" && setSelectedExpenseCategory(item)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
             {item}
             {kind === "expense" ? (
-              <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-[#8a928e]">
-                งบ ไม่มีตั้งงบ <ChevronRight />
-              </span>
+              <ChevronRight className="shrink-0 text-[#9aa1a0]" />
             ) : (
               <ChevronRight className="shrink-0 text-[#9aa1a0]" />
             )}
@@ -313,6 +330,28 @@ function CategoriesScreen() {
           onSave={(category) => {
             setCustomIncomeCategories((current) => [...current, category]);
             setShowIncomeCategoryModal(false);
+          }}
+        />
+      )}
+      {selectedExpenseCategory && (
+        <ExpenseCategoryBudgetModal
+          budget={expenseBudgets[selectedExpenseCategory] ?? 0}
+          budgetCycleLabel={budgetCycleLabel}
+          category={selectedExpenseCategory}
+          onClose={() => setSelectedExpenseCategory(null)}
+          onSave={(category, budget) => {
+            setExpenseBudgets((current) => ({ ...current, [category]: budget }));
+            setSelectedExpenseCategory(null);
+          }}
+        />
+      )}
+      {showBudgetCycleModal && (
+        <BudgetCycleModal
+          value={budgetCycle}
+          onClose={() => setShowBudgetCycleModal(false)}
+          onSave={(value) => {
+            setBudgetCycle(value);
+            setShowBudgetCycleModal(false);
           }}
         />
       )}
@@ -381,6 +420,137 @@ function IncomeCategoryModal({
         {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
 
         <button type="button" onClick={save} className="mt-6 h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
+          บันทึก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ExpenseCategoryBudgetModal({
+  budget,
+  budgetCycleLabel,
+  category,
+  onClose,
+  onSave,
+}: {
+  budget: number;
+  budgetCycleLabel: string;
+  category: string;
+  onClose: () => void;
+  onSave: (category: string, budget: number) => void;
+}) {
+  const [name, setName] = useState(category);
+  const [amount, setAmount] = useState(budget > 0 ? String(budget) : "");
+  const [error, setError] = useState("");
+
+  function save() {
+    const value = name.trim();
+    if (!value) {
+      setError("กรอกชื่อหมวดก่อนบันทึก");
+      return;
+    }
+    onSave(value, Number(amount) || 0);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
+        <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
+        <div className="flex items-center justify-between">
+          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
+            <Trash2 className="h-4 w-4" /> ลบหมวด
+          </button>
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <h2 className="mt-6 text-center text-2xl font-black">ตั้งค่าหมวดและงบ</h2>
+
+        <div className="mt-8 space-y-6">
+          <label className="block">
+            <span className="text-sm font-black">ชื่อหมวด</span>
+            <input value={name} onChange={(event) => { setName(event.target.value); setError(""); }} className="mt-2 h-12 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#DC143C]" />
+            <span className="mt-2 block text-xs font-semibold text-[#8a928e]">พิมพ์ชื่อหมวดเพื่อแก้ไข</span>
+          </label>
+
+          <label className="block">
+            <span className="inline-flex items-center gap-2 text-sm font-black">
+              งบรายจ่าย
+              <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#8a928e]">
+                <CalendarDays className="h-3.5 w-3.5" /> {budgetCycleLabel} (วันที่ 1)
+              </span>
+            </span>
+            <div className="mt-2 flex h-12 items-center rounded-md border border-black/10 px-3 shadow-sm focus-within:border-[#DC143C]">
+              <span className="font-bold text-[#8a928e]">฿</span>
+              <input inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); setError(""); }} className="min-w-0 flex-1 border-0 px-2 text-base outline-none" />
+            </div>
+            <span className="mt-2 block text-xs font-semibold text-[#8a928e]">ใส่จำนวนงบเพื่อตั้งงบประมาณ หรือปล่อยว่างไว้ถ้าไม่ต้องการตั้งงบ</span>
+          </label>
+        </div>
+
+        <div className="mt-8 text-center">
+          <p className="text-sm font-semibold text-[#8a928e]">รายจ่ายหมวดนี้ย้อนหลัง 6 เดือน</p>
+          <p className="mt-8 text-sm font-semibold text-[#9aa1a0]">ยังไม่มีข้อมูลรายการย้อนหลัง</p>
+        </div>
+
+        {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+        <button type="button" onClick={save} className="mt-8 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
+          บันทึก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BudgetCycleModal({
+  onClose,
+  onSave,
+  value,
+}: {
+  onClose: () => void;
+  onSave: (value: "daily" | "weekly" | "monthly") => void;
+  value: "daily" | "weekly" | "monthly";
+}) {
+  const [draft, setDraft] = useState(value);
+  const options: { label: string; value: "daily" | "weekly" | "monthly" }[] = [
+    { label: "รายวัน", value: "daily" },
+    { label: "รายสัปดาห์", value: "weekly" },
+    { label: "รายเดือน", value: "monthly" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
+        <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
+        <div className="flex items-center justify-end">
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <h2 className="text-center text-2xl font-black">รอบงบ</h2>
+
+        <div className="mt-7 space-y-3">
+          {options.map((option) => (
+            <button key={option.value} type="button" onClick={() => setDraft(option.value)} className={`flex h-12 w-full items-center justify-between rounded-md border px-4 text-left text-base font-bold ${draft === option.value ? "border-[#DC143C] bg-[#fff3f5]" : "border-black/10 bg-white"}`}>
+              {option.label}
+              {draft === option.value && <span className="text-[#151b18]">✓</span>}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-7">
+          <p className="text-sm font-black">วันที่เริ่มต้นงบประมาณ</p>
+          <button type="button" className="mt-3 flex h-11 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 text-sm font-bold text-[#555f5b] shadow-sm">
+            วันแรกของเดือน
+            <ChevronRight className="h-4 w-4 rotate-90 text-[#9aa1a0]" />
+          </button>
+        </div>
+
+        <button type="button" onClick={() => onSave(draft)} className="mt-14 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
           บันทึก
         </button>
       </div>
