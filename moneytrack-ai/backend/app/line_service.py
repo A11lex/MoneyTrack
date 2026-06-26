@@ -3,11 +3,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .database import create_transaction, list_transactions
+from .database import create_transaction, delete_transaction, get_transaction, list_transactions
 from .line_messages import (
     build_category_budget_flex,
     build_daily_summary_flex,
     build_quick_start_flex,
+    build_transaction_deleted_flex,
     build_transaction_success_flex,
 )
 from .message_parser import ParseError, parse_transaction_message
@@ -70,6 +71,9 @@ def handle_line_message_detail(
             line_message=build_daily_summary_flex(current_date, income, expense, net, category_totals),
         )
 
+    if normalized.startswith("ลบรายการ"):
+        return _delete_transaction_from_line(normalized, db_path)
+
     try:
         transaction = parse_transaction_message(normalized, today=current_date)
     except ParseError:
@@ -81,6 +85,7 @@ def handle_line_message_detail(
 
     saved = create_transaction(transaction, db_path)
     line_message = build_transaction_success_flex(
+        transaction_id=saved.id,
         transaction_type=saved.type.value,
         amount=saved.amount,
         category=saved.category,
@@ -99,6 +104,30 @@ def _transaction_reply(transaction_type: str, amount: float, category: str, mode
     type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
     mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
     return f"บันทึกแล้ว: {type_label} {_format_baht(amount)}\nหมวด: {category}\nโหมด: {mode_label}"
+
+
+def _delete_transaction_from_line(message: str, db_path: str | None) -> LineMessageResult:
+    parts = message.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return LineMessageResult(reply="ยังลบไม่ได้: ไม่พบรหัสรายการ", handled=False, line_message=build_quick_start_flex())
+
+    transaction_id = int(parts[1])
+    transaction = get_transaction(transaction_id, db_path)
+    if transaction is None:
+        return LineMessageResult(reply="ลบไม่ได้: ไม่พบรายการนี้แล้ว", handled=False, line_message=build_quick_start_flex())
+
+    delete_transaction(transaction_id, db_path)
+    return LineMessageResult(
+        reply=f"ลบแล้ว: {_format_baht(transaction.amount)}",
+        handled=True,
+        line_message=build_transaction_deleted_flex(
+            transaction_type=transaction.type.value,
+            amount=transaction.amount,
+            category=transaction.category,
+            description=transaction.description,
+            transaction_date=transaction.date,
+        ),
+    )
 
 
 def _daily_summary_totals(db_path: str | None, today: date) -> tuple[float, float, float, dict[str, float]]:

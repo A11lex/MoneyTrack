@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import (
     create_transaction,
     delete_transaction,
+    get_transaction,
     get_user_setup,
     list_transactions,
     save_user_onboarding,
@@ -75,6 +76,14 @@ def categories() -> dict:
 @app.get("/transactions", response_model=list[Transaction])
 def get_transactions() -> list[Transaction]:
     return list_transactions()
+
+
+@app.get("/transactions/{transaction_id}", response_model=Transaction)
+def get_transaction_by_id(transaction_id: int) -> Transaction:
+    transaction = get_transaction(transaction_id)
+    if transaction is None:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    return transaction
 
 
 @app.post("/transactions", response_model=Transaction, status_code=201)

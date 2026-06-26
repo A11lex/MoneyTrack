@@ -129,7 +129,8 @@ def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(
     ]
     assert sent_replies[0]["reply_message"]["type"] == "flex"
     assert sent_replies[0]["reply_message"]["altText"] == "จดสำเร็จ: รายจ่าย 80 บาท"
-    assert _buttons(sent_replies[0]["reply_message"])[0]["action"]["uri"] == "https://example.vercel.app/liff/transactions"
+    assert _buttons(sent_replies[0]["reply_message"])[0]["action"]["uri"].startswith("https://example.vercel.app/liff/transactions/")
+    assert _buttons(sent_replies[0]["reply_message"])[0]["action"]["uri"].endswith("/edit")
 
 
 def test_line_webhook_refreshes_main_rich_menu_for_existing_user(monkeypatch) -> None:

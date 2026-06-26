@@ -117,7 +117,7 @@ function SummaryScreen({ dashboard, latest }: { dashboard: DashboardData | null;
       <section className="rounded-md border border-black/10 bg-white p-5 shadow-sm">
         <div className="text-center">
           <p className="text-xl font-bold text-[#3d4742]">เหลือเก็บ</p>
-          <p className={`mt-2 text-5xl font-black ${net >= 0 ? "text-[#14b86a]" : "text-[#d72d78]"}`}>{formatBaht(net)}</p>
+          <p className={`mt-2 text-5xl font-black ${net >= 0 ? "text-[#14b86a]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
         </div>
         <div className="mt-7 grid grid-cols-2 gap-3">
           <MetricBox label="รายจ่าย" value={expense} tone="expense" />
@@ -151,7 +151,7 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
           <MiniBars data={chart} />
         </div>
         <div className="mt-4 flex justify-center gap-5 text-base font-bold">
-          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#d72d78]" />รายจ่าย</span>
+          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#DC143C]" />รายจ่าย</span>
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
         </div>
       </section>
@@ -172,7 +172,7 @@ function CategoriesScreen() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <button type="button" onClick={() => setKind("expense")} className={`h-16 rounded-md border text-xl font-black ${kind === "expense" ? "border-[#d72d78] bg-[#fff0f6] text-[#d72d78]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+        <button type="button" onClick={() => setKind("expense")} className={`h-16 rounded-md border text-xl font-black ${kind === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
           รายจ่าย
         </button>
         <button type="button" onClick={() => setKind("income")} className={`h-16 rounded-md border text-xl font-black ${kind === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
@@ -228,7 +228,7 @@ function TransactionsScreen({ transactions }: { transactions: Transaction[] }) {
           <p className="text-2xl font-black">คัดกรองประเภทรายการ</p>
           <div className="mt-3 flex gap-2">
             {["ทั้งหมด", "รายจ่าย", "รายรับ"].map((item, index) => (
-              <button key={item} type="button" className={`h-10 rounded-md px-4 text-base font-black ${index === 0 ? "bg-[#d72d78] text-white" : "bg-[#eceef1] text-[#555f5b]"}`}>
+              <button key={item} type="button" className={`h-10 rounded-md px-4 text-base font-black ${index === 0 ? "bg-[#DC143C] text-white" : "bg-[#eceef1] text-[#555f5b]"}`}>
                 {item}
               </button>
             ))}
@@ -240,7 +240,7 @@ function TransactionsScreen({ transactions }: { transactions: Transaction[] }) {
         </button>
       </div>
       {transactions.length > 0 ? <TransactionList transactions={transactions} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="กดปุ่ม + หรือจดผ่านแชท LINE เพื่อเพิ่มรายการแรก" />}
-      <button type="button" className="fixed bottom-28 right-[calc(50%-12rem)] grid h-20 w-20 place-items-center rounded-full bg-[#d72d78] text-5xl font-light text-white shadow-xl">
+      <button type="button" className="fixed bottom-28 right-[calc(50%-12rem)] grid h-20 w-20 place-items-center rounded-full bg-[#DC143C] text-5xl font-light text-white shadow-xl">
         +
       </button>
     </div>
@@ -285,7 +285,7 @@ function SettingsScreen() {
             <ChevronRight className="text-[#9aa1a0]" />
           </button>
         ))}
-        <button type="button" className="flex h-18 w-full items-center justify-between rounded-md border border-black/10 bg-white px-5 text-left text-xl font-bold text-[#d72d78] shadow-sm">
+        <button type="button" className="flex h-18 w-full items-center justify-between rounded-md border border-black/10 bg-white px-5 text-left text-xl font-bold text-[#DC143C] shadow-sm">
           <span>ลบรายการทั้งหมด</span>
           <Trash2 />
         </button>
@@ -308,7 +308,7 @@ function ProfileCard() {
 }
 
 function MetricBox({ label, value, tone }: { label: string; value: number; tone: "expense" | "income" }) {
-  const classes = tone === "expense" ? "border-[#d72d78] bg-[#fff0f6] text-[#d72d78]" : "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]";
+  const classes = tone === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]";
   return (
     <div className={`rounded-md border-2 p-4 ${classes}`}>
       <p className="text-lg font-bold text-[#3d4742]">{label}</p>
@@ -325,7 +325,7 @@ function MiniBars({ data }: { data: { month: string; income: number; expense: nu
       {months.map((item) => (
         <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
           <div className="flex h-44 items-end gap-1">
-            <div className="w-3 rounded-t bg-[#d72d78]" style={{ height: `${Math.max(6, (item.expense / max) * 160)}px` }} />
+            <div className="w-3 rounded-t bg-[#DC143C]" style={{ height: `${Math.max(6, (item.expense / max) * 160)}px` }} />
             <div className="w-3 rounded-t bg-[#6dc5ad]" style={{ height: `${Math.max(6, (item.income / max) * 160)}px` }} />
           </div>
           <span className="text-sm font-black text-[#777f7b]">{item.month}</span>
@@ -353,15 +353,15 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
   return (
     <div className="space-y-3">
       {transactions.map((transaction) => (
-        <div key={transaction.id} className="flex items-center justify-between rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <Link key={transaction.id} href={`/liff/transactions/${transaction.id}/edit`} className="flex items-center justify-between rounded-md border border-black/10 bg-white p-4 shadow-sm">
           <div>
             <p className="text-xl font-black">{transaction.description || transaction.category}</p>
             <p className="mt-1 text-sm font-semibold text-[#8a928e]">{transaction.date} · {transaction.category}</p>
           </div>
-          <p className={`text-xl font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#d72d78]"}`}>
+          <p className={`text-xl font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
           </p>
-        </div>
+        </Link>
       ))}
     </div>
   );

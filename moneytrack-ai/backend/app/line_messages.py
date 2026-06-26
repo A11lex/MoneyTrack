@@ -6,8 +6,8 @@ BRAND = {
     "green": "#6DC5AD",
     "dark_green": "#0D4A2B",
     "yellow": "#FFD335",
-    "pink": "#D72D78",
-    "soft_pink": "#FCEAF2",
+    "pink": "#DC143C",
+    "soft_pink": "#FCECEF",
     "soft_green": "#EAF8F4",
     "cream": "#FFF8E4",
     "surface": "#FFFFFF",
@@ -91,6 +91,7 @@ def build_category_budget_flex() -> dict[str, Any]:
 
 
 def build_transaction_success_flex(
+    transaction_id: int,
     transaction_type: str,
     amount: float,
     category: str,
@@ -122,7 +123,7 @@ def build_transaction_success_flex(
                     {
                         "type": "box",
                         "layout": "horizontal",
-                        "spacing": "md",
+                        "spacing": "sm",
                         "contents": [
                             {
                                 "type": "box",
@@ -136,6 +137,8 @@ def build_transaction_success_flex(
                                 "flex": 1,
                             },
                             _plain_text(amount_text, "xxl", amount_color, weight="bold", align="end"),
+                            _icon_action("✎", "uri", _frontend_url(f"/liff/transactions/{transaction_id}/edit"), "#EFF4F8"),
+                            _icon_action("×", "postback", f"delete_transaction={transaction_id}", "#EFF4F8", BRAND["pink"]),
                         ],
                     },
                     {"type": "separator", "color": BRAND["black"], "margin": "md"},
@@ -151,17 +154,56 @@ def build_transaction_success_flex(
                             _meta_row("โหมด", mode_label),
                         ],
                     },
-                    _plain_text("ถ้ารายการหรือหมวดไม่ถูก กดปุ่มด้านล่างเพื่อแก้ในหน้าแอป", "xs", BRAND["muted"]),
+                    _plain_text("กด ✎ เพื่อแก้ไข หรือ × เพื่อลบรายการนี้", "xs", BRAND["muted"]),
                 ],
             },
-            "footer": {
+        },
+    }
+
+
+def build_transaction_deleted_flex(
+    transaction_type: str,
+    amount: float,
+    category: str,
+    description: str,
+    transaction_date: date,
+) -> dict[str, Any]:
+    type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
+    amount_color = BRAND["green"] if transaction_type == "income" else BRAND["pink"]
+    category_text = _category_label(category)
+    return {
+        "type": "flex",
+        "altText": f"ลบสำเร็จ: {type_label} {amount:,.0f} บาท",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
                 "type": "box",
                 "layout": "vertical",
-                "spacing": "sm",
-                "paddingAll": "16px",
+                "spacing": "md",
+                "paddingAll": "20px",
                 "contents": [
-                    _uri_button("ดูรายการ", "/liff/transactions", BRAND["green"], "primary"),
-                    _uri_button("แก้หมวด/งบ", "/liff/categories", BRAND["dark_green"], "secondary"),
+                    _brand_header("ลบสำเร็จ ×", "รายการถูกลบเรียบร้อยแล้ว"),
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "spacing": "sm",
+                        "contents": [
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "spacing": "sm",
+                                "contents": [
+                                    _pill(f"{type_label} - {category_text}", amount_color, "#FFFFFF"),
+                                    _plain_text(_format_thai_datetime(transaction_date), "xs", BRAND["muted"]),
+                                    _plain_text(description or "-", "lg", BRAND["black"], weight="bold"),
+                                ],
+                                "flex": 1,
+                            },
+                            _plain_text(f"฿{amount:,.0f}", "lg", amount_color, weight="bold", align="end"),
+                        ],
+                    },
                 ],
             },
         },
@@ -277,6 +319,30 @@ def _uri_button(label: str, path: str, color: str, style: str) -> dict[str, Any]
             "label": label,
             "uri": _frontend_url(path),
         },
+    }
+
+
+def _icon_action(
+    label: str,
+    action_type: str,
+    target: str,
+    background_color: str,
+    text_color: str = BRAND["black"],
+) -> dict[str, Any]:
+    action = {"type": action_type, "label": label}
+    if action_type == "uri":
+        action["uri"] = target
+    elif action_type == "postback":
+        action["data"] = target
+    else:
+        action["text"] = target
+    return {
+        "type": "button",
+        "style": "secondary",
+        "height": "sm",
+        "color": text_color if label == "×" else background_color,
+        "action": action,
+        "flex": 0,
     }
 
 

@@ -36,6 +36,10 @@ export function getTransactions(): Promise<Transaction[]> {
   return request<Transaction[]>("/transactions");
 }
 
+export function getTransaction(id: number): Promise<Transaction> {
+  return request<Transaction>(`/transactions/${id}`);
+}
+
 export function createTransaction(payload: TransactionInput): Promise<Transaction> {
   return request<Transaction>("/transactions", {
     method: "POST",

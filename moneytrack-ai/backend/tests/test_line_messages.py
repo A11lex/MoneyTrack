@@ -5,6 +5,7 @@ from app.line_messages import (
     build_category_budget_flex,
     build_daily_summary_flex,
     build_quick_start_flex,
+    build_transaction_deleted_flex,
     build_transaction_success_flex,
 )
 
@@ -13,6 +14,7 @@ def test_build_transaction_success_flex_matches_moneytrack_ci_and_links_to_front
     monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
 
     message = build_transaction_success_flex(
+        transaction_id=42,
         transaction_type="expense",
         amount=346,
         category="Food",
@@ -28,20 +30,23 @@ def test_build_transaction_success_flex_matches_moneytrack_ci_and_links_to_front
     assert _find_text(message, "เงินไปไหน?") is False
     assert _find_text(message, "จดสำเร็จ") is True
     assert _find_text(message, "฿346") is True
+    assert _find_text(message, "ดูรายการ") is False
+    assert _find_text(message, "แก้หมวด/งบ") is False
     assert buttons[0]["action"] == {
         "type": "uri",
-        "label": "ดูรายการ",
-        "uri": "https://example.vercel.app/liff/transactions",
+        "label": "✎",
+        "uri": "https://example.vercel.app/liff/transactions/42/edit",
     }
     assert buttons[1]["action"] == {
-        "type": "uri",
-        "label": "แก้หมวด/งบ",
-        "uri": "https://example.vercel.app/liff/categories",
+        "type": "postback",
+        "label": "×",
+        "data": "delete_transaction=42",
     }
 
 
 def test_build_transaction_success_flex_uses_green_amount_for_income() -> None:
     message = build_transaction_success_flex(
+        transaction_id=43,
         transaction_type="income",
         amount=2500,
         category="Business Revenue",
@@ -53,6 +58,21 @@ def test_build_transaction_success_flex_uses_green_amount_for_income() -> None:
     assert message["altText"] == "จดสำเร็จ: รายรับ 2,500 บาท"
     assert _find_text(message, "฿2,500") is True
     assert _find_color(message, "#6DC5AD") is True
+
+
+def test_build_transaction_deleted_flex_uses_crimson_expense_accent() -> None:
+    message = build_transaction_deleted_flex(
+        transaction_type="expense",
+        amount=346,
+        category="Food",
+        description="ข้าว",
+        transaction_date=date(2026, 6, 26),
+    )
+
+    assert message["type"] == "flex"
+    assert message["altText"] == "ลบสำเร็จ: รายจ่าย 346 บาท"
+    assert _find_text(message, "ลบสำเร็จ ×") is True
+    assert _find_color(message, "#DC143C") is True
 
 
 def test_build_daily_summary_flex_shows_category_totals_and_frontend_buttons(monkeypatch) -> None:

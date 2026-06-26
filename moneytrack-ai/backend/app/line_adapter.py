@@ -11,11 +11,31 @@ def handle_line_events(
 ) -> list[dict[str, Any]]:
     replies: list[dict[str, Any]] = []
     for event in payload.get("events", []):
-        if event.get("type") != "message":
+        if event.get("type") not in {"message", "postback"}:
             continue
 
         reply_token = event.get("replyToken")
         line_user_id = event.get("source", {}).get("userId", "unknown-line-user")
+        if event.get("type") == "postback":
+            data = event.get("postback", {}).get("data", "")
+            text = _postback_to_text(data)
+            result = handle_line_message_detail(
+                line_user_id=line_user_id,
+                message=text,
+                db_path=db_path,
+                today=today,
+            )
+            replies.append(
+                {
+                    "reply_token": reply_token,
+                    "line_user_id": line_user_id,
+                    "reply": result.reply,
+                    "line_message": result.line_message,
+                    "handled": result.handled,
+                }
+            )
+            continue
+
         message = event.get("message", {})
         if message.get("type") != "text":
             replies.append(
@@ -57,3 +77,10 @@ def handle_line_events(
             }
         )
     return replies
+
+
+def _postback_to_text(data: str) -> str:
+    if data.startswith("delete_transaction="):
+        transaction_id = data.split("=", 1)[1]
+        return f"ลบรายการ {transaction_id}"
+    return data

@@ -97,6 +97,13 @@ def list_transactions(db_path: str | None = None) -> list[Transaction]:
         return [row_to_transaction(row) for row in rows]
 
 
+def get_transaction(transaction_id: int, db_path: str | None = None) -> Transaction | None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+        return row_to_transaction(row) if row else None
+
+
 def create_transaction(payload: TransactionCreate, db_path: str | None = None) -> Transaction:
     init_db(db_path)
     with get_connection(db_path) as conn:

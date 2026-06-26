@@ -58,6 +58,44 @@ def test_handle_line_events_ignores_non_text_messages(tmp_path) -> None:
     assert list_transactions(db_path) == []
 
 
+def test_handle_line_events_deletes_transaction_from_postback(tmp_path) -> None:
+    db_path = str(tmp_path / "line-events.db")
+    handle_line_events(
+        {
+            "events": [
+                {
+                    "type": "message",
+                    "replyToken": "reply-token-create",
+                    "source": {"userId": "line-user-001"},
+                    "message": {"type": "text", "text": "ข้าว 80"},
+                }
+            ]
+        },
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+    transaction_id = list_transactions(db_path)[0].id
+
+    result = handle_line_events(
+        {
+            "events": [
+                {
+                    "type": "postback",
+                    "replyToken": "reply-token-delete",
+                    "source": {"userId": "line-user-001"},
+                    "postback": {"data": f"delete_transaction={transaction_id}"},
+                }
+            ]
+        },
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result[0]["handled"] is True
+    assert result[0]["line_message"]["altText"] == "ลบสำเร็จ: รายจ่าย 80 บาท"
+    assert list_transactions(db_path) == []
+
+
 def _buttons(value: Any) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     if isinstance(value, dict):

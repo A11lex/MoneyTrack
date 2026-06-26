@@ -98,6 +98,25 @@ def test_handle_line_message_detail_returns_category_budget_flex() -> None:
     assert _buttons(result.line_message)[0]["action"]["uri"].endswith("/liff/categories")
 
 
+def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    handle_line_message("test-user-001", "ข้าว 80", db_path=db_path, today=date(2026, 6, 25))
+    transaction_id = list_transactions(db_path)[0].id
+
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message=f"ลบรายการ {transaction_id}",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result.handled is True
+    assert result.reply == "ลบแล้ว: 80 บาท"
+    assert list_transactions(db_path) == []
+    assert result.line_message is not None
+    assert result.line_message["altText"] == "ลบสำเร็จ: รายจ่าย 80 บาท"
+
+
 def _buttons(value: Any) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     if isinstance(value, dict):
