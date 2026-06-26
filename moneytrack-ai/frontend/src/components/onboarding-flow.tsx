@@ -283,7 +283,7 @@ export function OnboardingFlow() {
               </div>
               <h1 className="mt-8 text-4xl font-black text-[#0d4a2b]">พร้อมใช้งานแล้ว!</h1>
               <p className="mt-4 text-lg leading-8 text-[#665728]">กลับไปที่แชท แล้วลองพิมพ์ “ข้าว 80” หรือ “สรุปวันนี้” ได้เลย</p>
-              <PrimaryButton onClick={() => window.close()}>เริ่มต้นใช้งาน</PrimaryButton>
+              <PrimaryButton onClick={() => { window.location.href = "/liff/summary"; }}>เริ่มต้นใช้งาน</PrimaryButton>
             </div>
           )}
         </section>
