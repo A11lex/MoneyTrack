@@ -22,6 +22,11 @@ import { deleteTransaction, getDashboard, getTransactions, updateTransaction } f
 import type { DashboardData, Transaction, TransactionInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
+type UserPlan = "free" | "pro";
+type LineProfile = {
+  display_name: string;
+  picture_url: string | null;
+};
 
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
   { id: "summary", label: "สรุป", href: "/liff/summary", icon: Home },
@@ -38,6 +43,8 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [profile, setProfile] = useState<LineProfile>({ display_name: "ผู้ใช้งาน", picture_url: null });
+  const [plan] = useState<UserPlan>(() => loadStoredUserPlan());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,6 +66,12 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    loadLineProfile()
+      .then(setProfile)
+      .catch(() => setProfile({ display_name: "ผู้ใช้งาน", picture_url: null }));
   }, []);
 
   const latest = useMemo(() => transactions.slice(0, 4), [transactions]);
@@ -90,7 +103,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
             <LoadingState />
           ) : (
             <>
-              {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} />}
+              {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} />}
               {tab === "insights" && <InsightsScreen dashboard={dashboard} />}
               {tab === "categories" && <CategoriesScreen />}
               {tab === "transactions" && <TransactionsScreen transactions={transactions} onEdit={setEditingTransaction} />}
@@ -127,7 +140,19 @@ function LiffHeader({ title }: { title: string }) {
   );
 }
 
-function SummaryScreen({ dashboard, latest, onEdit }: { dashboard: DashboardData | null; latest: Transaction[]; onEdit: (transaction: Transaction) => void }) {
+function SummaryScreen({
+  dashboard,
+  latest,
+  onEdit,
+  plan,
+  profile,
+}: {
+  dashboard: DashboardData | null;
+  latest: Transaction[];
+  onEdit: (transaction: Transaction) => void;
+  plan: UserPlan;
+  profile: LineProfile;
+}) {
   const summary = dashboard?.summary;
   const net = summary?.net_balance ?? 0;
   const income = summary?.total_income ?? 0;
@@ -136,7 +161,7 @@ function SummaryScreen({ dashboard, latest, onEdit }: { dashboard: DashboardData
 
   return (
     <div className="space-y-5">
-      <SummaryProfileCard />
+      <SummaryProfileCard plan={plan} profile={profile} />
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xl font-black">สรุป</h2>
@@ -341,13 +366,14 @@ function SettingsScreen() {
   );
 }
 
-function SummaryProfileCard() {
+function SummaryProfileCard({ plan, profile }: { plan: UserPlan; profile: LineProfile }) {
+  const planLabel = plan === "pro" ? "ผู้ใช้งานPro" : "ผู้ใช้งานฟรี";
   return (
     <section className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
-      <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={48} height={48} className="h-12 w-12 rounded-full object-cover" />
+      <Image src={profile.picture_url ?? "/brand/moneytrack-pro.png"} alt={profile.display_name} width={48} height={48} className="h-12 w-12 rounded-full object-cover" unoptimized={Boolean(profile.picture_url)} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-2xl font-black">เงินไปไหน?</p>
-        <p className="mt-1 text-xs font-semibold text-[#8a928e]">หลานฟรี</p>
+        <p className="truncate text-2xl font-black">{profile.display_name}</p>
+        <p className="mt-1 text-xs font-semibold text-[#8a928e]">{planLabel}</p>
       </div>
       <Image src="/brand/moneytrack-pro.png" alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover opacity-80" />
     </section>
@@ -626,6 +652,58 @@ function BottomNav({ active }: { active: LiffTab }) {
 function titleFor(tab: LiffTab) {
   const found = tabs.find((item) => item.id === tab);
   return found?.label ?? "เงินไปไหน?";
+}
+
+function loadStoredUserPlan(): UserPlan {
+  if (typeof window === "undefined") return "free";
+  return window.localStorage.getItem("moneytrack_user_plan") === "pro" ? "pro" : "free";
+}
+
+async function loadLineProfile(): Promise<LineProfile> {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  if (!liffId || typeof window === "undefined") {
+    return { display_name: "ผู้ใช้งาน", picture_url: null };
+  }
+
+  await loadLiffSdk();
+  if (!window.liff) {
+    return { display_name: "ผู้ใช้งาน", picture_url: null };
+  }
+
+  await window.liff.init({ liffId });
+  if (!window.liff.isLoggedIn()) {
+    window.liff.login();
+    return { display_name: "ผู้ใช้งาน", picture_url: null };
+  }
+
+  const liffProfile = await window.liff.getProfile();
+  return {
+    display_name: liffProfile.displayName,
+    picture_url: liffProfile.pictureUrl ?? null,
+  };
+}
+
+function loadLiffSdk(): Promise<void> {
+  if (window.liff) {
+    return Promise.resolve();
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://static.line-scdn.net/liff/edge/2/sdk.js"]');
+  if (existingScript) {
+    return new Promise((resolve, reject) => {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load LIFF SDK")), { once: true });
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load LIFF SDK"));
+    document.head.appendChild(script);
+  });
 }
 
 function formatThaiShortDate(value?: string) {
