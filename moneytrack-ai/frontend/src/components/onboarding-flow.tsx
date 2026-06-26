@@ -1,13 +1,35 @@
 "use client";
 
+import type { ElementType, ReactNode } from "react";
+import Image from "next/image";
 import { useMemo, useState } from "react";
-import { CheckCircle2, ChevronLeft, HandCoins, Home, LineChart, Loader2, Plus, ReceiptText, ShoppingBag, Sparkles, Utensils, WalletCards } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  ChevronLeft,
+  CircleDollarSign,
+  HandCoins,
+  Home,
+  Loader2,
+  Megaphone,
+  MoreHorizontal,
+  PiggyBank,
+  Plus,
+  ReceiptText,
+  ShoppingBag,
+  Sparkles,
+  TrendingUp,
+  Truck,
+  Utensils,
+  WalletCards,
+} from "lucide-react";
 
 import { saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
 
 type Step = "welcome" | "source" | "expense" | "income" | "done";
 
 const steps: Step[] = ["welcome", "source", "expense", "income", "done"];
+
 const mockProfile = {
   line_user_id: "mock-line-user",
   display_name: "LINE User",
@@ -15,17 +37,17 @@ const mockProfile = {
 };
 
 const sources = [
-  { label: "คนรู้จัก", icon: "people" },
-  { label: "TikTok", icon: "tiktok" },
-  { label: "Facebook", icon: "facebook" },
-  { label: "Instagram", icon: "instagram" },
-  { label: "Google", icon: "google" },
-  { label: "อื่น ๆ", icon: "more" },
+  { label: "คนรู้จัก", icon: Megaphone },
+  { label: "TikTok", icon: Sparkles },
+  { label: "Facebook", icon: CircleDollarSign },
+  { label: "Instagram", icon: PiggyBank },
+  { label: "Google", icon: TrendingUp },
+  { label: "อื่น ๆ", icon: MoreHorizontal },
 ];
 
 const expenseCategories = [
   { label: "Food", text: "อาหาร", icon: Utensils, recommended: true },
-  { label: "Transport", text: "เดินทาง", icon: LineChart, recommended: true },
+  { label: "Transport", text: "เดินทาง", icon: Truck, recommended: true },
   { label: "Rent / Home", text: "ที่พัก", icon: Home, recommended: true },
   { label: "Shopping", text: "ช้อปปิ้ง", icon: ShoppingBag },
   { label: "Utilities", text: "ค่าน้ำค่าไฟ", icon: ReceiptText, recommended: true },
@@ -34,7 +56,7 @@ const expenseCategories = [
 
 const incomeCategories = [
   { label: "Salary", text: "เงินเดือน", icon: WalletCards, recommended: true },
-  { label: "Business Revenue", text: "ธุรกิจส่วนตัว", icon: Home, recommended: true },
+  { label: "Business Revenue", text: "ธุรกิจส่วนตัว", icon: BriefcaseBusiness, recommended: true },
   { label: "Freelance", text: "งานพิเศษ", icon: Sparkles, recommended: true },
   { label: "Other Income", text: "รายรับอื่น ๆ", icon: HandCoins },
 ];
@@ -47,6 +69,7 @@ export function OnboardingFlow() {
   const [income, setIncome] = useState<string[]>(["Salary", "Business Revenue", "Freelance"]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const step = steps[stepIndex];
   const progress = useMemo(() => ((stepIndex + 1) / steps.length) * 100, [stepIndex]);
 
@@ -67,7 +90,7 @@ export function OnboardingFlow() {
       });
       setStepIndex(steps.indexOf("done"));
     } catch {
-      setError("ยังบันทึกไม่ได้ ลองเปิด backend แล้วลองอีกครั้ง");
+      setError("ยังบันทึกไม่ได้ ลองตรวจสอบ backend แล้วกดอีกครั้ง");
     } finally {
       setSaving(false);
     }
@@ -86,30 +109,40 @@ export function OnboardingFlow() {
   }
 
   return (
-    <main className="min-h-screen bg-[#fffaf2] text-[#111111]">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-black/5 bg-white/95 px-5 py-4">
-          <div>
-            <p className="text-lg font-bold">เงินไปไหน?</p>
-            <p className="text-xs text-[#7A4A1F]">LIFF onboarding mock</p>
+    <main className="min-h-screen bg-[#fff2c9] text-[#1b1405]">
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
+        <div className="absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-white/35 blur-3xl" />
+        <div className="absolute left-5 top-28 rotate-[-18deg] text-5xl text-[#d1a22d]/25">฿</div>
+        <div className="absolute right-8 top-36 rotate-12 text-4xl text-[#d1a22d]/30">฿</div>
+        <div className="absolute bottom-28 left-10 rotate-6 text-5xl text-[#0d3b22]/10">฿</div>
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col bg-[#fff8df]/75 shadow-[0_0_60px_rgba(86,57,6,0.12)]">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#241800]/10 bg-[#fff8df]/95 px-5 py-4 backdrop-blur">
+          <div className="flex items-center gap-3">
+            <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={44} height={44} className="h-11 w-11 rounded-full object-cover ring-2 ring-white" priority />
+            <div>
+              <p className="text-lg font-black leading-none text-[#251704]">เงินไปไหน?</p>
+              <p className="mt-1 text-xs font-bold text-[#0d4a2b]">จัดการง่าย เห็นภาพชัด</p>
+            </div>
           </div>
-          <div className="flex rounded-full bg-[#f4edf3] p-1 text-sm font-semibold">
-            <button type="button" onClick={() => setLanguage("th")} className={`rounded-full px-4 py-2 ${language === "th" ? "bg-white shadow-sm" : "text-black/50"}`}>
+          <div className="flex rounded-full bg-[#efe0b6] p-1 text-sm font-black text-[#6d5114]">
+            <button type="button" onClick={() => setLanguage("th")} className={`rounded-full px-3 py-2 ${language === "th" ? "bg-white text-[#1b1405] shadow-sm" : ""}`}>
               ไทย
             </button>
-            <button type="button" onClick={() => setLanguage("en")} className={`rounded-full px-4 py-2 ${language === "en" ? "bg-white shadow-sm" : "text-black/50"}`}>
+            <button type="button" onClick={() => setLanguage("en")} className={`rounded-full px-3 py-2 ${language === "en" ? "bg-white text-[#1b1405] shadow-sm" : ""}`}>
               EN
             </button>
           </div>
         </header>
 
-        <section className="flex flex-1 flex-col px-5 py-8">
+        <section className="flex flex-1 flex-col px-5 py-7">
           {step !== "done" && (
             <>
-              <p className="text-center text-xl font-bold text-black/55">ติดตั้งครั้งแรก</p>
-              <div className="mt-6 grid grid-cols-5 gap-3">
+              <p className="text-center text-base font-black text-[#7b6220]">ติดตั้งครั้งแรก</p>
+              <div className="mt-5 grid grid-cols-5 gap-3" aria-hidden="true">
                 {steps.map((item, index) => (
-                  <div key={item} className={`h-2 rounded-full ${index <= stepIndex ? "bg-[#F04FA3]" : "bg-black/5"}`} />
+                  <div key={item} className={`h-2 rounded-full ${index <= stepIndex ? "bg-[#0d4a2b]" : "bg-[#eadcae]"}`} />
                 ))}
               </div>
               <span className="sr-only">Progress {Math.round(progress)}%</span>
@@ -117,24 +150,26 @@ export function OnboardingFlow() {
           )}
 
           {step === "welcome" && (
-            <div className="mt-12 flex flex-1 flex-col">
-              <h1 className="text-center text-4xl font-extrabold leading-tight text-[#F04FA3]">ยินดีต้อนรับสู่เงินไปไหน!</h1>
-              <p className="mt-4 text-center text-lg leading-8 text-black/55">ผู้ช่วยจัดการการเงินส่วนตัวของคุณ จดง่ายผ่าน LINE และสรุปให้เข้าใจทันที</p>
-              <div className="mt-8 rounded-md border border-[#f1c4db] bg-white p-5 shadow-sm">
-                <h2 className="text-xl font-bold">พิมพ์บอกป้า ป้าจดให้</h2>
-                <p className="mt-3 leading-7 text-black/55">ตัวอย่าง: ข้าว 80, รับเงินลูกค้า 2500, สรุปวันนี้</p>
-                <div className="mt-5 rounded-md bg-[#FFF3D6] p-4 text-sm font-semibold text-[#7A4A1F]">ใช้เวลาไม่ถึง 1 นาที ตั้งค่าให้พร้อมใช้งาน</div>
+            <div className="flex flex-1 flex-col pt-8">
+              <div className="mx-auto w-full max-w-[18rem]">
+                <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน จัดการจ่าย เห็นภาพชัด เก็บเงินอยู่" width={1040} height={1040} className="w-full rounded-[1.75rem] object-cover shadow-[0_18px_45px_rgba(95,65,9,0.24)] ring-4 ring-white/80" priority />
+              </div>
+              <div className="mt-8 rounded-md border border-[#dbbf6b] bg-white/85 p-5 shadow-sm">
+                <p className="text-sm font-black uppercase tracking-[0.18em] text-[#a57a0b]">MoneyTrack AI</p>
+                <h1 className="mt-3 text-3xl font-black leading-tight text-[#221603]">ยินดีต้อนรับสู่เงินไปไหน?</h1>
+                <p className="mt-4 text-base leading-7 text-[#665728]">ผู้ช่วยจดรายรับรายจ่ายผ่าน LINE พิมพ์สั้น ๆ แล้วให้ระบบจัดหมวด สรุปเงิน และเตือนก่อนใช้เกินงบ</p>
+                <div className="mt-5 rounded-md bg-[#0d4a2b] px-4 py-3 text-sm font-black text-[#ffe16a]">ใช้เวลาไม่ถึง 1 นาที ตั้งค่าให้พร้อมใช้งาน</div>
               </div>
               <PrimaryButton onClick={next}>เริ่มต้นใช้งาน</PrimaryButton>
             </div>
           )}
 
           {step === "source" && (
-            <StepPanel title="รู้จักเงินไปไหนจากช่องทางไหน?" subtitle="เลือก 1 ข้อ เพื่อให้เรารู้จักคุณมากขึ้น">
-              <div className="grid grid-cols-2 gap-4">
+            <StepPanel title="รู้จักเงินไปไหนจากช่องทางไหน?" subtitle="เลือก 1 ข้อ เพื่อให้เรารู้จักผู้ใช้งานจริงมากขึ้น">
+              <div className="grid grid-cols-2 gap-3">
                 {sources.map((item) => (
                   <ChoiceButton key={item.label} selected={source === item.label} onClick={() => setSource(item.label)}>
-                    <SourceIcon icon={item.icon} />
+                    <item.icon className="h-7 w-7 text-[#0d4a2b]" />
                     {item.label}
                   </ChoiceButton>
                 ))}
@@ -144,25 +179,27 @@ export function OnboardingFlow() {
           )}
 
           {step === "expense" && (
-            <StepPanel title="เลือกหมวดรายจ่าย" subtitle="เลือกหมวดที่เหมาะกับคุณ เพื่อวางแผนการใช้จ่าย">
-              <CategoryGrid options={expenseCategories} selected={expenses} onToggle={(value) => toggle(value, expenses, setExpenses)} color="#F04FA3" />
+            <StepPanel title="เลือกหมวดรายจ่าย" subtitle="เลือกหมวดที่ใช้บ่อย เพื่อให้บอทจัดรายการได้แม่นขึ้น">
+              <CategoryGrid options={expenseCategories} selected={expenses} onToggle={(value) => toggle(value, expenses, setExpenses)} tone="expense" />
               <FooterNav onBack={back} onNext={next} />
             </StepPanel>
           )}
 
           {step === "income" && (
-            <StepPanel title="เลือกหมวดรายรับ" subtitle="เลือกหมวดรายรับที่เหมาะกับคุณ เพื่อติดตามรายได้">
-              <CategoryGrid options={incomeCategories} selected={income} onToggle={(value) => toggle(value, income, setIncome)} color="#6EC7B0" />
-              {error && <p className="mt-4 rounded-md bg-[#fff3f3] p-3 text-sm font-semibold text-[#E60012]">{error}</p>}
+            <StepPanel title="เลือกหมวดรายรับ" subtitle="เลือกแหล่งรายรับหลัก เพื่อใช้สรุปเงินเข้าและคาดการณ์เงินเหลือ">
+              <CategoryGrid options={incomeCategories} selected={income} onToggle={(value) => toggle(value, income, setIncome)} tone="income" />
+              {error && <p className="mt-4 rounded-md border border-[#d94025]/20 bg-[#fff0e6] p-3 text-sm font-bold text-[#9d2b14]">{error}</p>}
               <FooterNav onBack={back} onNext={next} nextLabel={saving ? "กำลังบันทึก..." : "เสร็จสิ้น"} disabled={saving} loading={saving} />
             </StepPanel>
           )}
 
           {step === "done" && (
             <div className="flex flex-1 flex-col items-center justify-center text-center">
-              <CheckCircle2 className="h-28 w-28 text-[#10c469]" strokeWidth={1.8} />
-              <h1 className="mt-8 text-4xl font-extrabold text-[#F04FA3]">พร้อมใช้งานแล้ว!</h1>
-              <p className="mt-4 text-lg leading-8 text-black/55">กลับไปที่แชท แล้วลองพิมพ์ “ข้าว 80” หรือ “สรุปวันนี้” ได้เลย</p>
+              <div className="rounded-full bg-white p-5 shadow-[0_16px_40px_rgba(52,91,48,0.18)]">
+                <CheckCircle2 className="h-24 w-24 text-[#0d8b4c]" strokeWidth={1.8} />
+              </div>
+              <h1 className="mt-8 text-4xl font-black text-[#0d4a2b]">พร้อมใช้งานแล้ว!</h1>
+              <p className="mt-4 text-lg leading-8 text-[#665728]">กลับไปที่แชท แล้วลองพิมพ์ “ข้าว 80” หรือ “สรุปวันนี้” ได้เลย</p>
               <PrimaryButton onClick={() => window.close()}>เริ่มต้นใช้งาน</PrimaryButton>
             </div>
           )}
@@ -172,12 +209,15 @@ export function OnboardingFlow() {
   );
 }
 
-function StepPanel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function StepPanel({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   return (
-    <div className="mt-14 flex flex-1 flex-col">
-      <h1 className="text-4xl font-extrabold leading-tight text-[#F04FA3]">{title}</h1>
-      <p className="mt-4 text-lg leading-8 text-black/55">{subtitle}</p>
-      <div className="mt-8">{children}</div>
+    <div className="mt-11 flex flex-1 flex-col">
+      <div className="rounded-md border border-[#dbbf6b] bg-white/82 p-5 shadow-sm">
+        <p className="text-sm font-black text-[#a57a0b]">ตั้งค่าให้บอทเข้าใจคุณ</p>
+        <h1 className="mt-3 text-3xl font-black leading-tight text-[#0d4a2b]">{title}</h1>
+        <p className="mt-4 text-base leading-7 text-[#665728]">{subtitle}</p>
+      </div>
+      <div className="mt-5">{children}</div>
     </div>
   );
 }
@@ -186,15 +226,17 @@ function CategoryGrid({
   options,
   selected,
   onToggle,
-  color,
+  tone,
 }: {
-  options: { label: string; text: string; icon: React.ElementType; recommended?: boolean }[];
+  options: { label: string; text: string; icon: ElementType; recommended?: boolean }[];
   selected: string[];
   onToggle: (value: string) => void;
-  color: string;
+  tone: "expense" | "income";
 }) {
+  const selectedClass = tone === "income" ? "bg-[#0d4a2b] text-[#ffe16a] border-[#0d4a2b]" : "bg-[#f5c842] text-[#201400] border-[#be8c0b]";
+
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3">
       {options.map((item) => {
         const Icon = item.icon;
         const isSelected = selected.includes(item.label);
@@ -203,12 +245,15 @@ function CategoryGrid({
             key={item.label}
             type="button"
             onClick={() => onToggle(item.label)}
-            className="flex min-h-24 items-center gap-3 rounded-md border border-black/10 bg-white p-4 text-left text-lg font-bold shadow-sm"
-            style={isSelected ? { backgroundColor: color, color: "white" } : undefined}
+            className={`flex min-h-24 items-center gap-3 rounded-md border p-4 text-left text-lg font-black shadow-sm transition active:scale-[0.99] ${
+              isSelected ? selectedClass : "border-[#d8c27e] bg-white/90 text-[#241800]"
+            }`}
           >
-            <Icon className="h-8 w-8 shrink-0" />
+            <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${isSelected ? "bg-white/22" : "bg-[#fff2c9]"}`}>
+              <Icon className="h-6 w-6" />
+            </span>
             <span className="min-w-0 truncate">{item.text}</span>
-            {item.recommended && <span className="ml-auto text-sm">★</span>}
+            {item.recommended && <span className="ml-auto text-[#bd8500]">★</span>}
           </button>
         );
       })}
@@ -216,25 +261,18 @@ function CategoryGrid({
   );
 }
 
-function ChoiceButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: React.ReactNode }) {
+function ChoiceButton({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: ReactNode }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-20 items-center gap-3 rounded-md border border-black/10 bg-white p-4 text-left text-lg font-bold shadow-sm ${selected ? "ring-4 ring-[#F04FA3]/20" : ""}`}
+      className={`flex min-h-20 items-center gap-3 rounded-md border p-4 text-left text-lg font-black shadow-sm transition active:scale-[0.99] ${
+        selected ? "border-[#0d4a2b] bg-[#0d4a2b] text-[#ffe16a]" : "border-[#d8c27e] bg-white/90 text-[#241800]"
+      }`}
     >
       {children}
     </button>
   );
-}
-
-function SourceIcon({ icon }: { icon: string }) {
-  if (icon === "instagram") return <span className="text-3xl font-black text-[#F04FA3]">◎</span>;
-  if (icon === "facebook") return <span className="text-3xl font-black text-[#1877F2]">f</span>;
-  if (icon === "tiktok") return <span className="text-3xl font-black">♪</span>;
-  if (icon === "google") return <span className="text-2xl font-black text-[#4285F4]">G</span>;
-  if (icon === "more") return <span className="text-3xl font-black text-black/50">...</span>;
-  return <span className="text-3xl text-[#F04FA3]">👥</span>;
 }
 
 function FooterNav({
@@ -252,10 +290,10 @@ function FooterNav({
 }) {
   return (
     <div className="mt-8 grid grid-cols-[auto_1fr] gap-3">
-      <button type="button" onClick={onBack} className="grid h-14 w-14 place-items-center rounded-md border border-black/10 bg-white shadow-sm" aria-label="ย้อนกลับ">
-        <ChevronLeft />
+      <button type="button" onClick={onBack} className="grid h-14 w-14 place-items-center rounded-md border border-[#d8c27e] bg-white/90 shadow-sm" aria-label="ย้อนกลับ">
+        <ChevronLeft className="text-[#0d4a2b]" />
       </button>
-      <button type="button" disabled={disabled} onClick={onNext} className="flex h-14 items-center justify-center gap-2 rounded-md bg-[#F04FA3] text-lg font-bold text-white shadow-sm disabled:opacity-60">
+      <button type="button" disabled={disabled} onClick={onNext} className="flex h-14 items-center justify-center gap-2 rounded-md bg-[#0d4a2b] text-lg font-black text-[#ffe16a] shadow-sm disabled:opacity-60">
         {loading && <Loader2 className="h-5 w-5 animate-spin" />}
         {nextLabel}
       </button>
@@ -263,9 +301,9 @@ function FooterNav({
   );
 }
 
-function PrimaryButton({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+function PrimaryButton({ children, onClick }: { children: ReactNode; onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="mt-auto h-16 w-full rounded-md bg-[#F04FA3] text-xl font-bold text-white shadow-sm">
+    <button type="button" onClick={onClick} className="mt-auto h-16 w-full rounded-md bg-[#0d4a2b] text-xl font-black text-[#ffe16a] shadow-[0_14px_28px_rgba(13,74,43,0.22)]">
       {children}
     </button>
   );
