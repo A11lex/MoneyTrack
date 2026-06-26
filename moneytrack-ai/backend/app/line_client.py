@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
+LINE_LINK_RICH_MENU_URL = "https://api.line.me/v2/bot/user/{user_id}/richmenu/{rich_menu_id}"
 
 
 LineReplyMessage = str | dict[str, Any]
@@ -30,6 +31,20 @@ def send_line_reply(
             "Content-Type": "application/json",
         },
         json=build_reply_payload(reply_token, reply_message),
+        timeout=10,
+    )
+    response.raise_for_status()
+
+
+def link_user_rich_menu(
+    line_user_id: str,
+    rich_menu_id: str,
+    access_token: str,
+    post: Callable[..., Any] = httpx.post,
+) -> None:
+    response = post(
+        LINE_LINK_RICH_MENU_URL.format(user_id=line_user_id, rich_menu_id=rich_menu_id),
+        headers={"Authorization": f"Bearer {access_token}"},
         timeout=10,
     )
     response.raise_for_status()

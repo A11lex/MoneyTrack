@@ -2,7 +2,7 @@
 
 import type { ElementType, ReactNode } from "react";
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   BriefcaseBusiness,
   CheckCircle2,
@@ -31,11 +31,36 @@ type Step = "welcome" | "source" | "expense" | "income" | "done";
 
 const steps: Step[] = ["welcome", "source", "expense", "income", "done"];
 
-const mockProfile = {
+type LineProfile = {
+  line_user_id: string;
+  display_name: string;
+  picture_url: string | null;
+};
+
+const mockProfile: LineProfile = {
   line_user_id: "mock-line-user",
   display_name: "LINE User",
   picture_url: null,
 };
+
+type LiffProfile = {
+  userId: string;
+  displayName: string;
+  pictureUrl?: string;
+};
+
+type LiffClient = {
+  init: (options: { liffId: string }) => Promise<void>;
+  isLoggedIn: () => boolean;
+  login: () => void;
+  getProfile: () => Promise<LiffProfile>;
+};
+
+declare global {
+  interface Window {
+    liff?: LiffClient;
+  }
+}
 
 const sources = [
   { label: "คนรู้จัก", icon: Megaphone },
@@ -73,18 +98,25 @@ export function OnboardingFlow() {
   const [expenseCustomName, setExpenseCustomName] = useState("");
   const [incomeCustomName, setIncomeCustomName] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<LineProfile>(mockProfile);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const step = steps[stepIndex];
   const progress = useMemo(() => ((stepIndex + 1) / steps.length) * 100, [stepIndex]);
 
+  useEffect(() => {
+    loadLineProfile()
+      .then(setProfile)
+      .catch(() => setProfile(mockProfile));
+  }, []);
+
   async function finish() {
     setSaving(true);
     setError(null);
     try {
-      await upsertLineUser(mockProfile);
-      await saveLineUserOnboarding(mockProfile.line_user_id, {
+      await upsertLineUser(profile);
+      await saveLineUserOnboarding(profile.line_user_id, {
         discovery_source: source,
         expense_categories: expenses,
         income_categories: income,
@@ -427,4 +459,52 @@ function toggle(value: string, selected: string[], setSelected: (value: string[]
 function customValues(options: { label: string }[], selected: string[]) {
   const defaultLabels = new Set(options.map((item) => item.label));
   return selected.filter((item) => !defaultLabels.has(item));
+}
+
+async function loadLineProfile(): Promise<LineProfile> {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  if (!liffId || typeof window === "undefined") {
+    return mockProfile;
+  }
+
+  await loadLiffSdk();
+  if (!window.liff) {
+    return mockProfile;
+  }
+
+  await window.liff.init({ liffId });
+  if (!window.liff.isLoggedIn()) {
+    window.liff.login();
+    return mockProfile;
+  }
+
+  const liffProfile = await window.liff.getProfile();
+  return {
+    line_user_id: liffProfile.userId,
+    display_name: liffProfile.displayName,
+    picture_url: liffProfile.pictureUrl ?? null,
+  };
+}
+
+function loadLiffSdk(): Promise<void> {
+  if (window.liff) {
+    return Promise.resolve();
+  }
+
+  const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://static.line-scdn.net/liff/edge/2/sdk.js"]');
+  if (existingScript) {
+    return new Promise((resolve, reject) => {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load LIFF SDK")), { once: true });
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load LIFF SDK"));
+    document.head.appendChild(script);
+  });
 }

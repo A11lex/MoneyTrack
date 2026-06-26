@@ -1,4 +1,5 @@
 import os
+import logging
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -16,7 +17,7 @@ from .database import (
 )
 from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
 from .line_adapter import handle_line_events
-from .line_client import send_line_reply
+from .line_client import link_user_rich_menu, send_line_reply
 from .line_security import verify_line_signature
 from .line_service import LineWebhookPayload, LineWebhookResponse, handle_line_message
 from .models import (
@@ -32,17 +33,24 @@ from .models import (
 )
 
 app = FastAPI(title="MoneyTrack AI API", version="0.1.0")
+logger = logging.getLogger(__name__)
+
+frontend_origin = os.getenv("FRONTEND_ORIGIN")
+allowed_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3001",
+    "http://localhost:3002",
+    "http://127.0.0.1:3002",
+    "https://money-track-sandy.vercel.app",
+]
+if frontend_origin:
+    allowed_origins.append(frontend_origin)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
-        "http://localhost:3002",
-        "http://127.0.0.1:3002",
-    ],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -145,4 +153,11 @@ def post_line_user_onboarding(line_user_id: str, payload: OnboardingPayload) -> 
     setup = save_user_onboarding(line_user_id, payload)
     if setup is None:
         raise HTTPException(status_code=404, detail="LINE user not found")
+    access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+    main_rich_menu_id = os.getenv("LINE_RICH_MENU_MAIN_ID")
+    if access_token and main_rich_menu_id:
+        try:
+            link_user_rich_menu(line_user_id, main_rich_menu_id, access_token)
+        except Exception:
+            logger.exception("Failed to link LINE main rich menu for user %s", line_user_id)
     return setup

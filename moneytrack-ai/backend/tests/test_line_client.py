@@ -1,4 +1,4 @@
-from app.line_client import build_reply_payload, send_line_reply
+from app.line_client import build_reply_payload, link_user_rich_menu, send_line_reply
 
 
 def test_build_reply_payload_formats_line_text_message() -> None:
@@ -41,6 +41,28 @@ def test_send_line_reply_posts_to_line_reply_api() -> None:
                 "replyToken": "reply-token-001",
                 "messages": [{"type": "text", "text": "บันทึกแล้ว"}],
             },
+            "timeout": 10,
+        }
+    ]
+
+
+def test_link_user_rich_menu_posts_to_line_rich_menu_api() -> None:
+    calls = []
+
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_post(url, *, headers, timeout):
+        calls.append({"url": url, "headers": headers, "timeout": timeout})
+        return FakeResponse()
+
+    link_user_rich_menu("line-user-001", "richmenu-main-001", "access-token-001", post=fake_post)
+
+    assert calls == [
+        {
+            "url": "https://api.line.me/v2/bot/user/line-user-001/richmenu/richmenu-main-001",
+            "headers": {"Authorization": "Bearer access-token-001"},
             "timeout": 10,
         }
     ]
