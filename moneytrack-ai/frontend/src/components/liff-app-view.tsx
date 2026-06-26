@@ -254,6 +254,7 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
 
 function CategoriesScreen() {
   const [kind, setKind] = useState<"expense" | "income">("expense");
+  const [storedExpenseCategories, setStoredExpenseCategories] = useState<string[]>(() => loadStoredExpenseCategories());
   const [customIncomeCategories, setCustomIncomeCategories] = useState<string[]>([]);
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
@@ -263,7 +264,7 @@ function CategoriesScreen() {
   const [budgetCycle, setBudgetCycle] = useState<BudgetCycle>(() => loadStoredBudgetCycle());
   const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
   const [totalBudget, setTotalBudget] = useState(() => loadStoredTotalBudget());
-  const items = kind === "expense" ? expenseCategories : [...incomeCategories, ...customIncomeCategories];
+  const items = kind === "expense" ? storedExpenseCategories : [...incomeCategories, ...customIncomeCategories];
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
   const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
@@ -359,8 +360,18 @@ function CategoriesScreen() {
           category={selectedExpenseCategory}
           onClose={() => setSelectedExpenseCategory(null)}
           onSave={(category, budget) => {
+            const previousCategory = selectedExpenseCategory;
+            setStoredExpenseCategories((current) => {
+              const next = current.map((item) => (item === previousCategory ? category : item));
+              saveStoredExpenseCategories(next);
+              return next;
+            });
             setExpenseBudgets((current) => {
-              const next = { ...current, [category]: budget };
+              const next = { ...current };
+              if (previousCategory !== category) {
+                delete next[previousCategory];
+              }
+              next[category] = budget;
               saveStoredExpenseBudgets(next);
               return next;
             });
@@ -1128,6 +1139,22 @@ function loadStoredUserPlan(): UserPlan {
 function loadStoredBudgetMode(): BudgetMode {
   if (typeof window === "undefined") return "category";
   return window.localStorage.getItem("moneytrack_budget_mode") === "total" ? "total" : "category";
+}
+
+function loadStoredExpenseCategories(): string[] {
+  if (typeof window === "undefined") return expenseCategories;
+  try {
+    const value = JSON.parse(window.localStorage.getItem("moneytrack_expense_categories") ?? "null");
+    return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : expenseCategories;
+  } catch {
+    return expenseCategories;
+  }
+}
+
+function saveStoredExpenseCategories(value: string[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_expense_categories", JSON.stringify(value));
+  }
 }
 
 function saveStoredBudgetMode(value: BudgetMode) {
