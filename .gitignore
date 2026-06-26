@@ -1,6 +1,7 @@
 .codex-remote-attachments/
 moneytrack-ai/backend/.generated/
 moneytrack-ai/backend/.pytest_cache/
+moneytrack-ai/backend/scripts/__pycache__/
 moneytrack-ai/backend/moneytrack.db
 moneytrack-ai/backend/server.log
 moneytrack-ai/backend/server.err.log

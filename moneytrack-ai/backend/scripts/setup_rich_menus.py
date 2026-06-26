@@ -17,6 +17,7 @@ MAX_IMAGE_BYTES = 1_000_000
 def main() -> None:
     access_token = required_env("LINE_CHANNEL_ACCESS_TOKEN")
     liff_url = os.getenv("LIFF_ONBOARDING_URL") or liff_url_from_id(required_env("NEXT_PUBLIC_LIFF_ID"))
+    app_base_url = os.getenv("LIFF_APP_BASE_URL", "https://money-track-sandy.vercel.app").rstrip("/")
 
     start_image = prepare_image(ASSET_DIR / "ListMenuStart.png")
     main_image = prepare_image(ASSET_DIR / "ListMenuMain.png")
@@ -30,7 +31,7 @@ def main() -> None:
 
     main_menu_id = create_rich_menu(
         access_token,
-        build_main_menu_payload(main_image.width, main_image.height, liff_url),
+        build_main_menu_payload(main_image.width, main_image.height, app_base_url),
     )
     upload_rich_menu_image(access_token, main_menu_id, main_image.path)
 
@@ -91,7 +92,7 @@ def build_start_menu_payload(width: int, height: int, liff_url: str) -> dict[str
     }
 
 
-def build_main_menu_payload(width: int, height: int, liff_url: str) -> dict[str, Any]:
+def build_main_menu_payload(width: int, height: int, app_base_url: str) -> dict[str, Any]:
     # Coordinates match the current 1920x1200 artwork and scale if the image size changes.
     def area(x: int, y: int, w: int, h: int, action: dict[str, str]) -> dict[str, Any]:
         return {
@@ -110,12 +111,12 @@ def build_main_menu_payload(width: int, height: int, liff_url: str) -> dict[str,
         "name": "MoneyTrack Main",
         "chatBarText": "เมนู",
         "areas": [
-            area(1200, 0, 360, 410, {"type": "message", "text": "สรุปวันนี้"}),
-            area(1560, 0, 360, 410, {"type": "message", "text": "วิเคราะห์"}),
-            area(1200, 410, 360, 440, {"type": "message", "text": "หมวด/งบ"}),
-            area(1560, 410, 360, 440, {"type": "message", "text": "รายการ"}),
+            area(1200, 0, 360, 410, {"type": "uri", "uri": f"{app_base_url}/liff/summary"}),
+            area(1560, 0, 360, 410, {"type": "uri", "uri": f"{app_base_url}/liff/insights"}),
+            area(1200, 410, 360, 440, {"type": "uri", "uri": f"{app_base_url}/liff/categories"}),
+            area(1560, 410, 360, 440, {"type": "uri", "uri": f"{app_base_url}/liff/transactions"}),
             area(860, 850, 340, 350, {"type": "message", "text": "ประกาศ"}),
-            area(1200, 850, 360, 350, {"type": "uri", "uri": liff_url}),
+            area(1200, 850, 360, 350, {"type": "uri", "uri": f"{app_base_url}/liff/settings"}),
             area(1560, 850, 360, 350, {"type": "message", "text": "Help"}),
         ],
     }
