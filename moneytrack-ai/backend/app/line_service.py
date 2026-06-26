@@ -3,8 +3,9 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from .database import create_transaction, delete_transaction, get_transaction, list_transactions
+from .database import create_transaction, delete_transaction, get_transaction, get_user_setup, list_transactions
 from .line_messages import (
+    build_budget_alert_flex,
     build_category_budget_flex,
     build_daily_summary_flex,
     build_quick_start_flex,
@@ -84,7 +85,7 @@ def handle_line_message_detail(
         )
 
     saved = create_transaction(transaction, db_path)
-    line_message = build_transaction_success_flex(
+    line_message = _budget_alert_after_transaction(line_user_id, saved, db_path) or build_transaction_success_flex(
         transaction_id=saved.id,
         transaction_type=saved.type.value,
         amount=saved.amount,
@@ -159,3 +160,76 @@ def _format_baht(amount: float) -> str:
 def _format_signed_baht(amount: float) -> str:
     sign = "+" if amount >= 0 else "-"
     return f"{sign}{abs(amount):,.0f} บาท"
+
+
+def _budget_alert_after_transaction(line_user_id: str, transaction: Any, db_path: str | None) -> dict[str, Any] | None:
+    if transaction.type.value != "expense":
+        return None
+
+    setup = get_user_setup(line_user_id, db_path)
+    if setup is None or not setup.monthly_budgets:
+        return None
+
+    category_keys = _category_budget_keys(transaction.category)
+    budget_limit = _first_budget_limit(setup.monthly_budgets, category_keys)
+    use_total_budget = False
+    if budget_limit is None:
+        budget_limit = setup.monthly_budgets.get("__total__")
+        use_total_budget = budget_limit is not None
+    if budget_limit is None or budget_limit <= 0:
+        return None
+
+    month_transactions = [
+        item
+        for item in list_transactions(db_path)
+        if item.date.year == transaction.date.year and item.date.month == transaction.date.month
+    ]
+    total_income = sum(item.amount for item in month_transactions if item.type.value == "income")
+    if use_total_budget:
+        spent = sum(item.amount for item in month_transactions if item.type.value == "expense")
+        category = "รายจ่ายทั้งหมด"
+    else:
+        spent = sum(
+            item.amount
+            for item in month_transactions
+            if item.type.value == "expense" and item.category in category_keys
+        )
+        category = transaction.category
+
+    if spent < budget_limit * 0.8:
+        return None
+
+    return build_budget_alert_flex(
+        budget_limit=budget_limit,
+        category=category,
+        period_label="รายเดือน",
+        spent=spent,
+        total_income=total_income,
+    )
+
+
+def _first_budget_limit(monthly_budgets: dict[str, float], keys: set[str]) -> float | None:
+    for key in keys:
+        if key in monthly_budgets:
+            return monthly_budgets[key]
+    return None
+
+
+def _category_budget_keys(category: str) -> set[str]:
+    category_map = {
+        "Business Cost": "ธุรกิจ",
+        "Business Revenue": "ธุรกิจส่วนตัว",
+        "Debt Payment": "ผ่อนรถ",
+        "Food": "อาหาร",
+        "Freelance": "งานพิเศษ",
+        "Health": "สุขภาพ",
+        "Other Expense": "อื่นๆ",
+        "Other Income": "อื่นๆ",
+        "Rent / Home": "ที่พัก",
+        "Salary": "เงินเดือน",
+        "Shopping": "ช้อปปิ้ง",
+        "Transport": "เดินทาง",
+        "Utilities": "ค่าน้ำค่าไฟ",
+    }
+    mapped = category_map.get(category)
+    return {category, mapped} if mapped else {category}

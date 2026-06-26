@@ -1,8 +1,9 @@
 from datetime import date
 from typing import Any
 
-from app.database import list_transactions
+from app.database import list_transactions, save_user_onboarding, upsert_line_user
 from app.line_service import handle_line_message, handle_line_message_detail
+from app.models import LineUserUpsert, OnboardingPayload
 
 
 def test_handle_line_message_saves_transaction_and_returns_reply(tmp_path) -> None:
@@ -101,6 +102,34 @@ def test_handle_line_message_detail_returns_category_budget_flex() -> None:
     assert result.line_message is not None
     assert result.line_message["altText"] == "จัดการหมวดและงบใน เงินไปไหน?"
     assert _buttons(result.line_message)[0]["action"]["uri"].endswith("/liff/categories")
+
+
+def test_handle_line_message_detail_returns_budget_alert_when_category_budget_is_exceeded(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_onboarding(
+        "test-user-001",
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["อาหาร", "เดินทาง"],
+            income_categories=["เงินเดือน"],
+            monthly_budgets={"อาหาร": 100},
+        ),
+        db_path,
+    )
+
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ข้าว 180",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result.handled is True
+    assert result.line_message is not None
+    assert result.line_message["altText"] == "แจ้งเตือนงบ: อาหาร ใช้ไป ฿180 / ฿100"
+    assert _find_text(result.line_message, "งบคงเหลือ") is True
+    assert _find_text(result.line_message, "ใช้จ่ายหมวดอาหารเต็มงบแล้วนะ") is True
 
 
 def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_path) -> None:

@@ -18,7 +18,7 @@ import {
   X,
 } from "lucide-react";
 
-import { createTransaction, deleteTransaction, getDashboard, getTransactions, updateTransaction } from "@/lib/api";
+import { createTransaction, deleteTransaction, getDashboard, getTransactions, saveLineUserOnboarding, updateTransaction, upsertLineUser } from "@/lib/api";
 import type { DashboardData, Transaction, TransactionInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
@@ -26,6 +26,7 @@ type UserPlan = "free" | "pro";
 type BudgetMode = "category" | "total";
 type BudgetCycle = "daily" | "weekly" | "monthly";
 type LineProfile = {
+  line_user_id: string;
   display_name: string;
   picture_url: string | null;
 };
@@ -61,7 +62,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [creatingTransaction, setCreatingTransaction] = useState(false);
-  const [profile, setProfile] = useState<LineProfile>({ display_name: "ผู้ใช้งาน", picture_url: null });
+  const [profile, setProfile] = useState<LineProfile>({ line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null });
   const [plan] = useState<UserPlan>(() => loadStoredUserPlan());
   const [loading, setLoading] = useState(true);
 
@@ -89,7 +90,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   useEffect(() => {
     loadLineProfile()
       .then(setProfile)
-      .catch(() => setProfile({ display_name: "ผู้ใช้งาน", picture_url: null }));
+      .catch(() => setProfile({ line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null }));
   }, []);
 
   const latest = useMemo(() => transactions.slice(0, 4), [transactions]);
@@ -129,7 +130,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
             <>
               {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} />}
               {tab === "insights" && <InsightsScreen dashboard={dashboard} />}
-              {tab === "categories" && <CategoriesScreen />}
+              {tab === "categories" && <CategoriesScreen profile={profile} />}
               {tab === "transactions" && <TransactionsScreen transactions={transactions} onCreate={() => setCreatingTransaction(true)} onEdit={setEditingTransaction} />}
               {tab === "settings" && <SettingsScreen />}
             </>
@@ -267,7 +268,7 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
   );
 }
 
-function CategoriesScreen() {
+function CategoriesScreen({ profile }: { profile: LineProfile }) {
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [storedExpenseCategories, setStoredExpenseCategories] = useState<string[]>(() => loadStoredExpenseCategories());
   const [storedIncomeCategories, setStoredIncomeCategories] = useState<string[]>(() => loadStoredIncomeCategories());
@@ -283,6 +284,18 @@ function CategoriesScreen() {
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
   const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
+
+  useEffect(() => {
+    if (!profile.line_user_id) return;
+    void syncLineBudgetSettings({
+      profile,
+      expenseCategories: storedExpenseCategories,
+      incomeCategories: storedIncomeCategories,
+      budgetMode,
+      expenseBudgets,
+      totalBudget,
+    });
+  }, [profile, storedExpenseCategories, storedIncomeCategories, budgetMode, expenseBudgets, totalBudget]);
 
   return (
     <div className="space-y-5">
@@ -310,6 +323,14 @@ function CategoriesScreen() {
                   const value = event.target.value as BudgetMode;
                   setBudgetMode(value);
                   saveStoredBudgetMode(value);
+                  void syncLineBudgetSettings({
+                    profile,
+                    expenseCategories: storedExpenseCategories,
+                    incomeCategories: storedIncomeCategories,
+                    budgetMode: value,
+                    expenseBudgets,
+                    totalBudget,
+                  });
                 }}
                 className="mt-2 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-sm font-bold shadow-sm outline-none focus:border-[#DC143C]"
               >
@@ -366,6 +387,14 @@ function CategoriesScreen() {
             setStoredIncomeCategories((current) => {
               const next = [...current, category];
               saveStoredIncomeCategories(next);
+              void syncLineBudgetSettings({
+                profile,
+                expenseCategories: storedExpenseCategories,
+                incomeCategories: next,
+                budgetMode,
+                expenseBudgets,
+                totalBudget,
+              });
               return next;
             });
             setShowIncomeCategoryModal(false);
@@ -380,19 +409,23 @@ function CategoriesScreen() {
           onClose={() => setSelectedExpenseCategory(null)}
           onSave={(category, budget) => {
             const previousCategory = selectedExpenseCategory;
-            setStoredExpenseCategories((current) => {
-              const next = current.map((item) => (item === previousCategory ? category : item));
-              saveStoredExpenseCategories(next);
-              return next;
-            });
-            setExpenseBudgets((current) => {
-              const next = { ...current };
-              if (previousCategory !== category) {
-                delete next[previousCategory];
-              }
-              next[category] = budget;
-              saveStoredExpenseBudgets(next);
-              return next;
+            const nextCategories = storedExpenseCategories.map((item) => (item === previousCategory ? category : item));
+            const nextBudgets = { ...expenseBudgets };
+            if (previousCategory !== category) {
+              delete nextBudgets[previousCategory];
+            }
+            nextBudgets[category] = budget;
+            saveStoredExpenseCategories(nextCategories);
+            saveStoredExpenseBudgets(nextBudgets);
+            setStoredExpenseCategories(nextCategories);
+            setExpenseBudgets(nextBudgets);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: nextCategories,
+              incomeCategories: storedIncomeCategories,
+              budgetMode,
+              expenseBudgets: nextBudgets,
+              totalBudget,
             });
             setSelectedExpenseCategory(null);
           }}
@@ -406,6 +439,14 @@ function CategoriesScreen() {
           onSave={(budget) => {
             setTotalBudget(budget);
             saveStoredTotalBudget(budget);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: storedExpenseCategories,
+              incomeCategories: storedIncomeCategories,
+              budgetMode,
+              expenseBudgets,
+              totalBudget: budget,
+            });
             setShowTotalBudgetModal(false);
           }}
         />
@@ -1259,6 +1300,47 @@ function saveStoredTotalBudget(value: number) {
   }
 }
 
+async function syncLineBudgetSettings({
+  profile,
+  expenseCategories,
+  incomeCategories,
+  budgetMode,
+  expenseBudgets,
+  totalBudget,
+}: {
+  profile: LineProfile;
+  expenseCategories: string[];
+  incomeCategories: string[];
+  budgetMode: BudgetMode;
+  expenseBudgets: Record<string, number>;
+  totalBudget: number;
+}) {
+  if (!profile.line_user_id) return;
+
+  const monthlyBudgets =
+    budgetMode === "total"
+      ? totalBudget > 0
+        ? { __total__: totalBudget }
+        : {}
+      : Object.fromEntries(Object.entries(expenseBudgets).filter(([, value]) => value > 0));
+
+  try {
+    await upsertLineUser({
+      line_user_id: profile.line_user_id,
+      display_name: profile.display_name,
+      picture_url: profile.picture_url,
+    });
+    await saveLineUserOnboarding(profile.line_user_id, {
+      discovery_source: "liff_categories",
+      expense_categories: expenseCategories,
+      income_categories: incomeCategories,
+      monthly_budgets: monthlyBudgets,
+    });
+  } catch {
+    // Keep local budget settings usable even if the backend is temporarily unavailable.
+  }
+}
+
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -1266,22 +1348,23 @@ function todayInputValue() {
 async function loadLineProfile(): Promise<LineProfile> {
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
   if (!liffId || typeof window === "undefined") {
-    return { display_name: "ผู้ใช้งาน", picture_url: null };
+    return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
   }
 
   await loadLiffSdk();
   if (!window.liff) {
-    return { display_name: "ผู้ใช้งาน", picture_url: null };
+    return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
   }
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
     window.liff.login();
-    return { display_name: "ผู้ใช้งาน", picture_url: null };
+    return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
   }
 
   const liffProfile = await window.liff.getProfile();
   return {
+    line_user_id: liffProfile.userId,
     display_name: liffProfile.displayName,
     picture_url: liffProfile.pictureUrl ?? null,
   };
