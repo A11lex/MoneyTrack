@@ -122,7 +122,6 @@ def build_transaction_success_flex(
                     {
                         "type": "box",
                         "layout": "horizontal",
-                        "alignItems": "center",
                         "spacing": "md",
                         "contents": [
                             {
@@ -285,8 +284,6 @@ def _uri_button(label: str, path: str, color: str, style: str) -> dict[str, Any]
             "label": label,
             "uri": _frontend_url(path),
         },
-        "adjustMode": "shrink-to-fit",
-        "gravity": "center",
     }
 
 
