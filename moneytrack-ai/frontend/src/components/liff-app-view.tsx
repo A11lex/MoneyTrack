@@ -132,27 +132,30 @@ function SummaryScreen({ dashboard, latest, onEdit }: { dashboard: DashboardData
   const net = summary?.net_balance ?? 0;
   const income = summary?.total_income ?? 0;
   const expense = summary?.total_expense ?? 0;
+  const isPositive = net >= 0;
 
   return (
-    <div className="space-y-5">
-      <ProfileCard />
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-black">สรุป</h2>
-        <button className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-bold shadow-sm" type="button">
-          เดือนนี้
-        </button>
-      </div>
-      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-        <div className="text-center">
-          <p className="text-base font-bold text-[#3d4742]">เหลือเก็บ</p>
-          <p className={`mt-2 text-4xl font-black ${net >= 0 ? "text-[#14b86a]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
+    <div className="space-y-4">
+      <section className="overflow-hidden rounded-md border border-black/10 bg-white shadow-sm">
+        <div className="bg-[#0d4a2b] px-4 py-4 text-white">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-white/65">MoneyTrack AI</p>
+              <h2 className="mt-1 text-xl font-black">ภาพรวมเดือนนี้</h2>
+            </div>
+            <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-black text-white">มิ.ย. 2569</span>
+          </div>
+          <div className="mt-6">
+            <p className="text-sm font-semibold text-white/70">คงเหลือสุทธิ</p>
+            <p className={`mt-1 text-4xl font-black leading-none ${isPositive ? "text-[#6dc5ad]" : "text-[#ffb4c2]"}`}>{formatBaht(net)}</p>
+          </div>
         </div>
-        <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 p-3">
           <MetricBox label="รายจ่าย" value={expense} tone="expense" />
           <MetricBox label="รายรับ" value={income} tone="income" />
         </div>
-        <Link href="/liff/insights" className="mx-auto mt-5 flex h-11 w-32 items-center justify-center rounded-full border border-black/10 bg-white text-base font-black text-[#0d4a2b] shadow-sm">
-          ดูเพิ่ม
+        <Link href="/liff/insights" className="mx-3 mb-3 flex h-10 items-center justify-center rounded-md bg-[#eef8f5] text-sm font-black text-[#0d4a2b]">
+          ดูรายละเอียดการเงิน
         </Link>
       </section>
       <SectionTitle title="รายการล่าสุด" actionHref="/liff/transactions" action="ดูทั้งหมด" />
@@ -164,29 +167,39 @@ function SummaryScreen({ dashboard, latest, onEdit }: { dashboard: DashboardData
 function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
   const chart = dashboard?.charts.income_vs_expense ?? [];
   const categories = dashboard?.charts.expense_by_category ?? [];
+  const maxCategory = Math.max(1, ...categories.map((category) => category.amount));
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <Segmented first="รายรับรายจ่าย" second="เก็บออม" active="first" />
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
-          <button className="rounded-md border border-black/10 px-3 py-2 text-sm font-bold" type="button">
+          <div>
+            <p className="text-xs font-bold text-[#8a928e]">ภาพรวมย้อนหลัง</p>
+            <h2 className="mt-1 text-xl font-black leading-tight">รายรับเทียบรายจ่าย</h2>
+          </div>
+          <button className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-bold" type="button">
             รายเดือน
           </button>
         </div>
-        <div className="mt-7 h-64">
+        <div className="mt-5 h-56">
           <MiniBars data={chart} />
         </div>
-        <div className="mt-4 flex justify-center gap-5 text-base font-bold">
+        <div className="mt-4 flex justify-center gap-5 text-sm font-bold">
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#DC143C]" />รายจ่าย</span>
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
         </div>
       </section>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-        <h2 className="text-2xl font-black">รายจ่ายตามหมวด</h2>
-        <div className="mt-5 space-y-4">
-          {categories.length > 0 ? categories.slice(0, 5).map((item) => <CategoryBar key={item.category} label={item.category} amount={item.amount} max={Math.max(...categories.map((category) => category.amount))} />) : <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />}
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-[#8a928e]">จุดที่ใช้เงินเยอะ</p>
+            <h2 className="mt-1 text-xl font-black">รายจ่ายตามหมวด</h2>
+          </div>
+          {categories.length > 0 && <span className="text-xs font-bold text-[#8a928e]">Top 5</span>}
+        </div>
+        <div className="mt-4 space-y-4">
+          {categories.length > 0 ? categories.slice(0, 5).map((item) => <CategoryBar key={item.category} label={item.category} amount={item.amount} max={maxCategory} />) : <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />}
         </div>
       </section>
     </div>
@@ -247,28 +260,28 @@ function CategoriesScreen() {
 
 function TransactionsScreen({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (transaction: Transaction) => void }) {
   return (
-    <div className="space-y-5">
-      <button type="button" className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-black/10 bg-white text-base font-black shadow-sm">
-        1 มิ.ย. 2569 — 30 มิ.ย. 2569 <CalendarDays />
-      </button>
-      <div className="grid grid-cols-[1fr_auto] gap-3">
-        <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-          <p className="text-xl font-black">คัดกรองรายการ</p>
-          <div className="mt-3 flex gap-2">
+    <div className="space-y-4">
+      <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
+        <button type="button" className="flex h-11 w-full items-center justify-between rounded-md bg-[#f7f8f7] px-3 text-sm font-black text-[#151b18]">
+          <span>1 มิ.ย. 2569 - 30 มิ.ย. 2569</span>
+          <CalendarDays className="h-5 w-5 text-[#6b756f]" />
+        </button>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex gap-2 overflow-x-auto">
             {["ทั้งหมด", "รายจ่าย", "รายรับ"].map((item, index) => (
-              <button key={item} type="button" className={`h-10 rounded-md px-4 text-base font-black ${index === 0 ? "bg-[#DC143C] text-white" : "bg-[#eceef1] text-[#555f5b]"}`}>
+              <button key={item} type="button" className={`h-9 shrink-0 rounded-full px-4 text-sm font-black ${index === 0 ? "bg-[#DC143C] text-white" : "bg-[#f0f2f1] text-[#555f5b]"}`}>
                 {item}
               </button>
             ))}
           </div>
-        </section>
-        <button type="button" className="grid w-20 place-items-center rounded-md border border-black/10 bg-white text-sm font-black shadow-sm">
-          <Download />
-          ส่งออก
-        </button>
-      </div>
+          <button type="button" aria-label="ส่งออก" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-black/10 bg-white text-[#0d4a2b]">
+            <Download className="h-4 w-4" />
+          </button>
+        </div>
+      </section>
+      <SectionTitle title="รายการทั้งหมด" actionHref="/liff/summary" action="สรุป" />
       {transactions.length > 0 ? <TransactionList transactions={transactions} onEdit={onEdit} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="กดปุ่ม + หรือจดผ่านแชท LINE เพื่อเพิ่มรายการแรก" />}
-      <button type="button" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-16 w-16 place-items-center rounded-full bg-[#DC143C] text-4xl font-light text-white shadow-xl">
+      <button type="button" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-14 w-14 place-items-center rounded-full bg-[#DC143C] text-3xl font-light text-white shadow-xl">
         +
       </button>
     </div>
@@ -322,25 +335,12 @@ function SettingsScreen() {
   );
 }
 
-function ProfileCard() {
-  return (
-    <section className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
-      <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={56} height={56} className="h-14 w-14 rounded-full object-cover" />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-2xl font-black">เงินไปไหน?</p>
-        <p className="mt-1 text-sm font-semibold text-[#8a928e]">หลานฟรี</p>
-      </div>
-      <span className="rounded-full border border-[#6dc5ad]/40 bg-[#eaf8f4] px-3 py-2 text-xs font-black text-[#0d4a2b]">ใช้ฟรี</span>
-    </section>
-  );
-}
-
 function MetricBox({ label, value, tone }: { label: string; value: number; tone: "expense" | "income" }) {
-  const classes = tone === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]";
+  const classes = tone === "expense" ? "bg-[#fff3f5] text-[#DC143C]" : "bg-[#eef8f5] text-[#0d4a2b]";
   return (
-    <div className={`rounded-md border-2 p-4 ${classes}`}>
-      <p className="text-sm font-bold text-[#3d4742]">{label}</p>
-      <p className="mt-2 text-2xl font-black">{formatBaht(value)}</p>
+    <div className={`rounded-md p-3 ${classes}`}>
+      <p className="text-xs font-bold text-[#55605b]">{label}</p>
+      <p className="mt-1 truncate text-lg font-black">{formatBaht(value)}</p>
     </div>
   );
 }
@@ -349,14 +349,14 @@ function MiniBars({ data }: { data: { month: string; income: number; expense: nu
   const max = Math.max(1, ...data.flatMap((item) => [item.income, item.expense]));
   const months = data.length > 0 ? data.slice(-6) : ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย."].map((month) => ({ month, income: 0, expense: 0 }));
   return (
-    <div className="flex h-full items-end justify-between gap-3 border-b border-dashed border-[#dfe5e2] px-3">
+    <div className="flex h-full items-end justify-between gap-3 rounded-md bg-[#fbfcfb] px-3 pb-2 pt-4">
       {months.map((item) => (
         <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex h-44 items-end gap-1">
-            <div className="w-3 rounded-t bg-[#DC143C]" style={{ height: `${Math.max(6, (item.expense / max) * 160)}px` }} />
-            <div className="w-3 rounded-t bg-[#6dc5ad]" style={{ height: `${Math.max(6, (item.income / max) * 160)}px` }} />
+          <div className="flex h-40 items-end gap-1">
+            <div className="w-3 rounded-t bg-[#DC143C]" style={{ height: `${Math.max(6, (item.expense / max) * 144)}px` }} />
+            <div className="w-3 rounded-t bg-[#6dc5ad]" style={{ height: `${Math.max(6, (item.income / max) * 144)}px` }} />
           </div>
-          <span className="text-sm font-black text-[#777f7b]">{item.month}</span>
+          <span className="text-xs font-black text-[#777f7b]">{item.month}</span>
         </div>
       ))}
     </div>
@@ -364,14 +364,18 @@ function MiniBars({ data }: { data: { month: string; income: number; expense: nu
 }
 
 function CategoryBar({ label, amount, max }: { label: string; amount: number; max: number }) {
+  const percent = Math.round((amount / max) * 100);
   return (
     <div>
-      <div className="flex justify-between text-base font-black">
+      <div className="flex justify-between gap-3 text-sm font-black">
         <span>{label}</span>
-        <span>{formatBaht(amount)}</span>
+        <span className="text-[#DC143C]">{formatBaht(amount)}</span>
       </div>
-      <div className="mt-2 h-3 rounded-full bg-[#edf4f2]">
-        <div className="h-3 rounded-full bg-[#6dc5ad]" style={{ width: `${Math.max(8, (amount / max) * 100)}%` }} />
+      <div className="mt-2 flex items-center gap-3">
+        <div className="h-2 flex-1 rounded-full bg-[#edf4f2]">
+          <div className="h-2 rounded-full bg-[#6dc5ad]" style={{ width: `${Math.max(8, percent)}%` }} />
+        </div>
+        <span className="w-9 text-right text-xs font-bold text-[#8a928e]">{percent}%</span>
       </div>
     </div>
   );
@@ -379,14 +383,14 @@ function CategoryBar({ label, amount, max }: { label: string; amount: number; ma
 
 function TransactionList({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (transaction: Transaction) => void }) {
   return (
-    <div className="space-y-3">
+    <div className="overflow-hidden rounded-md border border-black/10 bg-white shadow-sm">
       {transactions.map((transaction) => (
-        <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white p-4 text-left shadow-sm">
+        <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 border-b border-black/5 px-4 py-3 text-left last:border-b-0 active:bg-[#f7f8f7]">
           <div className="min-w-0">
-            <p className="truncate text-lg font-black">{transaction.description || transaction.category}</p>
-            <p className="mt-1 text-sm font-semibold text-[#8a928e]">{transaction.date} · {transaction.category}</p>
+            <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
+            <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{transaction.date} · {transaction.category}</p>
           </div>
-          <p className={`shrink-0 text-lg font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
+          <p className={`shrink-0 text-base font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
           </p>
         </button>
@@ -514,8 +518,8 @@ function TransactionEditModal({
 function SectionTitle({ title, action, actionHref }: { title: string; action: string; actionHref: string }) {
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-2xl font-black">{title}</h2>
-      <Link href={actionHref} className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-bold shadow-sm">
+      <h2 className="text-xl font-black">{title}</h2>
+      <Link href={actionHref} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-black text-[#55605b] shadow-sm">
         {action}
       </Link>
     </div>
@@ -524,11 +528,11 @@ function SectionTitle({ title, action, actionHref }: { title: string; action: st
 
 function Segmented({ first, second, active }: { first: string; second: string; active: "first" | "second" }) {
   return (
-    <div className="grid grid-cols-2 rounded-md bg-[#f3f5f4] p-1">
-      <button type="button" className={`h-12 rounded-md text-base font-black ${active === "first" ? "bg-white shadow-sm" : "text-[#7f8884]"}`}>
+    <div className="grid grid-cols-2 rounded-md bg-[#eef1ef] p-1">
+      <button type="button" className={`h-10 rounded-md text-sm font-black ${active === "first" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
         {first}
       </button>
-      <button type="button" className={`h-12 rounded-md text-base font-black ${active === "second" ? "bg-white shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" className={`h-10 rounded-md text-sm font-black ${active === "second" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
         {second}
       </button>
     </div>
@@ -537,10 +541,10 @@ function Segmented({ first, second, active }: { first: string; second: string; a
 
 function EmptyState({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-md border border-dashed border-[#cbd5d1] bg-white p-8 text-center">
-      <WalletCards className="mx-auto h-12 w-12 text-[#6dc5ad]" />
-      <p className="mt-3 text-lg font-black text-[#555f5b]">{title}</p>
-      <p className="mt-2 text-base leading-6 text-[#8a928e]">{body}</p>
+    <div className="rounded-md border border-dashed border-[#cbd5d1] bg-white px-5 py-7 text-center">
+      <WalletCards className="mx-auto h-10 w-10 text-[#6dc5ad]" />
+      <p className="mt-3 text-base font-black text-[#555f5b]">{title}</p>
+      <p className="mt-2 text-sm leading-6 text-[#8a928e]">{body}</p>
     </div>
   );
 }
