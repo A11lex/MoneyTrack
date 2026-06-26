@@ -18,8 +18,8 @@ import {
   X,
 } from "lucide-react";
 
-import { getDashboard, getTransactions } from "@/lib/api";
-import type { DashboardData, Transaction } from "@/lib/types";
+import { deleteTransaction, getDashboard, getTransactions, updateTransaction } from "@/lib/api";
+import type { DashboardData, Transaction, TransactionInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 
@@ -37,6 +37,7 @@ const incomeCategories = ["เงินเดือน", "ธุรกิจส�
 export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -62,6 +63,24 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
 
   const latest = useMemo(() => transactions.slice(0, 4), [transactions]);
 
+  function refreshDashboard() {
+    getDashboard()
+      .then(setDashboard)
+      .catch(() => setDashboard(null));
+  }
+
+  function handleTransactionSaved(transaction: Transaction) {
+    setTransactions((current) => current.map((item) => (item.id === transaction.id ? transaction : item)));
+    setEditingTransaction(null);
+    refreshDashboard();
+  }
+
+  function handleTransactionDeleted(transactionId: number) {
+    setTransactions((current) => current.filter((item) => item.id !== transactionId));
+    setEditingTransaction(null);
+    refreshDashboard();
+  }
+
   return (
     <main className="min-h-screen bg-[#f8faf9] text-[#151b18]">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
@@ -71,15 +90,24 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
             <LoadingState />
           ) : (
             <>
-              {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} />}
+              {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} />}
               {tab === "insights" && <InsightsScreen dashboard={dashboard} />}
               {tab === "categories" && <CategoriesScreen />}
-              {tab === "transactions" && <TransactionsScreen transactions={transactions} />}
+              {tab === "transactions" && <TransactionsScreen transactions={transactions} onEdit={setEditingTransaction} />}
               {tab === "settings" && <SettingsScreen />}
             </>
           )}
         </section>
         <BottomNav active={tab} />
+        {editingTransaction && (
+          <TransactionEditModal
+            key={editingTransaction.id}
+            transaction={editingTransaction}
+            onClose={() => setEditingTransaction(null)}
+            onDeleted={handleTransactionDeleted}
+            onSaved={handleTransactionSaved}
+          />
+        )}
       </div>
     </main>
   );
@@ -99,7 +127,7 @@ function LiffHeader({ title }: { title: string }) {
   );
 }
 
-function SummaryScreen({ dashboard, latest }: { dashboard: DashboardData | null; latest: Transaction[] }) {
+function SummaryScreen({ dashboard, latest, onEdit }: { dashboard: DashboardData | null; latest: Transaction[]; onEdit: (transaction: Transaction) => void }) {
   const summary = dashboard?.summary;
   const net = summary?.net_balance ?? 0;
   const income = summary?.total_income ?? 0;
@@ -128,7 +156,7 @@ function SummaryScreen({ dashboard, latest }: { dashboard: DashboardData | null;
         </Link>
       </section>
       <SectionTitle title="รายการล่าสุด" actionHref="/liff/transactions" action="ดูทั้งหมด" />
-      {latest.length > 0 ? <TransactionList transactions={latest} /> : <EmptyState title="ยังไม่มีข้อมูลรายการ" body="ลองพิมพ์ในแชท เช่น ข้าว 80 หรือ รับเงินลูกค้า 2500" />}
+      {latest.length > 0 ? <TransactionList transactions={latest} onEdit={onEdit} /> : <EmptyState title="ยังไม่มีข้อมูลรายการ" body="ลองพิมพ์ในแชท เช่น ข้าว 80 หรือ รับเงินลูกค้า 2500" />}
     </div>
   );
 }
@@ -217,7 +245,7 @@ function CategoriesScreen() {
   );
 }
 
-function TransactionsScreen({ transactions }: { transactions: Transaction[] }) {
+function TransactionsScreen({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (transaction: Transaction) => void }) {
   return (
     <div className="space-y-5">
       <button type="button" className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-black/10 bg-white text-base font-black shadow-sm">
@@ -239,7 +267,7 @@ function TransactionsScreen({ transactions }: { transactions: Transaction[] }) {
           ส่งออก
         </button>
       </div>
-      {transactions.length > 0 ? <TransactionList transactions={transactions} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="กดปุ่ม + หรือจดผ่านแชท LINE เพื่อเพิ่มรายการแรก" />}
+      {transactions.length > 0 ? <TransactionList transactions={transactions} onEdit={onEdit} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="กดปุ่ม + หรือจดผ่านแชท LINE เพื่อเพิ่มรายการแรก" />}
       <button type="button" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-16 w-16 place-items-center rounded-full bg-[#DC143C] text-4xl font-light text-white shadow-xl">
         +
       </button>
@@ -349,11 +377,11 @@ function CategoryBar({ label, amount, max }: { label: string; amount: number; ma
   );
 }
 
-function TransactionList({ transactions }: { transactions: Transaction[] }) {
+function TransactionList({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (transaction: Transaction) => void }) {
   return (
     <div className="space-y-3">
       {transactions.map((transaction) => (
-        <Link key={transaction.id} href={`/liff/transactions/${transaction.id}/edit`} className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white p-4 text-left shadow-sm">
           <div className="min-w-0">
             <p className="truncate text-lg font-black">{transaction.description || transaction.category}</p>
             <p className="mt-1 text-sm font-semibold text-[#8a928e]">{transaction.date} · {transaction.category}</p>
@@ -361,8 +389,124 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
           <p className={`shrink-0 text-lg font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
           </p>
-        </Link>
+        </button>
       ))}
+    </div>
+  );
+}
+
+function TransactionEditModal({
+  transaction,
+  onClose,
+  onDeleted,
+  onSaved,
+}: {
+  transaction: Transaction;
+  onClose: () => void;
+  onDeleted: (transactionId: number) => void;
+  onSaved: (transaction: Transaction) => void;
+}) {
+  const [draft, setDraft] = useState<Transaction>(transaction);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const categories = draft.type === "income" ? ["Salary", "Freelance", "Business Revenue", "Other Income"] : ["Food", "Transport", "Rent / Home", "Utilities", "Debt Payment", "Shopping", "Health", "Business Cost", "Other Expense"];
+
+  async function save() {
+    setSaving(true);
+    setError("");
+    const payload: TransactionInput = {
+      date: draft.date,
+      type: draft.type,
+      amount: Number(draft.amount),
+      category: draft.category,
+      description: draft.description,
+      mode: draft.mode,
+    };
+
+    try {
+      const updated = await updateTransaction(draft.id, payload);
+      onSaved(updated);
+    } catch {
+      setError("บันทึกไม่สำเร็จ");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove() {
+    setSaving(true);
+    setError("");
+    try {
+      await deleteTransaction(draft.id);
+      onDeleted(draft.id);
+    } catch {
+      setError("ลบรายการไม่สำเร็จ");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white p-5 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-black">แก้ไขรายการ</h2>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={remove} disabled={saving} aria-label="ลบรายการ" className="grid h-10 w-10 place-items-center rounded-md bg-[#DC143C] text-white disabled:opacity-60">
+              <Trash2 className="h-5 w-5" />
+            </button>
+            <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-10 w-10 place-items-center rounded-md border border-black/10">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <form className="mt-5 space-y-5" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+          <label className="block">
+            <span className="text-base font-black">รายละเอียด</span>
+            <input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} className="mt-2 h-11 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+          </label>
+
+          <section>
+            <p className="text-base font-black">ประเภทรายการ</p>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: "Other Expense" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+                รายจ่าย
+              </button>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: "Other Income" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+                รายรับ
+              </button>
+            </div>
+          </section>
+
+          <label className="block">
+            <span className="text-base font-black">หมวด</span>
+            <select value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+              {categories.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-base font-black">จำนวนเงิน</span>
+            <div className="mt-2 flex items-center gap-3">
+              <input type="number" min="1" value={draft.amount} onChange={(event) => setDraft({ ...draft, amount: Number(event.target.value) })} className="h-11 min-w-0 flex-1 rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+              <span className="font-bold text-[#6b7280]">฿</span>
+            </div>
+          </label>
+
+          <label className="block">
+            <span className="text-base font-black">วันที่</span>
+            <input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} className="mt-2 h-11 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+          </label>
+
+          {error && <p className="rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+          <button type="submit" disabled={saving} className="h-12 w-full rounded-md bg-[#6DC5AD] text-base font-black text-[#082f24] disabled:opacity-60">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
