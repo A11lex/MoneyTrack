@@ -18,6 +18,16 @@ def handle_line_events(
         line_user_id = event.get("source", {}).get("userId", "unknown-line-user")
         if event.get("type") == "postback":
             data = event.get("postback", {}).get("data", "")
+            if data == "open_record_keyboard":
+                replies.append(
+                    {
+                        "reply_token": reply_token,
+                        "line_user_id": line_user_id,
+                        "reply": "",
+                        "handled": True,
+                    }
+                )
+                continue
             text = _postback_to_text(data)
             result = handle_line_message_detail(
                 line_user_id=line_user_id,

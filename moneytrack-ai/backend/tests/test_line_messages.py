@@ -97,15 +97,20 @@ def test_build_daily_summary_flex_shows_category_totals_and_frontend_buttons(mon
     assert buttons[1]["action"]["uri"] == "https://example.vercel.app/liff/insights"
 
 
-def test_build_quick_start_flex_links_to_summary(monkeypatch) -> None:
-    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
-
+def test_build_quick_start_flex_opens_keyboard_for_recording() -> None:
     message = build_quick_start_flex()
+    action = _buttons(message)[0]["action"]
 
     assert message["type"] == "flex"
     assert message["altText"] == "เริ่มจดรายรับรายจ่ายกับ เงินไปไหน?"
+    assert _find_text(message, "พิมพ์บอกได้เลย เราจะช่วยจัดหมวดให้อัตโนมัติ") is True
     assert _find_text(message, "ข้าวมันไก่ 50") is True
-    assert _buttons(message)[0]["action"]["uri"] == "https://example.vercel.app/liff/summary"
+    assert action == {
+        "type": "postback",
+        "label": "จดเลย",
+        "data": "open_record_keyboard",
+        "inputOption": "openKeyboard",
+    }
 
 
 def test_build_category_budget_flex_links_to_categories(monkeypatch) -> None:

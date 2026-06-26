@@ -82,7 +82,12 @@ def test_handle_line_message_detail_returns_quick_start_flex_for_help() -> None:
     assert result.handled is True
     assert result.line_message is not None
     assert result.line_message["altText"] == "เริ่มจดรายรับรายจ่ายกับ เงินไปไหน?"
-    assert _buttons(result.line_message)[0]["action"]["uri"].endswith("/liff/summary")
+    assert _buttons(result.line_message)[0]["action"] == {
+        "type": "postback",
+        "label": "จดเลย",
+        "data": "open_record_keyboard",
+        "inputOption": "openKeyboard",
+    }
 
 
 def test_handle_line_message_detail_returns_category_budget_flex() -> None:

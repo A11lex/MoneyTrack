@@ -33,7 +33,7 @@ def build_quick_start_flex() -> dict[str, Any]:
                 "spacing": "lg",
                 "paddingAll": "20px",
                 "contents": [
-                    _brand_header("เงินไปไหน?", "พิมพ์บอกได้เลย ป้าจะช่วยจัดหมวดให้อัตโนมัติ"),
+                    _brand_header("เงินไปไหน?", "พิมพ์บอกได้เลย เราจะช่วยจัดหมวดให้อัตโนมัติ"),
                     {
                         "type": "box",
                         "layout": "vertical",
@@ -45,10 +45,10 @@ def build_quick_start_flex() -> dict[str, Any]:
                             _plain_text("- ค่าน้ำมันบริษัท 1200", "md", BRAND["black"]),
                         ],
                     },
-                    _plain_text("พิมพ์รายการในแชทได้ทันที หรือเปิดหน้าแอปเพื่อดูสรุปและจัดหมวด", "sm", BRAND["muted"]),
+                    _plain_text("พิมพ์รายการในแชทได้ทันที ระบบจะช่วยแยกหมวดให้เอง", "sm", BRAND["muted"]),
                 ],
             },
-            "footer": _single_uri_footer("เปิดหน้าสรุป", "/liff/summary", BRAND["green"]),
+            "footer": _single_keyboard_footer("จดเลย", BRAND["green"]),
         },
     }
 
@@ -300,6 +300,15 @@ def _single_uri_footer(label: str, path: str, color: str) -> dict[str, Any]:
     }
 
 
+def _single_keyboard_footer(label: str, color: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "paddingAll": "16px",
+        "contents": [_keyboard_button(label, color)],
+    }
+
+
 def _uri_button(label: str, path: str, color: str, style: str) -> dict[str, Any]:
     return {
         "type": "button",
@@ -310,6 +319,21 @@ def _uri_button(label: str, path: str, color: str, style: str) -> dict[str, Any]
             "type": "uri",
             "label": label,
             "uri": _frontend_url(path),
+        },
+    }
+
+
+def _keyboard_button(label: str, color: str) -> dict[str, Any]:
+    return {
+        "type": "button",
+        "style": "primary",
+        "height": "sm",
+        "color": color,
+        "action": {
+            "type": "postback",
+            "label": label,
+            "data": "open_record_keyboard",
+            "inputOption": "openKeyboard",
         },
     }
 

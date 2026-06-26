@@ -186,6 +186,38 @@ def test_line_webhook_refreshes_main_rich_menu_for_existing_user(monkeypatch) ->
     ]
 
 
+def test_line_webhook_open_record_keyboard_postback_does_not_send_reply(monkeypatch) -> None:
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
+    sent_replies = []
+    monkeypatch.setattr(
+        main_module,
+        "send_line_reply",
+        lambda reply_token, reply_message, access_token: sent_replies.append(
+            {"reply_token": reply_token, "reply_message": reply_message, "access_token": access_token}
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/line/webhook",
+        json={
+            "events": [
+                {
+                    "type": "postback",
+                    "replyToken": "reply-token-001",
+                    "source": {"userId": "line-user-001"},
+                    "postback": {"data": "open_record_keyboard"},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["handled"] is True
+    assert response.json()["replies"][0]["reply"] == ""
+    assert sent_replies == []
+
+
 def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkeypatch) -> None:
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "test-secret")
     client = TestClient(app)
