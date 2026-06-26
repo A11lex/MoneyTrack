@@ -1,16 +1,93 @@
+import os
 from datetime import date
 from typing import Any
 
 BRAND = {
-    "yellow": "#FFC928",
-    "red": "#E60012",
+    "green": "#6DC5AD",
+    "dark_green": "#0D4A2B",
+    "yellow": "#FFD335",
+    "pink": "#D72D78",
+    "soft_pink": "#FCEAF2",
+    "soft_green": "#EAF8F4",
+    "cream": "#FFF8E4",
+    "surface": "#FFFFFF",
+    "muted": "#6B7280",
+    "line": "#E5E7EB",
     "black": "#111111",
-    "cream": "#FFF3D6",
-    "brown": "#7A4A1F",
-    "green": "#7FB069",
-    "pink": "#F04FA3",
-    "white": "#FFFFFF",
 }
+
+DEFAULT_FRONTEND_ORIGIN = "https://money-track-sandy.vercel.app"
+
+
+def build_quick_start_flex() -> dict[str, Any]:
+    return {
+        "type": "flex",
+        "altText": "เริ่มจดรายรับรายจ่ายกับ เงินไปไหน?",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "lg",
+                "paddingAll": "20px",
+                "contents": [
+                    _brand_header("เงินไปไหน?", "พิมพ์บอกได้เลย ป้าจะช่วยจัดหมวดให้อัตโนมัติ"),
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "contents": [
+                            _plain_text("เช่น", "sm", BRAND["muted"]),
+                            _plain_text("- ข้าวมันไก่ 50", "md", BRAND["black"]),
+                            _plain_text("- เงินเดือน 20000", "md", BRAND["black"]),
+                            _plain_text("- ค่าน้ำมันบริษัท 1200", "md", BRAND["black"]),
+                        ],
+                    },
+                    _plain_text("พิมพ์รายการในแชทได้ทันที หรือเปิดหน้าแอปเพื่อดูสรุปและจัดหมวด", "sm", BRAND["muted"]),
+                ],
+            },
+            "footer": _single_uri_footer("เปิดหน้าสรุป", "/liff/summary", BRAND["green"]),
+        },
+    }
+
+
+def build_category_budget_flex() -> dict[str, Any]:
+    return {
+        "type": "flex",
+        "altText": "จัดการหมวดและงบใน เงินไปไหน?",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "lg",
+                "paddingAll": "20px",
+                "contents": [
+                    _brand_header("จัดการหมวดและงบ", "ตั้งหมวดรายรับรายจ่าย และกำหนดงบที่อยากคุม"),
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "backgroundColor": BRAND["soft_green"],
+                        "cornerRadius": "md",
+                        "paddingAll": "14px",
+                        "contents": [
+                            _plain_text("ทำได้ในหน้าแอป", "sm", BRAND["dark_green"], weight="bold"),
+                            _plain_text("• เพิ่มหมวดใหม่", "sm", BRAND["black"]),
+                            _plain_text("• แก้ไขหรือลบหมวด", "sm", BRAND["black"]),
+                            _plain_text("• ตั้งงบรายวัน รายสัปดาห์ รายเดือน", "sm", BRAND["black"]),
+                            _plain_text("• ดูว่าหมวดไหนใช้เกินงบ", "sm", BRAND["black"]),
+                        ],
+                    },
+                ],
+            },
+            "footer": _single_uri_footer("เข้าจัดการหมวดและงบ", "/liff/categories", BRAND["green"]),
+        },
+    }
 
 
 def build_transaction_success_flex(
@@ -23,8 +100,10 @@ def build_transaction_success_flex(
 ) -> dict[str, Any]:
     type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
     mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
-    amount_color = BRAND["green"] if transaction_type == "income" else BRAND["red"]
+    amount_color = BRAND["green"] if transaction_type == "income" else BRAND["pink"]
+    accent_bg = BRAND["soft_green"] if transaction_type == "income" else BRAND["soft_pink"]
     amount_text = f"฿{amount:,.0f}"
+    category_text = _category_label(category)
 
     return {
         "type": "flex",
@@ -32,110 +111,59 @@ def build_transaction_success_flex(
         "contents": {
             "type": "bubble",
             "size": "mega",
-            "styles": {
-                "body": {"backgroundColor": BRAND["cream"]},
-                "footer": {"backgroundColor": BRAND["cream"]},
-            },
+            "styles": _bubble_styles(),
             "body": {
                 "type": "box",
                 "layout": "vertical",
                 "spacing": "md",
+                "paddingAll": "20px",
                 "contents": [
+                    _brand_header("จดสำเร็จ", "ตรวจสอบรายการที่จดไว้ ถ้าหมวดไม่ถูกให้แก้ในหน้าแอปได้เลย"),
                     {
                         "type": "box",
                         "layout": "horizontal",
                         "alignItems": "center",
-                        "contents": [
-                            {
-                                "type": "text",
-                                "text": "จดสำเร็จ",
-                                "weight": "bold",
-                                "size": "xl",
-                                "color": BRAND["black"],
-                                "flex": 1,
-                            },
-                            {
-                                "type": "text",
-                                "text": "✅",
-                                "size": "xl",
-                                "align": "end",
-                            },
-                        ],
-                    },
-                    {
-                        "type": "box",
-                        "layout": "horizontal",
+                        "spacing": "md",
                         "contents": [
                             {
                                 "type": "box",
                                 "layout": "vertical",
+                                "spacing": "sm",
                                 "contents": [
-                                    {
-                                        "type": "text",
-                                        "text": f"{type_label} · {_category_label(category)}",
-                                        "size": "sm",
-                                        "weight": "bold",
-                                        "color": BRAND["brown"],
-                                    },
-                                    {
-                                        "type": "text",
-                                        "text": description or "-",
-                                        "size": "lg",
-                                        "weight": "bold",
-                                        "color": BRAND["black"],
-                                        "wrap": True,
-                                        "margin": "sm",
-                                    },
+                                    _pill(f"{type_label} - {category_text}", amount_color, "#FFFFFF"),
+                                    _plain_text(_format_thai_datetime(transaction_date), "xs", BRAND["muted"]),
+                                    _plain_text(description or "-", "lg", BRAND["black"], weight="bold"),
                                 ],
                                 "flex": 1,
                             },
-                            {
-                                "type": "text",
-                                "text": amount_text,
-                                "size": "xxl",
-                                "weight": "bold",
-                                "color": amount_color,
-                                "align": "end",
-                                "gravity": "center",
-                            },
+                            _plain_text(amount_text, "xxl", amount_color, weight="bold", align="end"),
                         ],
                     },
-                    {
-                        "type": "separator",
-                        "color": BRAND["yellow"],
-                        "margin": "md",
-                    },
+                    {"type": "separator", "color": BRAND["black"], "margin": "md"},
                     {
                         "type": "box",
                         "layout": "vertical",
-                        "spacing": "xs",
+                        "spacing": "sm",
+                        "backgroundColor": accent_bg,
+                        "cornerRadius": "md",
+                        "paddingAll": "14px",
                         "contents": [
-                            _meta_row("วันที่", _format_thai_date(transaction_date)),
+                            _amount_row(category_text, amount, amount_color),
+                            _progress_bar(amount_color),
                             _meta_row("โหมด", mode_label),
-                            _meta_row("แบรนด์", "เงินไปไหน?"),
                         ],
                     },
+                    _plain_text("ถ้ารายการหรือหมวดไม่ถูก กดปุ่มด้านล่างเพื่อแก้ในหน้าแอป", "xs", BRAND["muted"]),
                 ],
             },
             "footer": {
                 "type": "box",
-                "layout": "horizontal",
+                "layout": "vertical",
                 "spacing": "sm",
+                "paddingAll": "16px",
                 "contents": [
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "color": BRAND["pink"],
-                        "action": {"type": "message", "label": "แก้ไข", "text": "แก้ไขรายการล่าสุด"},
-                    },
-                    {
-                        "type": "button",
-                        "style": "secondary",
-                        "height": "sm",
-                        "color": BRAND["white"],
-                        "action": {"type": "message", "label": "ลบ", "text": "ลบรายการล่าสุด"},
-                    },
+                    _uri_button("ดูรายการ", "/liff/transactions", BRAND["green"], "primary"),
+                    _uri_button("แก้หมวด/งบ", "/liff/categories", BRAND["dark_green"], "secondary"),
                 ],
             },
         },
@@ -147,38 +175,38 @@ def build_daily_summary_flex(
     income: float,
     expense: float,
     net: float,
+    category_totals: dict[str, float] | None = None,
 ) -> dict[str, Any]:
-    net_color = BRAND["green"] if net >= 0 else BRAND["red"]
+    net_color = BRAND["green"] if net >= 0 else BRAND["pink"]
     net_text = f"{'+' if net >= 0 else '-'}฿{abs(net):,.0f}"
+    category_rows = _category_summary_rows(category_totals or {})
+
     return {
         "type": "flex",
         "altText": f"สรุปวันนี้: สุทธิ {'+' if net >= 0 else '-'}{abs(net):,.0f} บาท",
         "contents": {
             "type": "bubble",
             "size": "mega",
-            "styles": {
-                "body": {"backgroundColor": BRAND["cream"]},
-                "footer": {"backgroundColor": BRAND["cream"]},
-            },
+            "styles": _bubble_styles(),
             "body": {
                 "type": "box",
                 "layout": "vertical",
-                "spacing": "md",
+                "spacing": "lg",
+                "paddingAll": "20px",
                 "contents": [
+                    _brand_header("สรุปวันนี้", f"วันที่ {_format_thai_date(summary_date)}"),
                     {
                         "type": "box",
-                        "layout": "horizontal",
-                        "alignItems": "center",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "backgroundColor": BRAND["soft_green"] if net >= 0 else BRAND["soft_pink"],
+                        "cornerRadius": "md",
+                        "paddingAll": "14px",
                         "contents": [
-                            {
-                                "type": "text",
-                                "text": "สรุปวันนี้",
-                                "weight": "bold",
-                                "size": "xl",
-                                "color": BRAND["black"],
-                                "flex": 1,
-                            },
-                            {"type": "text", "text": "📊", "size": "xl", "align": "end"},
+                            _amount_row("รายรับ", income, BRAND["green"]),
+                            _amount_row("รายจ่าย", expense, BRAND["pink"]),
+                            {"type": "separator", "color": BRAND["line"], "margin": "sm"},
+                            _amount_row("คงเหลือวันนี้", net, net_color, signed=True),
                         ],
                     },
                     {
@@ -186,98 +214,152 @@ def build_daily_summary_flex(
                         "layout": "vertical",
                         "spacing": "sm",
                         "contents": [
-                            _amount_row("รายรับ", income, BRAND["green"]),
-                            _amount_row("รายจ่าย", expense, BRAND["red"]),
-                        ],
-                    },
-                    {
-                        "type": "box",
-                        "layout": "horizontal",
-                        "backgroundColor": BRAND["yellow"],
-                        "cornerRadius": "md",
-                        "paddingAll": "12px",
-                        "contents": [
-                            {
-                                "type": "text",
-                                "text": "สุทธิ",
-                                "weight": "bold",
-                                "size": "md",
-                                "color": BRAND["black"],
-                                "flex": 1,
-                            },
-                            {
-                                "type": "text",
-                                "text": net_text,
-                                "weight": "bold",
-                                "size": "xl",
-                                "align": "end",
-                                "color": net_color,
-                                "flex": 2,
-                            },
-                        ],
-                    },
-                    {
-                        "type": "separator",
-                        "color": BRAND["yellow"],
-                        "margin": "md",
-                    },
-                    {
-                        "type": "box",
-                        "layout": "vertical",
-                        "spacing": "xs",
-                        "contents": [
-                            _meta_row("วันที่", _format_thai_date(summary_date)),
-                            _meta_row("แบรนด์", "เงินไปไหน?"),
+                            _plain_text("ใช้ไปตามหมวด", "md", BRAND["black"], weight="bold"),
+                            *category_rows,
+                            _amount_row("ใช้ไปทั้งหมด", expense, BRAND["black"]),
                         ],
                     },
                 ],
             },
             "footer": {
                 "type": "box",
-                "layout": "horizontal",
+                "layout": "vertical",
                 "spacing": "sm",
+                "paddingAll": "16px",
                 "contents": [
-                    {
-                        "type": "button",
-                        "style": "primary",
-                        "height": "sm",
-                        "color": BRAND["pink"],
-                        "action": {"type": "message", "label": "ดูรายการ", "text": "รายการวันนี้"},
-                    },
-                    {
-                        "type": "button",
-                        "style": "secondary",
-                        "height": "sm",
-                        "color": BRAND["white"],
-                        "action": {"type": "message", "label": "วิเคราะห์", "text": "วิเคราะห์วันนี้"},
-                    },
+                    _uri_button("ดูสรุปย้อนหลัง", "/liff/summary", BRAND["green"], "primary"),
+                    _uri_button("วิเคราะห์ต่อ", "/liff/insights", BRAND["dark_green"], "secondary"),
                 ],
             },
         },
     }
 
 
-def _amount_row(label: str, amount: float, color: str) -> dict[str, Any]:
+def _bubble_styles() -> dict[str, Any]:
+    return {
+        "body": {"backgroundColor": BRAND["surface"]},
+        "footer": {"backgroundColor": BRAND["surface"]},
+    }
+
+
+def _brand_header(title: str, subtitle: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "sm",
+        "contents": [
+            _plain_text(title, "xl", BRAND["black"], weight="bold"),
+            _plain_text(subtitle, "sm", BRAND["muted"], wrap=True),
+            {
+                "type": "box",
+                "layout": "horizontal",
+                "height": "6px",
+                "margin": "md",
+                "contents": [
+                    {"type": "box", "layout": "vertical", "backgroundColor": BRAND["yellow"], "cornerRadius": "xxl", "flex": 2},
+                    {"type": "box", "layout": "vertical", "backgroundColor": BRAND["green"], "cornerRadius": "xxl", "flex": 3, "margin": "sm"},
+                    {"type": "box", "layout": "vertical", "backgroundColor": BRAND["dark_green"], "cornerRadius": "xxl", "flex": 1, "margin": "sm"},
+                ],
+            },
+        ],
+    }
+
+
+def _single_uri_footer(label: str, path: str, color: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "paddingAll": "16px",
+        "contents": [_uri_button(label, path, color, "primary")],
+    }
+
+
+def _uri_button(label: str, path: str, color: str, style: str) -> dict[str, Any]:
+    return {
+        "type": "button",
+        "style": style,
+        "height": "sm",
+        "color": color,
+        "action": {
+            "type": "uri",
+            "label": label,
+            "uri": _frontend_url(path),
+        },
+        "adjustMode": "shrink-to-fit",
+        "gravity": "center",
+    }
+
+
+def _frontend_url(path: str) -> str:
+    origin = os.getenv("LIFF_APP_BASE_URL") or os.getenv("FRONTEND_ORIGIN") or DEFAULT_FRONTEND_ORIGIN
+    return f"{origin.rstrip('/')}/{path.lstrip('/')}"
+
+
+def _plain_text(
+    text: str,
+    size: str,
+    color: str,
+    *,
+    weight: str = "regular",
+    align: str = "start",
+    wrap: bool = False,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "type": "text",
+        "text": text,
+        "size": size,
+        "color": color,
+        "align": align,
+        "weight": weight,
+    }
+    if wrap:
+        payload["wrap"] = True
+    return payload
+
+
+def _pill(text: str, background_color: str, text_color: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "horizontal",
+        "width": "120px",
+        "backgroundColor": background_color,
+        "cornerRadius": "xxl",
+        "paddingAll": "6px",
+        "contents": [
+            _plain_text(text, "xs", text_color, weight="bold", align="center", wrap=True),
+        ],
+    }
+
+
+def _progress_bar(color: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "horizontal",
+        "height": "8px",
+        "backgroundColor": BRAND["line"],
+        "cornerRadius": "xxl",
+        "contents": [
+            {"type": "box", "layout": "vertical", "backgroundColor": color, "cornerRadius": "xxl", "flex": 4},
+            {"type": "box", "layout": "vertical", "flex": 1},
+        ],
+    }
+
+
+def _amount_row(label: str, amount: float, color: str, *, signed: bool = False) -> dict[str, Any]:
+    text = _format_signed_baht(amount) if signed else f"฿{amount:,.0f}"
     return {
         "type": "box",
         "layout": "horizontal",
         "contents": [
+            _plain_text(label, "sm", BRAND["black"], weight="bold", wrap=True),
             {
                 "type": "text",
-                "text": label,
-                "size": "sm",
-                "weight": "bold",
-                "color": BRAND["brown"],
-                "flex": 1,
-            },
-            {
-                "type": "text",
-                "text": f"฿{amount:,.0f}",
-                "size": "lg",
+                "text": text,
+                "size": "md",
                 "weight": "bold",
                 "color": color,
                 "align": "end",
-                "flex": 2,
+                "flex": 1,
             },
         ],
     }
@@ -288,26 +370,64 @@ def _meta_row(label: str, value: str) -> dict[str, Any]:
         "type": "box",
         "layout": "horizontal",
         "contents": [
-            {"type": "text", "text": label, "size": "xs", "color": BRAND["brown"], "flex": 1},
-            {"type": "text", "text": value, "size": "xs", "color": BRAND["black"], "align": "end", "flex": 2},
+            _plain_text(label, "xs", BRAND["muted"]),
+            {"type": "text", "text": value, "size": "xs", "color": BRAND["black"], "align": "end", "flex": 1},
         ],
     }
 
 
+def _category_summary_rows(category_totals: dict[str, float]) -> list[dict[str, Any]]:
+    rows = [
+        _amount_row(_category_label(category), amount, BRAND["black"])
+        for category, amount in sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
+        if amount > 0
+    ]
+    if rows:
+        return rows[:10]
+    return [_plain_text("ยังไม่มีรายจ่ายวันนี้", "sm", BRAND["muted"])]
+
+
 def _format_thai_date(value: date) -> str:
-    return f"{value.day} มิ.ย. {value.year + 543}" if value.month == 6 else f"{value.day}/{value.month}/{value.year + 543}"
+    months = {
+        1: "ม.ค.",
+        2: "ก.พ.",
+        3: "มี.ค.",
+        4: "เม.ย.",
+        5: "พ.ค.",
+        6: "มิ.ย.",
+        7: "ก.ค.",
+        8: "ส.ค.",
+        9: "ก.ย.",
+        10: "ต.ค.",
+        11: "พ.ย.",
+        12: "ธ.ค.",
+    }
+    return f"{value.day} {months[value.month]} {value.year + 543}"
+
+
+def _format_thai_datetime(value: date) -> str:
+    return f"{_format_thai_date(value)}"
+
+
+def _format_signed_baht(amount: float) -> str:
+    sign = "+" if amount >= 0 else "-"
+    return f"{sign}฿{abs(amount):,.0f}"
 
 
 def _category_label(category: str) -> str:
     labels = {
         "Food": "อาหาร",
         "Transport": "เดินทาง",
-        "Shopping": "ช้อปปิ้ง",
-        "Utilities": "บิล",
-        "Salary": "เงินเดือน",
-        "Business Revenue": "รายรับธุรกิจ",
-        "Business Cost": "ต้นทุนธุรกิจ",
-        "Debt Payment": "หนี้",
+        "Rent / Home": "ที่พัก",
+        "Utilities": "ค่าน้ำค่าไฟ",
+        "Debt Payment": "ผ่อนรถ/หนี้",
+        "Shopping": "ชอปปิ้ง",
         "Health": "สุขภาพ",
+        "Business Cost": "ต้นทุนธุรกิจ",
+        "Other Expense": "อื่นๆ",
+        "Salary": "เงินเดือน",
+        "Freelance": "งานพิเศษ",
+        "Business Revenue": "ธุรกิจส่วนตัว",
+        "Other Income": "อื่นๆ",
     }
     return labels.get(category, category)

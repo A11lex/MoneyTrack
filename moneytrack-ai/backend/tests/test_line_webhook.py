@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import json
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -74,6 +75,7 @@ def test_line_webhook_accepts_line_messaging_api_event_payload(tmp_path, monkeyp
     assert data["replies"][0]["reply"] == "บันทึกแล้ว: รายรับ 2,500 บาท\nหมวด: Business Revenue\nโหมด: ธุรกิจ"
     assert data["replies"][0]["line_message"]["type"] == "flex"
     assert data["replies"][0]["line_message"]["altText"] == "จดสำเร็จ: รายรับ 2,500 บาท"
+    assert _buttons(data["replies"][0]["line_message"])[0]["action"]["type"] == "uri"
     transactions = database.list_transactions(db_path)
     assert len(transactions) == 1
     assert transactions[0].type == "income"
@@ -85,6 +87,7 @@ def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(
     monkeypatch.setattr(database, "DATABASE_URL", db_path)
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "test-secret")
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
     sent_replies = []
     monkeypatch.setattr(
         main_module,
@@ -126,6 +129,7 @@ def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(
     ]
     assert sent_replies[0]["reply_message"]["type"] == "flex"
     assert sent_replies[0]["reply_message"]["altText"] == "จดสำเร็จ: รายจ่าย 80 บาท"
+    assert _buttons(sent_replies[0]["reply_message"])[0]["action"]["uri"] == "https://example.vercel.app/liff/transactions"
 
 
 def test_line_webhook_refreshes_main_rich_menu_for_existing_user(monkeypatch) -> None:
@@ -193,3 +197,16 @@ def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkey
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid LINE signature"}
+
+
+def _buttons(value: Any) -> list[dict[str, Any]]:
+    found: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        if value.get("type") == "button":
+            found.append(value)
+        for child in value.values():
+            found.extend(_buttons(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.extend(_buttons(child))
+    return found
