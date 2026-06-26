@@ -23,6 +23,8 @@ import type { DashboardData, Transaction, TransactionInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 type UserPlan = "free" | "pro";
+type BudgetMode = "category" | "total";
+type BudgetCycle = "daily" | "weekly" | "monthly";
 type LineProfile = {
   display_name: string;
   picture_url: string | null;
@@ -256,10 +258,15 @@ function CategoriesScreen() {
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
   const [showBudgetCycleModal, setShowBudgetCycleModal] = useState(false);
-  const [budgetCycle, setBudgetCycle] = useState<"daily" | "weekly" | "monthly">("monthly");
-  const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>({});
+  const [showTotalBudgetModal, setShowTotalBudgetModal] = useState(false);
+  const [budgetMode, setBudgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
+  const [budgetCycle, setBudgetCycle] = useState<BudgetCycle>(() => loadStoredBudgetCycle());
+  const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
+  const [totalBudget, setTotalBudget] = useState(() => loadStoredTotalBudget());
   const items = kind === "expense" ? expenseCategories : [...incomeCategories, ...customIncomeCategories];
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
+  const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
+  const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
 
   return (
     <div className="space-y-5">
@@ -274,15 +281,25 @@ function CategoriesScreen() {
       {kind === "expense" && (
         <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            <button type="button" onClick={() => budgetMode === "total" && setShowTotalBudgetModal(true)} className="rounded-md text-left focus:outline-none focus:ring-2 focus:ring-[#DC143C]/30">
               <p className="text-base font-black">งบที่ตั้งไว้</p>
-              <p className="mt-2 text-xl font-black text-[#9aa1a0]">ยังไม่ได้ตั้งงบ</p>
-            </div>
+              <p className={`mt-2 text-xl font-black ${displayedBudget > 0 ? "text-[#151b18]" : "text-[#9aa1a0]"}`}>{displayedBudget > 0 ? formatBaht(displayedBudget) : "ยังไม่ได้ตั้งงบ"}</p>
+              <p className="mt-1 text-xs font-semibold text-[#8a928e]">{budgetMode === "total" ? "กดเพื่อตั้งงบรวม" : "รวมจากงบแยกหมวด"}</p>
+            </button>
             <div>
               <p className="text-base font-black">ชนิดงบ</p>
-              <button className="mt-2 rounded-md border border-black/10 px-3 py-2 text-sm font-bold" type="button">
-                แยกหมวด
-              </button>
+              <select
+                value={budgetMode}
+                onChange={(event) => {
+                  const value = event.target.value as BudgetMode;
+                  setBudgetMode(value);
+                  saveStoredBudgetMode(value);
+                }}
+                className="mt-2 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-sm font-bold shadow-sm outline-none focus:border-[#DC143C]"
+              >
+                <option value="category">แยกหมวด</option>
+                <option value="total">รวม</option>
+              </select>
             </div>
           </div>
           <div className="mt-5 rounded-md bg-[#eaf8f4] p-4 text-[#0d4a2b]">
@@ -310,12 +327,14 @@ function CategoriesScreen() {
       </button>
       <div className="space-y-3">
         {items.map((item) => (
-          <button key={item} type="button" onClick={() => kind === "expense" && setSelectedExpenseCategory(item)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
+          <button key={item} type="button" onClick={() => kind === "expense" && budgetMode === "category" && setSelectedExpenseCategory(item)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
             {item}
-            {kind === "expense" ? (
+            {kind === "expense" && budgetMode === "category" ? (
+              <ChevronRight className="shrink-0 text-[#9aa1a0]" />
+            ) : kind === "income" ? (
               <ChevronRight className="shrink-0 text-[#9aa1a0]" />
             ) : (
-              <ChevronRight className="shrink-0 text-[#9aa1a0]" />
+              <span className="text-xs font-semibold text-[#8a928e]">รวม</span>
             )}
           </button>
         ))}
@@ -340,8 +359,24 @@ function CategoriesScreen() {
           category={selectedExpenseCategory}
           onClose={() => setSelectedExpenseCategory(null)}
           onSave={(category, budget) => {
-            setExpenseBudgets((current) => ({ ...current, [category]: budget }));
+            setExpenseBudgets((current) => {
+              const next = { ...current, [category]: budget };
+              saveStoredExpenseBudgets(next);
+              return next;
+            });
             setSelectedExpenseCategory(null);
+          }}
+        />
+      )}
+      {showTotalBudgetModal && (
+        <TotalBudgetModal
+          budget={totalBudget}
+          budgetCycleLabel={budgetCycleLabel}
+          onClose={() => setShowTotalBudgetModal(false)}
+          onSave={(budget) => {
+            setTotalBudget(budget);
+            saveStoredTotalBudget(budget);
+            setShowTotalBudgetModal(false);
           }}
         />
       )}
@@ -351,6 +386,7 @@ function CategoriesScreen() {
           onClose={() => setShowBudgetCycleModal(false)}
           onSave={(value) => {
             setBudgetCycle(value);
+            saveStoredBudgetCycle(value);
             setShowBudgetCycleModal(false);
           }}
         />
@@ -494,6 +530,65 @@ function ExpenseCategoryBudgetModal({
           <p className="text-sm font-semibold text-[#8a928e]">รายจ่ายหมวดนี้ย้อนหลัง 6 เดือน</p>
           <p className="mt-8 text-sm font-semibold text-[#9aa1a0]">ยังไม่มีข้อมูลรายการย้อนหลัง</p>
         </div>
+
+        {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+        <button type="button" onClick={save} className="mt-8 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
+          บันทึก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function TotalBudgetModal({
+  budget,
+  budgetCycleLabel,
+  onClose,
+  onSave,
+}: {
+  budget: number;
+  budgetCycleLabel: string;
+  onClose: () => void;
+  onSave: (budget: number) => void;
+}) {
+  const [amount, setAmount] = useState(budget > 0 ? String(budget) : "");
+  const [error, setError] = useState("");
+
+  function save() {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("ใส่งบรวมก่อนบันทึก");
+      return;
+    }
+    onSave(value);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
+        <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
+        <div className="flex items-center justify-end">
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <h2 className="text-center text-2xl font-black">ตั้งงบรวม</h2>
+
+        <label className="mt-8 block">
+          <span className="inline-flex items-center gap-2 text-sm font-black">
+            งบรายจ่ายทั้งหมด
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#8a928e]">
+              <CalendarDays className="h-3.5 w-3.5" /> {budgetCycleLabel} (วันที่ 1)
+            </span>
+          </span>
+          <div className="mt-2 flex h-12 items-center rounded-md border border-black/10 px-3 shadow-sm focus-within:border-[#DC143C]">
+            <span className="font-bold text-[#8a928e]">฿</span>
+            <input inputMode="decimal" value={amount} onChange={(event) => { setAmount(event.target.value); setError(""); }} className="min-w-0 flex-1 border-0 px-2 text-base outline-none" />
+          </div>
+          <span className="mt-2 block text-xs font-semibold text-[#8a928e]">งบรวมใช้คุมรายจ่ายทั้งหมด ไม่แยกตามหมวด</span>
+        </label>
 
         {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
 
@@ -1028,6 +1123,56 @@ function titleFor(tab: LiffTab) {
 function loadStoredUserPlan(): UserPlan {
   if (typeof window === "undefined") return "free";
   return window.localStorage.getItem("moneytrack_user_plan") === "pro" ? "pro" : "free";
+}
+
+function loadStoredBudgetMode(): BudgetMode {
+  if (typeof window === "undefined") return "category";
+  return window.localStorage.getItem("moneytrack_budget_mode") === "total" ? "total" : "category";
+}
+
+function saveStoredBudgetMode(value: BudgetMode) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_budget_mode", value);
+  }
+}
+
+function loadStoredBudgetCycle(): BudgetCycle {
+  if (typeof window === "undefined") return "monthly";
+  const value = window.localStorage.getItem("moneytrack_budget_cycle");
+  return value === "daily" || value === "weekly" || value === "monthly" ? value : "monthly";
+}
+
+function saveStoredBudgetCycle(value: BudgetCycle) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_budget_cycle", value);
+  }
+}
+
+function loadStoredExpenseBudgets(): Record<string, number> {
+  if (typeof window === "undefined") return {};
+  try {
+    const value = JSON.parse(window.localStorage.getItem("moneytrack_expense_budgets") ?? "{}");
+    return typeof value === "object" && value !== null ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStoredExpenseBudgets(value: Record<string, number>) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_expense_budgets", JSON.stringify(value));
+  }
+}
+
+function loadStoredTotalBudget() {
+  if (typeof window === "undefined") return 0;
+  return Number(window.localStorage.getItem("moneytrack_total_budget") ?? 0) || 0;
+}
+
+function saveStoredTotalBudget(value: number) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_total_budget", String(value));
+  }
 }
 
 function todayInputValue() {
