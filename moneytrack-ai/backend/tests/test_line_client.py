@@ -17,6 +17,16 @@ def test_build_reply_payload_accepts_flex_message_object() -> None:
     }
 
 
+def test_build_reply_payload_accepts_multiple_message_objects() -> None:
+    success_message = {"type": "flex", "altText": "จดสำเร็จ", "contents": {"type": "bubble"}}
+    budget_message = {"type": "flex", "altText": "แจ้งเตือนงบ", "contents": {"type": "bubble"}}
+
+    assert build_reply_payload("reply-token-001", [success_message, budget_message]) == {
+        "replyToken": "reply-token-001",
+        "messages": [success_message, budget_message],
+    }
+
+
 def test_send_line_reply_posts_to_line_reply_api() -> None:
     calls = []
 

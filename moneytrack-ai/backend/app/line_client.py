@@ -9,14 +9,19 @@ LINE_LINK_RICH_MENU_URL = "https://api.line.me/v2/bot/user/{user_id}/richmenu/{r
 logger = logging.getLogger(__name__)
 
 
-LineReplyMessage = str | dict[str, Any]
+LineReplyItem = str | dict[str, Any]
+LineReplyMessage = LineReplyItem | list[LineReplyItem]
 
 
 def build_reply_payload(reply_token: str, reply_message: LineReplyMessage) -> dict[str, Any]:
-    message = {"type": "text", "text": reply_message} if isinstance(reply_message, str) else reply_message
+    reply_messages = reply_message if isinstance(reply_message, list) else [reply_message]
+    messages = [
+        {"type": "text", "text": item} if isinstance(item, str) else item
+        for item in reply_messages
+    ]
     return {
         "replyToken": reply_token,
-        "messages": [message],
+        "messages": messages,
     }
 
 

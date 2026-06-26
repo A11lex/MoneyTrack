@@ -28,7 +28,7 @@ class LineWebhookResponse(BaseModel):
 class LineMessageResult(BaseModel):
     reply: str
     handled: bool
-    line_message: dict[str, Any] | None = None
+    line_message: dict[str, Any] | list[dict[str, Any]] | None = None
 
 
 def handle_line_message(
@@ -85,7 +85,7 @@ def handle_line_message_detail(
         )
 
     saved = create_transaction(transaction, db_path)
-    line_message = _budget_alert_after_transaction(line_user_id, saved, db_path) or build_transaction_success_flex(
+    success_message = build_transaction_success_flex(
         transaction_id=saved.id,
         transaction_type=saved.type.value,
         amount=saved.amount,
@@ -94,6 +94,8 @@ def handle_line_message_detail(
         mode=saved.mode.value,
         transaction_date=saved.date,
     )
+    budget_alert = _budget_alert_after_transaction(line_user_id, saved, db_path)
+    line_message = [success_message, budget_alert] if budget_alert else success_message
     return LineMessageResult(
         reply=_transaction_reply(saved.type.value, saved.amount, saved.category, saved.mode.value),
         handled=True,
