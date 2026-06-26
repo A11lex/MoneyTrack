@@ -2,6 +2,7 @@ from datetime import date
 from typing import Any
 
 from app.line_messages import (
+    build_budget_alert_flex,
     build_category_budget_flex,
     build_daily_summary_flex,
     build_quick_start_flex,
@@ -121,6 +122,30 @@ def test_build_category_budget_flex_links_to_categories(monkeypatch) -> None:
     assert message["type"] == "flex"
     assert message["altText"] == "จัดการหมวดและงบใน เงินไปไหน?"
     assert _find_text(message, "จัดการหมวดและงบ") is True
+    assert _buttons(message)[0]["action"]["uri"] == "https://example.vercel.app/liff/categories"
+
+
+def test_build_budget_alert_flex_shows_budget_progress_and_warning(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
+
+    message = build_budget_alert_flex(
+        budget_limit=400,
+        category="Food",
+        period_label="รายวัน",
+        spent=180,
+        total_income=50000,
+    )
+
+    assert message["type"] == "flex"
+    assert message["altText"] == "แจ้งเตือนงบ: อาหาร ใช้ไป ฿180 / ฿400"
+    assert _find_text(message, "งบคงเหลือ") is True
+    assert _find_text(message, "รายได้") is True
+    assert _find_text(message, "฿50,000") is True
+    assert _find_text(message, "อาหาร") is True
+    assert _find_text(message, "฿180 / ฿400") is True
+    assert _find_text(message, "ข้อความเตือนงบประมาณ") is True
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารใกล้เต็มงบแล้วนะ") is True
+    assert _find_color(message, "#DC143C") is True
     assert _buttons(message)[0]["action"]["uri"] == "https://example.vercel.app/liff/categories"
 
 

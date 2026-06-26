@@ -267,6 +267,59 @@ def build_daily_summary_flex(
     }
 
 
+def build_budget_alert_flex(
+    *,
+    budget_limit: float,
+    category: str,
+    period_label: str,
+    spent: float,
+    total_income: float,
+) -> dict[str, Any]:
+    category_text = _category_label(category)
+    remaining = max(budget_limit - spent, 0)
+    usage_percent = 0 if budget_limit <= 0 else min((spent / budget_limit) * 100, 100)
+    warning = (
+        f"ใช้จ่ายหมวด{category_text}เต็มงบแล้วนะ"
+        if spent >= budget_limit and budget_limit > 0
+        else f"ใช้จ่ายหมวด{category_text}ใกล้เต็มงบแล้วนะ"
+    )
+
+    return {
+        "type": "flex",
+        "altText": f"แจ้งเตือนงบ: {category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "paddingAll": "16px",
+                "contents": [
+                    _budget_panel(
+                        "งบคงเหลือ",
+                        [
+                            {"type": "separator", "color": BRAND["muted"], "margin": "lg"},
+                            _budget_progress_row("รายได้", total_income, total_income, BRAND["green"]),
+                            _budget_progress_row(category_text, spent, budget_limit, BRAND["pink"], suffix=f" / ฿{budget_limit:,.0f}"),
+                            _plain_text(f"รอบงบ: {period_label}", "xs", BRAND["muted"], align="end"),
+                            _plain_text(f"เหลืองบอีก ฿{remaining:,.0f} ({usage_percent:.0f}% ใช้ไปแล้ว)", "xs", BRAND["muted"], align="end"),
+                        ],
+                    ),
+                    _budget_panel(
+                        "ข้อความเตือนงบประมาณ",
+                        [
+                            _plain_text(f"👵 {warning}", "sm", BRAND["black"], wrap=True),
+                        ],
+                    ),
+                ],
+            },
+            "footer": _single_uri_footer("ตั้งค่างบ", "/liff/categories", BRAND["green"]),
+        },
+    }
+
+
 def _bubble_styles() -> dict[str, Any]:
     return {
         "body": {"backgroundColor": BRAND["surface"]},
@@ -418,6 +471,67 @@ def _amount_row(label: str, amount: float, color: str, *, signed: bool = False) 
                 "color": color,
                 "align": "end",
                 "flex": 1,
+            },
+        ],
+    }
+
+
+def _budget_panel(title: str, contents: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "md",
+        "borderColor": BRAND["line"],
+        "borderWidth": "1px",
+        "cornerRadius": "md",
+        "paddingAll": "14px",
+        "contents": [
+            _plain_text(f"⠿  {title}", "sm", BRAND["black"], weight="bold"),
+            *contents,
+        ],
+    }
+
+
+def _budget_progress_row(label: str, amount: float, max_amount: float, color: str, *, suffix: str = "") -> dict[str, Any]:
+    percent = 0 if max_amount <= 0 else min(max(amount / max_amount, 0), 1)
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "spacing": "xs",
+        "contents": [
+            {
+                "type": "box",
+                "layout": "horizontal",
+                "contents": [
+                    _plain_text(label, "sm", BRAND["black"], weight="bold", wrap=True),
+                    {
+                        "type": "text",
+                        "text": f"฿{amount:,.0f}{suffix}",
+                        "size": "sm",
+                        "weight": "regular",
+                        "color": color,
+                        "align": "end",
+                        "flex": 1,
+                    },
+                ],
+            },
+            {
+                "type": "box",
+                "layout": "vertical",
+                "height": "6px",
+                "backgroundColor": "#E5E7EB",
+                "cornerRadius": "xxl",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "height": "6px",
+                        "width": f"{max(round(percent * 100), 4)}%",
+                        "backgroundColor": color,
+                        "cornerRadius": "xxl",
+                        "contents": [],
+                    }
+                ],
             },
         ],
     }
