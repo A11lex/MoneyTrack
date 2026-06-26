@@ -111,7 +111,7 @@ def build_main_menu_payload(width: int, height: int, app_base_url: str) -> dict[
         "name": "MoneyTrack Main",
         "chatBarText": "เมนู",
         "areas": [
-            area(0, 0, 1200, 850, {"type": "message", "text": "วิธีใช้"}),
+            area(0, 0, 1200, 850, {"type": "postback", "data": "show_quick_start"}),
             area(1200, 0, 360, 410, {"type": "uri", "uri": f"{app_base_url}/liff/summary"}),
             area(1560, 0, 360, 410, {"type": "uri", "uri": f"{app_base_url}/liff/insights"}),
             area(1200, 410, 360, 440, {"type": "uri", "uri": f"{app_base_url}/liff/categories"}),

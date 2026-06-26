@@ -90,6 +90,8 @@ def handle_line_events(
 
 
 def _postback_to_text(data: str) -> str:
+    if data == "show_quick_start":
+        return "วิธีใช้"
     if data.startswith("delete_transaction="):
         transaction_id = data.split("=", 1)[1]
         return f"ลบรายการ {transaction_id}"

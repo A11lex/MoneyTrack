@@ -252,7 +252,9 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
 
 function CategoriesScreen() {
   const [kind, setKind] = useState<"expense" | "income">("expense");
-  const items = kind === "expense" ? expenseCategories : incomeCategories;
+  const [customIncomeCategories, setCustomIncomeCategories] = useState<string[]>([]);
+  const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
+  const items = kind === "expense" ? expenseCategories : [...incomeCategories, ...customIncomeCategories];
 
   return (
     <div className="space-y-5">
@@ -260,28 +262,30 @@ function CategoriesScreen() {
         <button type="button" onClick={() => setKind("expense")} className={`h-12 rounded-md border text-base font-black ${kind === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
           รายจ่าย
         </button>
-        <button type="button" onClick={() => setKind("income")} className={`h-12 rounded-md border text-base font-black ${kind === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+        <button type="button" onClick={() => setKind("income")} className={`h-12 rounded-md border text-base font-black ${kind === "income" ? "border-[#6dc5ad] bg-white text-[#6dc5ad]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
           รายรับ
         </button>
       </div>
-      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-base font-black">งบที่ตั้งไว้</p>
-            <p className="mt-2 text-xl font-black text-[#9aa1a0]">ยังไม่ได้ตั้งงบ</p>
+      {kind === "expense" && (
+        <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-base font-black">งบที่ตั้งไว้</p>
+              <p className="mt-2 text-xl font-black text-[#9aa1a0]">ยังไม่ได้ตั้งงบ</p>
+            </div>
+            <div>
+              <p className="text-base font-black">ชนิดงบ</p>
+              <button className="mt-2 rounded-md border border-black/10 px-3 py-2 text-sm font-bold" type="button">
+                แยกหมวด
+              </button>
+            </div>
           </div>
-          <div>
-            <p className="text-base font-black">ชนิดงบ</p>
-            <button className="mt-2 rounded-md border border-black/10 px-3 py-2 text-sm font-bold" type="button">
-              แยกหมวด
-            </button>
+          <div className="mt-5 rounded-md bg-[#eaf8f4] p-4 text-[#0d4a2b]">
+            <p className="font-black">เงินสำรองฉุกเฉิน</p>
+            <p className="mt-1 text-sm font-semibold">เริ่มจากตั้งงบเก็บเดือนละนิดก่อนก็ได้</p>
           </div>
-        </div>
-        <div className="mt-5 rounded-md bg-[#eaf8f4] p-4 text-[#0d4a2b]">
-          <p className="font-black">เงินสำรองฉุกเฉิน</p>
-          <p className="mt-1 text-sm font-semibold">เริ่มจากตั้งงบเก็บเดือนละนิดก่อนก็ได้</p>
-        </div>
-      </section>
+        </section>
+      )}
       <button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-base font-black shadow-sm">
         <LayoutList className="h-5 w-5" /> จัดเรียง
       </button>
@@ -289,15 +293,97 @@ function CategoriesScreen() {
         {items.map((item) => (
           <button key={item} type="button" className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
             {item}
-            <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-[#8a928e]">
-              งบ ไม่มีตั้งงบ <ChevronRight />
-            </span>
+            {kind === "expense" ? (
+              <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-[#8a928e]">
+                งบ ไม่มีตั้งงบ <ChevronRight />
+              </span>
+            ) : (
+              <ChevronRight className="shrink-0 text-[#9aa1a0]" />
+            )}
           </button>
         ))}
       </div>
-      <button type="button" className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
+      <button type="button" onClick={() => kind === "income" && setShowIncomeCategoryModal(true)} className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
         + เพิ่มหมวด
       </button>
+      {showIncomeCategoryModal && (
+        <IncomeCategoryModal
+          existingCategories={items}
+          onClose={() => setShowIncomeCategoryModal(false)}
+          onSave={(category) => {
+            setCustomIncomeCategories((current) => [...current, category]);
+            setShowIncomeCategoryModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function IncomeCategoryModal({
+  existingCategories,
+  onClose,
+  onSave,
+}: {
+  existingCategories: string[];
+  onClose: () => void;
+  onSave: (category: string) => void;
+}) {
+  const suggestions = ["เงินเดือน", "โบนัส", "ค่าคอม", "ลงทุน", "ธุรกิจ", "ฟรีแลนซ์", "ของขวัญ", "อื่นๆ"];
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+
+  function save() {
+    const value = name.trim();
+    if (!value) {
+      setError("กรอกชื่อหมวดรายรับก่อนบันทึก");
+      return;
+    }
+    if (existingCategories.includes(value)) {
+      setError("มีหมวดนี้อยู่แล้ว");
+      return;
+    }
+    onSave(value);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
+        <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
+        <div className="flex items-center justify-end">
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#151b18]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <h2 className="text-center text-2xl font-black">เพิ่มหมวดรายรับ</h2>
+
+        <div className="mt-8">
+          <label className="block">
+            <span className="text-sm font-black">ตั้งชื่อหมวดรายรับ</span>
+            <input value={name} onChange={(event) => { setName(event.target.value); setError(""); }} className="mt-2 h-12 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+          </label>
+          <p className="mt-2 text-xs font-semibold text-[#8a928e]">พิมพ์ชื่อหมวด หรือ เลือกจากตัวเลือกด้านล่าง</p>
+        </div>
+
+        <div className="mt-7 text-center">
+          <p className="text-lg font-black">ชื่อหมวดยอดฮิต</p>
+          <p className="mt-2 text-sm font-semibold text-[#8a928e]">หากนึกไม่ออกลองเลือกจากชื่อหมวดข้างล่างนี้ดูสิ</p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {suggestions.map((suggestion) => (
+            <button key={suggestion} type="button" onClick={() => { setName(suggestion); setError(""); }} className="h-12 rounded-md border border-black/10 bg-white text-sm font-bold shadow-sm active:bg-[#eef8f5]">
+              {suggestion}
+            </button>
+          ))}
+        </div>
+
+        {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+        <button type="button" onClick={save} className="mt-6 h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
+          บันทึก
+        </button>
+      </div>
     </div>
   );
 }

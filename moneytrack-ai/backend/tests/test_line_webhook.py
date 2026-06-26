@@ -218,6 +218,38 @@ def test_line_webhook_open_record_keyboard_postback_does_not_send_reply(monkeypa
     assert sent_replies == []
 
 
+def test_line_webhook_show_quick_start_postback_sends_help_flex(monkeypatch) -> None:
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
+    sent_replies = []
+    monkeypatch.setattr(
+        main_module,
+        "send_line_reply",
+        lambda reply_token, reply_message, access_token: sent_replies.append(
+            {"reply_token": reply_token, "reply_message": reply_message, "access_token": access_token}
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post(
+        "/line/webhook",
+        json={
+            "events": [
+                {
+                    "type": "postback",
+                    "replyToken": "reply-token-001",
+                    "source": {"userId": "line-user-001"},
+                    "postback": {"data": "show_quick_start"},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["handled"] is True
+    assert sent_replies[0]["reply_message"]["type"] == "flex"
+    assert sent_replies[0]["reply_message"]["altText"] == "เริ่มจดรายรับรายจ่ายกับ เงินไปไหน?"
+
+
 def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkeypatch) -> None:
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "test-secret")
     client = TestClient(app)
