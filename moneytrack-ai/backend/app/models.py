@@ -49,6 +49,30 @@ class Transaction(TransactionBase):
     id: int
 
 
+class LineUserUpsert(BaseModel):
+    line_user_id: str = Field(min_length=1, max_length=120)
+    display_name: str = Field(default="", max_length=120)
+    picture_url: str | None = Field(default=None, max_length=500)
+
+
+class OnboardingPayload(BaseModel):
+    discovery_source: str | None = Field(default=None, max_length=80)
+    expense_categories: list[str] = Field(default_factory=list)
+    income_categories: list[str] = Field(default_factory=list)
+    monthly_budgets: dict[str, float] = Field(default_factory=dict)
+
+
+class UserSetup(BaseModel):
+    line_user_id: str
+    display_name: str
+    picture_url: str | None = None
+    onboarding_completed: bool
+    discovery_source: str | None = None
+    expense_categories: list[str]
+    income_categories: list[str]
+    monthly_budgets: dict[str, float]
+
+
 class WhatIfScenario(BaseModel):
     reduce_food_percent: float = Field(default=0, ge=0, le=100)
     reduce_shopping_percent: float = Field(default=0, ge=0, le=100)

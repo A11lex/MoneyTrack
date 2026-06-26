@@ -18,6 +18,7 @@ Create a finance dashboard for individuals and small businesses that explains mo
 4. Read AI-style rule-based recommendations.
 5. Run what-if scenario to see how changes affect net balance and risk.
 6. Send a Thai natural-language transaction message to the mock LINE webhook.
+7. Complete first-run LINE/LIFF onboarding with profile, categories, and budget setup.
 
 ## Data Model
 
@@ -53,6 +54,7 @@ Transaction:
 - Advisor returns structured recommendations.
 - Mock LINE webhook can parse, save, and reply to transaction messages.
 - LINE Messaging API-style event payloads can be adapted into the same transaction flow.
+- LINE user onboarding can persist selected income categories, expense categories, and monthly budgets.
 - What-if simulator returns original net, new net, savings improvement, and risk-level change.
 - Financial health score returns score, risk level, and explanation.
 - UI supports English and Thai labels.

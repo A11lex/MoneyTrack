@@ -21,6 +21,9 @@ FastAPI routes:
 - `GET /dashboard`
 - `POST /what-if`
 - `POST /line/webhook`
+- `POST /users/line`
+- `GET /users/line/{line_user_id}/setup`
+- `POST /users/line/{line_user_id}/onboarding`
 
 Important modules:
 
@@ -65,6 +68,16 @@ Production LINE mode uses:
 - `LINE_CHANNEL_ACCESS_TOKEN` to call LINE Reply API
 
 If those variables are not set, local mock testing still works and no outbound LINE request is sent.
+
+## Onboarding Data
+
+The backend stores first-run LIFF setup in:
+
+- `line_users`: LINE profile, discovery source, onboarding completion
+- `user_categories`: selected income and expense categories
+- `user_budgets`: monthly category budget limits
+
+The LIFF onboarding UI should call `/users/line` after profile permission is granted, then submit selected categories and budgets to `/users/line/{line_user_id}/onboarding`.
 
 ## Data Flow
 

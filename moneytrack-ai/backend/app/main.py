@@ -7,16 +7,29 @@ from fastapi.middleware.cors import CORSMiddleware
 from .database import (
     create_transaction,
     delete_transaction,
+    get_user_setup,
     list_transactions,
+    save_user_onboarding,
     seed_demo_data,
     update_transaction,
+    upsert_line_user,
 )
 from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
 from .line_adapter import handle_line_events
 from .line_client import send_line_reply
 from .line_security import verify_line_signature
 from .line_service import LineWebhookPayload, LineWebhookResponse, handle_line_message
-from .models import EXPENSE_CATEGORIES, INCOME_CATEGORIES, Transaction, TransactionCreate, TransactionUpdate, WhatIfScenario
+from .models import (
+    EXPENSE_CATEGORIES,
+    INCOME_CATEGORIES,
+    LineUserUpsert,
+    OnboardingPayload,
+    Transaction,
+    TransactionCreate,
+    TransactionUpdate,
+    UserSetup,
+    WhatIfScenario,
+)
 
 app = FastAPI(title="MoneyTrack AI API", version="0.1.0")
 
@@ -112,3 +125,24 @@ async def line_webhook(request: Request) -> dict[str, Any] | LineWebhookResponse
 
     mock_payload = LineWebhookPayload.model_validate(payload)
     return handle_line_message(mock_payload.line_user_id, mock_payload.message)
+
+
+@app.post("/users/line", response_model=UserSetup)
+def post_line_user(payload: LineUserUpsert) -> UserSetup:
+    return upsert_line_user(payload)
+
+
+@app.get("/users/line/{line_user_id}/setup", response_model=UserSetup)
+def get_line_user_setup(line_user_id: str) -> UserSetup:
+    setup = get_user_setup(line_user_id)
+    if setup is None:
+        raise HTTPException(status_code=404, detail="LINE user not found")
+    return setup
+
+
+@app.post("/users/line/{line_user_id}/onboarding", response_model=UserSetup)
+def post_line_user_onboarding(line_user_id: str, payload: OnboardingPayload) -> UserSetup:
+    setup = save_user_onboarding(line_user_id, payload)
+    if setup is None:
+        raise HTTPException(status_code=404, detail="LINE user not found")
+    return setup
