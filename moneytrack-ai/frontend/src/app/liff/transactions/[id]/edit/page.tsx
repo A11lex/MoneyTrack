@@ -82,28 +82,28 @@ export default function EditTransactionPage() {
 
   return (
     <main className="min-h-screen bg-white text-[#151b18]">
-      <div className="mx-auto min-h-screen w-full max-w-md px-5 py-6">
+      <div className="mx-auto min-h-screen w-full max-w-md px-4 py-5">
         <header className="flex items-center justify-between">
-          <h1 className="text-3xl font-black">แก้ไขรายการ</h1>
+          <h1 className="text-2xl font-black">แก้ไขรายการ</h1>
           <button
             type="button"
             onClick={remove}
             disabled={saving}
             aria-label="ลบรายการ"
-            className="grid h-12 w-12 place-items-center rounded-md text-white disabled:opacity-60"
+            className="grid h-10 w-10 place-items-center rounded-md text-white disabled:opacity-60"
             style={{ backgroundColor: accent }}
           >
             <Trash2 className="h-5 w-5" />
           </button>
         </header>
 
-        <form className="mt-7 space-y-7" onSubmit={(event) => { event.preventDefault(); void save(); }}>
+        <form className="mt-6 space-y-5" onSubmit={(event) => { event.preventDefault(); void save(); }}>
           <label className="block">
             <span className="text-base font-black">รายละเอียด</span>
             <input
               value={transaction.description}
               onChange={(event) => setTransaction({ ...transaction, description: event.target.value })}
-              className="mt-2 h-12 w-full rounded-md border border-black/10 px-4 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
+              className="mt-2 h-11 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
             />
           </label>
 
@@ -146,7 +146,7 @@ export default function EditTransactionPage() {
                 min="1"
                 value={transaction.amount}
                 onChange={(event) => setTransaction({ ...transaction, amount: Number(event.target.value) })}
-                className="h-12 min-w-0 flex-1 rounded-md border border-black/10 px-4 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
+                className="h-11 min-w-0 flex-1 rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
               />
               <span className="font-bold text-[#6b7280]">฿</span>
             </div>
@@ -154,7 +154,7 @@ export default function EditTransactionPage() {
 
           <label className="block">
             <span className="text-base font-black">วันที่และเวลา</span>
-            <div className="mt-2 flex h-12 items-center gap-3 rounded-md border border-black/10 px-4 shadow-sm">
+            <div className="mt-2 flex h-11 items-center gap-3 rounded-md border border-black/10 px-3 shadow-sm">
               <CalendarDays className="h-5 w-5" />
               <input
                 type="date"
@@ -170,7 +170,7 @@ export default function EditTransactionPage() {
           <button
             type="submit"
             disabled={saving}
-            className="h-14 w-full rounded-md text-lg font-black text-[#082f24] disabled:opacity-60"
+            className="h-12 w-full rounded-md text-base font-black text-[#082f24] disabled:opacity-60"
             style={{ backgroundColor: green }}
           >
             {saving ? "กำลังบันทึก..." : "บันทึก"}
@@ -196,7 +196,7 @@ function TypeButton({
     <button
       type="button"
       onClick={onClick}
-      className="h-16 rounded-md border text-xl font-black"
+      className="h-12 rounded-md border text-base font-black"
       style={{
         borderColor: color,
         backgroundColor: active ? `${color}1A` : "#FFFFFF",

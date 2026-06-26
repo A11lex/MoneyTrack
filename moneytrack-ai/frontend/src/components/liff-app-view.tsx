@@ -66,7 +66,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
     <main className="min-h-screen bg-[#f8faf9] text-[#151b18]">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
         <LiffHeader title={titleFor(tab)} />
-        <section className="flex-1 px-5 pb-28 pt-5">
+        <section className="flex-1 px-4 pb-24 pt-4">
           {loading ? (
             <LoadingState />
           ) : (
@@ -87,13 +87,13 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
 
 function LiffHeader({ title }: { title: string }) {
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-black/5 bg-white/95 px-5 py-4 backdrop-blur">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-black/5 bg-white/95 px-4 py-3 backdrop-blur">
       <div>
-        <h1 className="text-2xl font-black">{title}</h1>
-        <p className="text-sm font-semibold text-[#8a928e]">money-track-sandy.vercel.app</p>
+        <h1 className="text-xl font-black">{title}</h1>
+        <p className="text-xs font-semibold text-[#8a928e]">money-track-sandy.vercel.app</p>
       </div>
-      <button type="button" aria-label="ปิด" onClick={() => window.close()} className="grid h-11 w-11 place-items-center rounded-full text-[#151b18]">
-        <X className="h-8 w-8" />
+      <button type="button" aria-label="ปิด" onClick={() => window.close()} className="grid h-10 w-10 place-items-center rounded-full text-[#151b18]">
+        <X className="h-6 w-6" />
       </button>
     </header>
   );
@@ -106,24 +106,24 @@ function SummaryScreen({ dashboard, latest }: { dashboard: DashboardData | null;
   const expense = summary?.total_expense ?? 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <ProfileCard />
       <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-black">สรุป</h2>
-        <button className="rounded-md border border-black/10 bg-white px-4 py-3 text-lg font-bold shadow-sm" type="button">
+        <h2 className="text-2xl font-black">สรุป</h2>
+        <button className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-bold shadow-sm" type="button">
           เดือนนี้
         </button>
       </div>
-      <section className="rounded-md border border-black/10 bg-white p-5 shadow-sm">
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="text-center">
-          <p className="text-xl font-bold text-[#3d4742]">เหลือเก็บ</p>
-          <p className={`mt-2 text-5xl font-black ${net >= 0 ? "text-[#14b86a]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
+          <p className="text-base font-bold text-[#3d4742]">เหลือเก็บ</p>
+          <p className={`mt-2 text-4xl font-black ${net >= 0 ? "text-[#14b86a]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
         </div>
-        <div className="mt-7 grid grid-cols-2 gap-3">
+        <div className="mt-5 grid grid-cols-2 gap-3">
           <MetricBox label="รายจ่าย" value={expense} tone="expense" />
           <MetricBox label="รายรับ" value={income} tone="income" />
         </div>
-        <Link href="/liff/insights" className="mx-auto mt-7 flex h-12 w-36 items-center justify-center rounded-full border border-black/10 bg-white text-lg font-black text-[#0d4a2b] shadow-sm">
+        <Link href="/liff/insights" className="mx-auto mt-5 flex h-11 w-32 items-center justify-center rounded-full border border-black/10 bg-white text-base font-black text-[#0d4a2b] shadow-sm">
           ดูเพิ่ม
         </Link>
       </section>
@@ -140,10 +140,10 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
   return (
     <div className="space-y-5">
       <Segmented first="รายรับรายจ่าย" second="เก็บออม" active="first" />
-      <section className="rounded-md border border-black/10 bg-white p-5 shadow-sm">
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <h2 className="text-3xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
-          <button className="rounded-md border border-black/10 px-3 py-2 text-base font-bold" type="button">
+          <h2 className="text-2xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
+          <button className="rounded-md border border-black/10 px-3 py-2 text-sm font-bold" type="button">
             รายเดือน
           </button>
         </div>
@@ -155,8 +155,8 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
           <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
         </div>
       </section>
-      <section className="rounded-md border border-black/10 bg-white p-5 shadow-sm">
-        <h2 className="text-3xl font-black">รายจ่ายตามหมวด</h2>
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <h2 className="text-2xl font-black">รายจ่ายตามหมวด</h2>
         <div className="mt-5 space-y-4">
           {categories.length > 0 ? categories.slice(0, 5).map((item) => <CategoryBar key={item.category} label={item.category} amount={item.amount} max={Math.max(...categories.map((category) => category.amount))} />) : <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />}
         </div>
@@ -172,22 +172,22 @@ function CategoriesScreen() {
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3">
-        <button type="button" onClick={() => setKind("expense")} className={`h-16 rounded-md border text-xl font-black ${kind === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+        <button type="button" onClick={() => setKind("expense")} className={`h-12 rounded-md border text-base font-black ${kind === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
           รายจ่าย
         </button>
-        <button type="button" onClick={() => setKind("income")} className={`h-16 rounded-md border text-xl font-black ${kind === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+        <button type="button" onClick={() => setKind("income")} className={`h-12 rounded-md border text-base font-black ${kind === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
           รายรับ
         </button>
       </div>
-      <section className="rounded-md border border-black/10 bg-white p-5 shadow-sm">
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <p className="text-xl font-black">งบที่ตั้งไว้</p>
-            <p className="mt-3 text-2xl font-black text-[#9aa1a0]">ยังไม่ได้ตั้งงบ</p>
+            <p className="text-base font-black">งบที่ตั้งไว้</p>
+            <p className="mt-2 text-xl font-black text-[#9aa1a0]">ยังไม่ได้ตั้งงบ</p>
           </div>
           <div>
-            <p className="text-xl font-black">ชนิดงบ</p>
-            <button className="mt-3 rounded-md border border-black/10 px-4 py-3 text-lg font-bold" type="button">
+            <p className="text-base font-black">ชนิดงบ</p>
+            <button className="mt-2 rounded-md border border-black/10 px-3 py-2 text-sm font-bold" type="button">
               แยกหมวด
             </button>
           </div>
@@ -197,20 +197,20 @@ function CategoriesScreen() {
           <p className="mt-1 text-sm font-semibold">เริ่มจากตั้งงบเก็บเดือนละนิดก่อนก็ได้</p>
         </div>
       </section>
-      <button type="button" className="inline-flex h-12 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-lg font-black shadow-sm">
+      <button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-base font-black shadow-sm">
         <LayoutList className="h-5 w-5" /> จัดเรียง
       </button>
       <div className="space-y-3">
         {items.map((item) => (
-          <button key={item} type="button" className="flex h-20 w-full items-center justify-between rounded-md border border-black/10 bg-white px-5 text-left text-xl font-black shadow-sm">
+          <button key={item} type="button" className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
             {item}
-            <span className="inline-flex items-center gap-3 text-base font-bold text-[#8a928e]">
+            <span className="inline-flex shrink-0 items-center gap-2 text-sm font-bold text-[#8a928e]">
               งบ ไม่มีตั้งงบ <ChevronRight />
             </span>
           </button>
         ))}
       </div>
-      <button type="button" className="h-16 w-full rounded-md bg-[#6dc5ad] text-xl font-black text-[#082f24]">
+      <button type="button" className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
         + เพิ่มหมวด
       </button>
     </div>
@@ -220,12 +220,12 @@ function CategoriesScreen() {
 function TransactionsScreen({ transactions }: { transactions: Transaction[] }) {
   return (
     <div className="space-y-5">
-      <button type="button" className="flex h-16 w-full items-center justify-center gap-4 rounded-md border border-black/10 bg-white text-xl font-black shadow-sm">
+      <button type="button" className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-black/10 bg-white text-base font-black shadow-sm">
         1 มิ.ย. 2569 — 30 มิ.ย. 2569 <CalendarDays />
       </button>
       <div className="grid grid-cols-[1fr_auto] gap-3">
         <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-          <p className="text-2xl font-black">คัดกรองประเภทรายการ</p>
+          <p className="text-xl font-black">คัดกรองรายการ</p>
           <div className="mt-3 flex gap-2">
             {["ทั้งหมด", "รายจ่าย", "รายรับ"].map((item, index) => (
               <button key={item} type="button" className={`h-10 rounded-md px-4 text-base font-black ${index === 0 ? "bg-[#DC143C] text-white" : "bg-[#eceef1] text-[#555f5b]"}`}>
@@ -234,13 +234,13 @@ function TransactionsScreen({ transactions }: { transactions: Transaction[] }) {
             ))}
           </div>
         </section>
-        <button type="button" className="grid w-24 place-items-center rounded-md border border-black/10 bg-white text-lg font-black shadow-sm">
+        <button type="button" className="grid w-20 place-items-center rounded-md border border-black/10 bg-white text-sm font-black shadow-sm">
           <Download />
           ส่งออก
         </button>
       </div>
       {transactions.length > 0 ? <TransactionList transactions={transactions} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="กดปุ่ม + หรือจดผ่านแชท LINE เพื่อเพิ่มรายการแรก" />}
-      <button type="button" className="fixed bottom-28 right-[calc(50%-12rem)] grid h-20 w-20 place-items-center rounded-full bg-[#DC143C] text-5xl font-light text-white shadow-xl">
+      <button type="button" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-16 w-16 place-items-center rounded-full bg-[#DC143C] text-4xl font-light text-white shadow-xl">
         +
       </button>
     </div>
@@ -253,39 +253,39 @@ function SettingsScreen() {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={72} height={72} className="h-18 w-18 rounded-full object-cover" />
+        <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={64} height={64} className="h-16 w-16 rounded-full object-cover" />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-3xl font-black">เงินไปไหน?</h2>
-          <p className="text-lg font-semibold text-[#8a928e]">ผู้ช่วยจดเงินผ่าน LINE</p>
+          <h2 className="truncate text-2xl font-black">เงินไปไหน?</h2>
+          <p className="text-sm font-semibold text-[#8a928e]">ผู้ช่วยจดเงินผ่าน LINE</p>
         </div>
-        <button type="button" className="rounded-md bg-[#6dc5ad] px-5 py-3 text-lg font-black text-[#082f24]">
+        <button type="button" className="rounded-md bg-[#6dc5ad] px-4 py-2 text-sm font-black text-[#082f24]">
           อัปเกรด
         </button>
       </div>
-      <section className="rounded-md border border-black/10 bg-white p-5 shadow-sm">
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-5">
-          <Image src="/brand/moneytrack-pro.png" alt="" width={96} height={96} className="h-24 w-24 rounded-md object-cover opacity-80" />
+          <Image src="/brand/moneytrack-pro.png" alt="" width={80} height={80} className="h-20 w-20 rounded-md object-cover opacity-80" />
           <div>
-            <p className="text-2xl font-black">จดต่อเนื่องมา</p>
-            <p className="mt-2 text-5xl font-black">0 วัน</p>
-            <p className="mt-2 text-lg text-[#555f5b]">เริ่มจดวันนี้เพื่อสร้างนิสัยใหม่</p>
+            <p className="text-xl font-black">จดต่อเนื่องมา</p>
+            <p className="mt-1 text-4xl font-black">0 วัน</p>
+            <p className="mt-1 text-sm text-[#555f5b]">เริ่มจดวันนี้เพื่อสร้างนิสัยใหม่</p>
           </div>
         </div>
         <div className="mt-4 h-3 rounded-full bg-[#e5e8e7]">
           <div className="h-3 w-1/2 rounded-full bg-[#6dc5ad]" />
         </div>
       </section>
-      <button type="button" className="h-16 w-full rounded-md bg-[#6dc5ad] text-xl font-black text-[#082f24]">
+      <button type="button" className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
         ชวนเพื่อนมาใช้ รับฟรี 1 เดือน
       </button>
       <div className="space-y-3">
         {settings.map((item, index) => (
-          <button key={item} type="button" className="flex h-18 w-full items-center justify-between rounded-md border border-black/10 bg-white px-5 text-left text-xl font-bold shadow-sm">
+          <button key={item} type="button" className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm">
             <span className={index === settings.length - 1 ? "text-[#0d4a2b]" : ""}>{item}</span>
             <ChevronRight className="text-[#9aa1a0]" />
           </button>
         ))}
-        <button type="button" className="flex h-18 w-full items-center justify-between rounded-md border border-black/10 bg-white px-5 text-left text-xl font-bold text-[#DC143C] shadow-sm">
+        <button type="button" className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold text-[#DC143C] shadow-sm">
           <span>ลบรายการทั้งหมด</span>
           <Trash2 />
         </button>
@@ -296,11 +296,11 @@ function SettingsScreen() {
 
 function ProfileCard() {
   return (
-    <section className="flex items-center gap-4 rounded-md border border-black/10 bg-white p-5 shadow-sm">
-      <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={64} height={64} className="h-16 w-16 rounded-full object-cover" />
+    <section className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
+      <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={56} height={56} className="h-14 w-14 rounded-full object-cover" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-3xl font-black">เงินไปไหน?</p>
-        <p className="mt-1 text-lg font-semibold text-[#8a928e]">หลานฟรี</p>
+        <p className="truncate text-2xl font-black">เงินไปไหน?</p>
+        <p className="mt-1 text-sm font-semibold text-[#8a928e]">หลานฟรี</p>
       </div>
       <span className="rounded-full border border-[#6dc5ad]/40 bg-[#eaf8f4] px-3 py-2 text-xs font-black text-[#0d4a2b]">ใช้ฟรี</span>
     </section>
@@ -311,8 +311,8 @@ function MetricBox({ label, value, tone }: { label: string; value: number; tone:
   const classes = tone === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]";
   return (
     <div className={`rounded-md border-2 p-4 ${classes}`}>
-      <p className="text-lg font-bold text-[#3d4742]">{label}</p>
-      <p className="mt-3 text-3xl font-black">{formatBaht(value)}</p>
+      <p className="text-sm font-bold text-[#3d4742]">{label}</p>
+      <p className="mt-2 text-2xl font-black">{formatBaht(value)}</p>
     </div>
   );
 }
@@ -338,7 +338,7 @@ function MiniBars({ data }: { data: { month: string; income: number; expense: nu
 function CategoryBar({ label, amount, max }: { label: string; amount: number; max: number }) {
   return (
     <div>
-      <div className="flex justify-between text-lg font-black">
+      <div className="flex justify-between text-base font-black">
         <span>{label}</span>
         <span>{formatBaht(amount)}</span>
       </div>
@@ -353,12 +353,12 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
   return (
     <div className="space-y-3">
       {transactions.map((transaction) => (
-        <Link key={transaction.id} href={`/liff/transactions/${transaction.id}/edit`} className="flex items-center justify-between rounded-md border border-black/10 bg-white p-4 shadow-sm">
-          <div>
-            <p className="text-xl font-black">{transaction.description || transaction.category}</p>
+        <Link key={transaction.id} href={`/liff/transactions/${transaction.id}/edit`} className="flex items-center justify-between gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
+          <div className="min-w-0">
+            <p className="truncate text-lg font-black">{transaction.description || transaction.category}</p>
             <p className="mt-1 text-sm font-semibold text-[#8a928e]">{transaction.date} · {transaction.category}</p>
           </div>
-          <p className={`text-xl font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
+          <p className={`shrink-0 text-lg font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
           </p>
         </Link>
@@ -370,8 +370,8 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
 function SectionTitle({ title, action, actionHref }: { title: string; action: string; actionHref: string }) {
   return (
     <div className="flex items-center justify-between">
-      <h2 className="text-3xl font-black">{title}</h2>
-      <Link href={actionHref} className="rounded-md border border-black/10 bg-white px-4 py-3 text-lg font-bold shadow-sm">
+      <h2 className="text-2xl font-black">{title}</h2>
+      <Link href={actionHref} className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-bold shadow-sm">
         {action}
       </Link>
     </div>
@@ -381,10 +381,10 @@ function SectionTitle({ title, action, actionHref }: { title: string; action: st
 function Segmented({ first, second, active }: { first: string; second: string; active: "first" | "second" }) {
   return (
     <div className="grid grid-cols-2 rounded-md bg-[#f3f5f4] p-1">
-      <button type="button" className={`h-14 rounded-md text-xl font-black ${active === "first" ? "bg-white shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" className={`h-12 rounded-md text-base font-black ${active === "first" ? "bg-white shadow-sm" : "text-[#7f8884]"}`}>
         {first}
       </button>
-      <button type="button" className={`h-14 rounded-md text-xl font-black ${active === "second" ? "bg-white shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" className={`h-12 rounded-md text-base font-black ${active === "second" ? "bg-white shadow-sm" : "text-[#7f8884]"}`}>
         {second}
       </button>
     </div>
@@ -395,7 +395,7 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="rounded-md border border-dashed border-[#cbd5d1] bg-white p-8 text-center">
       <WalletCards className="mx-auto h-12 w-12 text-[#6dc5ad]" />
-      <p className="mt-3 text-xl font-black text-[#555f5b]">{title}</p>
+      <p className="mt-3 text-lg font-black text-[#555f5b]">{title}</p>
       <p className="mt-2 text-base leading-6 text-[#8a928e]">{body}</p>
     </div>
   );
@@ -414,13 +414,13 @@ function LoadingState() {
 
 function BottomNav({ active }: { active: LiffTab }) {
   return (
-    <nav className="fixed bottom-0 left-1/2 z-30 grid h-24 w-full max-w-md -translate-x-1/2 grid-cols-5 border-t border-black/10 bg-white">
+    <nav className="fixed bottom-0 left-1/2 z-30 grid h-20 w-full max-w-md -translate-x-1/2 grid-cols-5 border-t border-black/10 bg-white">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = tab.id === active;
         return (
-          <Link key={tab.id} href={tab.href} className={`flex flex-col items-center justify-center gap-1 text-sm font-black ${isActive ? "text-[#0d4a2b]" : "text-[#9aa1a0]"}`}>
-            <Icon className="h-7 w-7" />
+          <Link key={tab.id} href={tab.href} className={`flex flex-col items-center justify-center gap-1 text-xs font-black ${isActive ? "text-[#0d4a2b]" : "text-[#9aa1a0]"}`}>
+            <Icon className="h-6 w-6" />
             {tab.label}
           </Link>
         );

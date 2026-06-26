@@ -120,23 +120,15 @@ def build_transaction_success_flex(
                 "paddingAll": "20px",
                 "contents": [
                     _brand_header("จดสำเร็จ", "ตรวจสอบรายการที่จดไว้ ถ้าหมวดไม่ถูกให้แก้ในหน้าแอปได้เลย"),
+                    _pill(f"{type_label} - {category_text}", amount_color, "#FFFFFF"),
+                    _plain_text(_format_thai_datetime(transaction_date), "xs", BRAND["muted"]),
                     {
                         "type": "box",
                         "layout": "horizontal",
                         "spacing": "sm",
                         "contents": [
-                            {
-                                "type": "box",
-                                "layout": "vertical",
-                                "spacing": "sm",
-                                "contents": [
-                                    _pill(f"{type_label} - {category_text}", amount_color, "#FFFFFF"),
-                                    _plain_text(_format_thai_datetime(transaction_date), "xs", BRAND["muted"]),
-                                    _plain_text(description or "-", "lg", BRAND["black"], weight="bold"),
-                                ],
-                                "flex": 1,
-                            },
-                            _plain_text(amount_text, "xxl", amount_color, weight="bold", align="end"),
+                            _plain_text(description or "-", "lg", BRAND["black"], weight="bold", wrap=True),
+                            _plain_text(amount_text, "xl", amount_color, weight="bold", align="end"),
                             _icon_action("✎", "uri", _frontend_url(f"/liff/transactions/{transaction_id}/edit"), "#EFF4F8"),
                             _icon_action("×", "postback", f"delete_transaction={transaction_id}", "#EFF4F8", BRAND["pink"]),
                         ],
@@ -338,7 +330,7 @@ def _icon_action(
         action["text"] = target
     return {
         "type": "button",
-        "style": "secondary",
+        "style": "primary" if label == "×" else "secondary",
         "height": "sm",
         "color": text_color if label == "×" else background_color,
         "action": action,
