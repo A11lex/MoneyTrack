@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.line_messages import build_transaction_success_flex
+from app.line_messages import build_daily_summary_flex, build_transaction_success_flex
 
 
 def test_build_transaction_success_flex_matches_brand_ci_for_expense() -> None:
@@ -34,3 +34,20 @@ def test_build_transaction_success_flex_uses_green_amount_for_income() -> None:
 
     assert message["altText"] == "จดสำเร็จ: รายรับ 2,500 บาท"
     assert message["contents"]["body"]["contents"][1]["contents"][1]["color"] == "#7FB069"
+
+
+def test_build_daily_summary_flex_matches_brand_ci() -> None:
+    message = build_daily_summary_flex(
+        summary_date=date(2026, 6, 26),
+        income=2500,
+        expense=346,
+        net=2154,
+    )
+
+    assert message["type"] == "flex"
+    assert message["altText"] == "สรุปวันนี้: สุทธิ +2,154 บาท"
+    assert message["contents"]["styles"]["body"]["backgroundColor"] == "#FFF3D6"
+    assert message["contents"]["body"]["contents"][0]["contents"][0]["text"] == "สรุปวันนี้"
+    assert message["contents"]["body"]["contents"][1]["contents"][0]["contents"][1]["text"] == "฿2,500"
+    assert message["contents"]["body"]["contents"][1]["contents"][1]["contents"][1]["text"] == "฿346"
+    assert message["contents"]["body"]["contents"][2]["contents"][1]["text"] == "+฿2,154"

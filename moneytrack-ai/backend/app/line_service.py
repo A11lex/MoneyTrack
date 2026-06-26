@@ -4,7 +4,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from .database import create_transaction, list_transactions
-from .line_messages import build_transaction_success_flex
+from .line_messages import build_daily_summary_flex, build_transaction_success_flex
 from .message_parser import ParseError, parse_transaction_message
 
 
@@ -43,7 +43,12 @@ def handle_line_message_detail(
     current_date = today or date.today()
     normalized = message.strip()
     if normalized in {"สรุปวันนี้", "วันนี้ใช้ไปเท่าไหร่", "รายรับวันนี้"}:
-        return LineMessageResult(reply=_daily_summary_reply(db_path, current_date), handled=True)
+        income, expense, net = _daily_summary_totals(db_path, current_date)
+        return LineMessageResult(
+            reply=_daily_summary_reply(income, expense, net),
+            handled=True,
+            line_message=build_daily_summary_flex(current_date, income, expense, net),
+        )
 
     try:
         transaction = parse_transaction_message(normalized, today=current_date)
@@ -72,11 +77,15 @@ def _transaction_reply(transaction_type: str, amount: float, category: str, mode
     return f"บันทึกแล้ว: {type_label} {_format_baht(amount)}\nหมวด: {category}\nโหมด: {mode_label}"
 
 
-def _daily_summary_reply(db_path: str | None, today: date) -> str:
+def _daily_summary_totals(db_path: str | None, today: date) -> tuple[float, float, float]:
     transactions = [transaction for transaction in list_transactions(db_path) if transaction.date == today]
     income = sum(transaction.amount for transaction in transactions if transaction.type.value == "income")
     expense = sum(transaction.amount for transaction in transactions if transaction.type.value == "expense")
     net = income - expense
+    return income, expense, net
+
+
+def _daily_summary_reply(income: float, expense: float, net: float) -> str:
     return (
         "สรุปวันนี้\n"
         f"รายรับ: {_format_baht(income)}\n"

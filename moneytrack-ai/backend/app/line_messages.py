@@ -142,6 +142,147 @@ def build_transaction_success_flex(
     }
 
 
+def build_daily_summary_flex(
+    summary_date: date,
+    income: float,
+    expense: float,
+    net: float,
+) -> dict[str, Any]:
+    net_color = BRAND["green"] if net >= 0 else BRAND["red"]
+    net_text = f"{'+' if net >= 0 else '-'}฿{abs(net):,.0f}"
+    return {
+        "type": "flex",
+        "altText": f"สรุปวันนี้: สุทธิ {'+' if net >= 0 else '-'}{abs(net):,.0f} บาท",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": {
+                "body": {"backgroundColor": BRAND["cream"]},
+                "footer": {"backgroundColor": BRAND["cream"]},
+            },
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "alignItems": "center",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "สรุปวันนี้",
+                                "weight": "bold",
+                                "size": "xl",
+                                "color": BRAND["black"],
+                                "flex": 1,
+                            },
+                            {"type": "text", "text": "📊", "size": "xl", "align": "end"},
+                        ],
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "contents": [
+                            _amount_row("รายรับ", income, BRAND["green"]),
+                            _amount_row("รายจ่าย", expense, BRAND["red"]),
+                        ],
+                    },
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "backgroundColor": BRAND["yellow"],
+                        "cornerRadius": "md",
+                        "paddingAll": "12px",
+                        "contents": [
+                            {
+                                "type": "text",
+                                "text": "สุทธิ",
+                                "weight": "bold",
+                                "size": "md",
+                                "color": BRAND["black"],
+                                "flex": 1,
+                            },
+                            {
+                                "type": "text",
+                                "text": net_text,
+                                "weight": "bold",
+                                "size": "xl",
+                                "align": "end",
+                                "color": net_color,
+                                "flex": 2,
+                            },
+                        ],
+                    },
+                    {
+                        "type": "separator",
+                        "color": BRAND["yellow"],
+                        "margin": "md",
+                    },
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "xs",
+                        "contents": [
+                            _meta_row("วันที่", _format_thai_date(summary_date)),
+                            _meta_row("แบรนด์", "เงินไปไหน?"),
+                        ],
+                    },
+                ],
+            },
+            "footer": {
+                "type": "box",
+                "layout": "horizontal",
+                "spacing": "sm",
+                "contents": [
+                    {
+                        "type": "button",
+                        "style": "primary",
+                        "height": "sm",
+                        "color": BRAND["pink"],
+                        "action": {"type": "message", "label": "ดูรายการ", "text": "รายการวันนี้"},
+                    },
+                    {
+                        "type": "button",
+                        "style": "secondary",
+                        "height": "sm",
+                        "color": BRAND["white"],
+                        "action": {"type": "message", "label": "วิเคราะห์", "text": "วิเคราะห์วันนี้"},
+                    },
+                ],
+            },
+        },
+    }
+
+
+def _amount_row(label: str, amount: float, color: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+            {
+                "type": "text",
+                "text": label,
+                "size": "sm",
+                "weight": "bold",
+                "color": BRAND["brown"],
+                "flex": 1,
+            },
+            {
+                "type": "text",
+                "text": f"฿{amount:,.0f}",
+                "size": "lg",
+                "weight": "bold",
+                "color": color,
+                "align": "end",
+                "flex": 2,
+            },
+        ],
+    }
+
+
 def _meta_row(label: str, value: str) -> dict[str, Any]:
     return {
         "type": "box",
