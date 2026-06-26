@@ -148,7 +148,6 @@ def build_transaction_success_flex(
                         "paddingAll": "14px",
                         "contents": [
                             _amount_row(category_text, amount, amount_color),
-                            _progress_bar(amount_color),
                             _meta_row("โหมด", mode_label),
                         ],
                     },
@@ -250,15 +249,9 @@ def _brand_header(title: str, subtitle: str) -> dict[str, Any]:
             _plain_text(title, "xl", BRAND["black"], weight="bold"),
             _plain_text(subtitle, "sm", BRAND["muted"], wrap=True),
             {
-                "type": "box",
-                "layout": "horizontal",
-                "height": "6px",
+                "type": "separator",
+                "color": BRAND["green"],
                 "margin": "md",
-                "contents": [
-                    {"type": "box", "layout": "vertical", "backgroundColor": BRAND["yellow"], "cornerRadius": "xxl", "flex": 2},
-                    {"type": "box", "layout": "vertical", "backgroundColor": BRAND["green"], "cornerRadius": "xxl", "flex": 3, "margin": "sm"},
-                    {"type": "box", "layout": "vertical", "backgroundColor": BRAND["dark_green"], "cornerRadius": "xxl", "flex": 1, "margin": "sm"},
-                ],
             },
         ],
     }
@@ -324,20 +317,6 @@ def _pill(text: str, background_color: str, text_color: str) -> dict[str, Any]:
         "paddingAll": "6px",
         "contents": [
             _plain_text(text, "xs", text_color, weight="bold", align="center", wrap=True),
-        ],
-    }
-
-
-def _progress_bar(color: str) -> dict[str, Any]:
-    return {
-        "type": "box",
-        "layout": "horizontal",
-        "height": "8px",
-        "backgroundColor": BRAND["line"],
-        "cornerRadius": "xxl",
-        "contents": [
-            {"type": "box", "layout": "vertical", "backgroundColor": color, "cornerRadius": "xxl", "flex": 4},
-            {"type": "box", "layout": "vertical", "flex": 1},
         ],
     }
 

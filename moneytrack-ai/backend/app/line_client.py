@@ -1,10 +1,12 @@
 from collections.abc import Callable
+import logging
 from typing import Any
 
 import httpx
 
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
 LINE_LINK_RICH_MENU_URL = "https://api.line.me/v2/bot/user/{user_id}/richmenu/{rich_menu_id}"
+logger = logging.getLogger(__name__)
 
 
 LineReplyMessage = str | dict[str, Any]
@@ -33,6 +35,9 @@ def send_line_reply(
         json=build_reply_payload(reply_token, reply_message),
         timeout=10,
     )
+    status_code = getattr(response, "status_code", 200)
+    if status_code >= 400:
+        logger.error("LINE reply failed: status=%s body=%s", status_code, getattr(response, "text", ""))
     response.raise_for_status()
 
 
