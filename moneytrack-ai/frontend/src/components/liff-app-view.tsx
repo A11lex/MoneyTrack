@@ -280,21 +280,24 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
   const [showTotalBudgetModal, setShowTotalBudgetModal] = useState(false);
   const [budgetMode, setBudgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
   const [budgetCycle, setBudgetCycle] = useState<BudgetCycle>(() => loadStoredBudgetCycle());
+  const [budgetStartDay, setBudgetStartDay] = useState(() => loadStoredBudgetStartDay());
   const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
   const [totalBudget, setTotalBudget] = useState(() => loadStoredTotalBudget());
   const items = kind === "expense" ? storedExpenseCategories : storedIncomeCategories;
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
+  const budgetStartDayLabel = budgetStartDay === 1 ? "วันที่ 1" : `วันที่ ${budgetStartDay}`;
+  const budgetPeriodLabel = `${budgetCycleLabel} (${budgetStartDayLabel})`;
   const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
   const expenseSpentByCategory = useMemo(() => {
     return transactions
-      .filter((transaction) => transaction.type === "expense" && isInBudgetPeriod(transaction.date, budgetCycle))
+      .filter((transaction) => transaction.type === "expense" && isInBudgetPeriod(transaction.date, budgetCycle, budgetStartDay))
       .reduce<Record<string, number>>((result, transaction) => {
         const category = displayCategory(transaction.category, "expense");
         result[category] = (result[category] ?? 0) + transaction.amount;
         return result;
       }, {});
-  }, [transactions, budgetCycle]);
+  }, [transactions, budgetCycle, budgetStartDay]);
   const displayedSpent =
     budgetMode === "total"
       ? Object.values(expenseSpentByCategory).reduce((sum, value) => sum + value, 0)
@@ -402,7 +405,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
               </span>
               <div>
                 <p className="font-black">รอบงบ</p>
-                <p className="text-sm font-semibold text-[#8a928e]">{budgetCycleLabel} (วันที่ 1)</p>
+                <p className="text-sm font-semibold text-[#8a928e]">{budgetPeriodLabel}</p>
               </div>
             </div>
             <button type="button" onClick={() => setShowBudgetCycleModal(true)} className="rounded-md border border-black/10 bg-white px-4 py-2 text-sm font-black shadow-sm">
@@ -545,7 +548,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       {selectedExpenseCategory && (
         <ExpenseCategoryBudgetModal
           budget={expenseBudgets[selectedExpenseCategory] ?? 0}
-          budgetCycleLabel={budgetCycleLabel}
+          budgetCycleLabel={budgetPeriodLabel}
           category={selectedExpenseCategory}
           onClose={() => setSelectedExpenseCategory(null)}
           onDelete={() => {
@@ -593,7 +596,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       {showTotalBudgetModal && (
         <TotalBudgetModal
           budget={totalBudget}
-          budgetCycleLabel={budgetCycleLabel}
+          budgetCycleLabel={budgetPeriodLabel}
           onClose={() => setShowTotalBudgetModal(false)}
           onSave={(budget) => {
             setTotalBudget(budget);
@@ -612,11 +615,14 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       )}
       {showBudgetCycleModal && (
         <BudgetCycleModal
+          startDay={budgetStartDay}
           value={budgetCycle}
           onClose={() => setShowBudgetCycleModal(false)}
-          onSave={(value) => {
+          onSave={(value, startDay) => {
             setBudgetCycle(value);
+            setBudgetStartDay(startDay);
             saveStoredBudgetCycle(value);
+            saveStoredBudgetStartDay(startDay);
             setShowBudgetCycleModal(false);
           }}
         />
@@ -870,7 +876,7 @@ function ExpenseCategoryBudgetModal({
             <span className="inline-flex items-center gap-2 text-sm font-black">
               งบรายจ่าย
               <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#8a928e]">
-                <CalendarDays className="h-3.5 w-3.5" /> {budgetCycleLabel} (วันที่ 1)
+                <CalendarDays className="h-3.5 w-3.5" /> {budgetCycleLabel}
               </span>
             </span>
             <div className="mt-2 flex h-12 items-center rounded-md border border-black/10 px-3 shadow-sm focus-within:border-[#DC143C]">
@@ -935,7 +941,7 @@ function TotalBudgetModal({
           <span className="inline-flex items-center gap-2 text-sm font-black">
             งบรายจ่ายทั้งหมด
             <span className="inline-flex items-center gap-1 text-xs font-semibold text-[#8a928e]">
-              <CalendarDays className="h-3.5 w-3.5" /> {budgetCycleLabel} (วันที่ 1)
+              <CalendarDays className="h-3.5 w-3.5" /> {budgetCycleLabel}
             </span>
           </span>
           <div className="mt-2 flex h-12 items-center rounded-md border border-black/10 px-3 shadow-sm focus-within:border-[#DC143C]">
@@ -958,13 +964,16 @@ function TotalBudgetModal({
 function BudgetCycleModal({
   onClose,
   onSave,
+  startDay,
   value,
 }: {
   onClose: () => void;
-  onSave: (value: "daily" | "weekly" | "monthly") => void;
+  onSave: (value: "daily" | "weekly" | "monthly", startDay: number) => void;
+  startDay: number;
   value: "daily" | "weekly" | "monthly";
 }) {
   const [draft, setDraft] = useState(value);
+  const [draftStartDay, setDraftStartDay] = useState(startDay);
   const options: { label: string; value: "daily" | "weekly" | "monthly" }[] = [
     { label: "รายวัน", value: "daily" },
     { label: "รายสัปดาห์", value: "weekly" },
@@ -994,13 +1003,18 @@ function BudgetCycleModal({
 
         <div className="mt-7">
           <p className="text-sm font-black">วันที่เริ่มต้นงบประมาณ</p>
-          <button type="button" className="mt-3 flex h-11 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 text-sm font-bold text-[#555f5b] shadow-sm">
-            วันแรกของเดือน
-            <ChevronRight className="h-4 w-4 rotate-90 text-[#9aa1a0]" />
-          </button>
+          <select
+            value={draftStartDay}
+            onChange={(event) => setDraftStartDay(Number(event.target.value))}
+            className="mt-3 h-11 w-full rounded-md border border-black/10 bg-white px-4 text-sm font-bold text-[#555f5b] shadow-sm outline-none focus:border-[#DC143C]"
+          >
+            {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => (
+              <option key={day} value={day}>{day === 1 ? "วันแรกของเดือน" : day}</option>
+            ))}
+          </select>
         </div>
 
-        <button type="button" onClick={() => onSave(draft)} className="mt-14 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
+        <button type="button" onClick={() => onSave(draft, draftStartDay)} className="mt-14 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
           บันทึก
         </button>
       </div>
@@ -1557,6 +1571,18 @@ function saveStoredBudgetCycle(value: BudgetCycle) {
   }
 }
 
+function loadStoredBudgetStartDay() {
+  if (typeof window === "undefined") return 1;
+  const value = Number(window.localStorage.getItem("moneytrack_budget_start_day") ?? 1);
+  return Number.isInteger(value) && value >= 1 && value <= 31 ? value : 1;
+}
+
+function saveStoredBudgetStartDay(value: number) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem("moneytrack_budget_start_day", String(value));
+  }
+}
+
 function loadStoredExpenseBudgets(): Record<string, number> {
   if (typeof window === "undefined") return {};
   try {
@@ -1629,7 +1655,7 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function isInBudgetPeriod(value: string, cycle: BudgetCycle) {
+function isInBudgetPeriod(value: string, cycle: BudgetCycle, startDay: number) {
   const transactionDate = parseLocalDate(value);
   if (!transactionDate) return false;
 
@@ -1649,13 +1675,23 @@ function isInBudgetPeriod(value: string, cycle: BudgetCycle) {
     return transactionDate >= startOfWeek && transactionDate <= endOfWeek;
   }
 
-  return transactionDate.getFullYear() === today.getFullYear() && transactionDate.getMonth() === today.getMonth();
+  const currentPeriodStart = dateWithClampedDay(today.getFullYear(), today.getMonth(), startDay);
+  const start = today >= currentPeriodStart
+    ? currentPeriodStart
+    : dateWithClampedDay(today.getFullYear(), today.getMonth() - 1, startDay);
+  const end = dateWithClampedDay(start.getFullYear(), start.getMonth() + 1, startDay);
+  return transactionDate >= start && transactionDate < end;
 }
 
 function parseLocalDate(value: string) {
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day);
+}
+
+function dateWithClampedDay(year: number, monthIndex: number, day: number) {
+  const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+  return new Date(year, monthIndex, Math.min(day, lastDay));
 }
 
 async function loadLineProfile(): Promise<LineProfile> {
