@@ -198,7 +198,8 @@ def _budget_alert_after_transaction(line_user_id: str, transaction: Any, db_path
         )
         category = transaction.category
 
-    if spent < budget_limit * 0.8:
+    usage_ratio = spent / budget_limit
+    if usage_ratio < 0.5:
         return None
 
     return build_budget_alert_flex(
@@ -207,6 +208,7 @@ def _budget_alert_after_transaction(line_user_id: str, transaction: Any, db_path
         period_label="รายเดือน",
         spent=spent,
         total_income=total_income,
+        show_warning=usage_ratio >= 0.8,
     )
 
 

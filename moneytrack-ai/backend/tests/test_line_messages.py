@@ -149,6 +149,25 @@ def test_build_budget_alert_flex_shows_budget_progress_and_warning(monkeypatch) 
     assert _buttons(message)[0]["action"]["uri"] == "https://example.vercel.app/liff/categories"
 
 
+def test_build_budget_alert_flex_can_hide_warning_until_high_usage(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
+
+    message = build_budget_alert_flex(
+        budget_limit=200,
+        category="Food",
+        period_label="รายเดือน",
+        spent=100,
+        total_income=50000,
+        show_warning=False,
+    )
+
+    assert message["type"] == "flex"
+    assert message["altText"] == "งบคงเหลือ: อาหาร ใช้ไป ฿100 / ฿200"
+    assert _find_text(message, "งบคงเหลือ") is True
+    assert _find_text(message, "฿100 / ฿200") is True
+    assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
+
+
 def _buttons(value: Any) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     if isinstance(value, dict):

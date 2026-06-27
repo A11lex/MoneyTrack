@@ -274,6 +274,7 @@ def build_budget_alert_flex(
     period_label: str,
     spent: float,
     total_income: float,
+    show_warning: bool = True,
 ) -> dict[str, Any]:
     category_text = _category_label(category)
     remaining = max(budget_limit - spent, 0)
@@ -283,10 +284,31 @@ def build_budget_alert_flex(
         if spent >= budget_limit and budget_limit > 0
         else f"ใช้จ่ายหมวด{category_text}ใกล้เต็มงบแล้วนะ"
     )
+    body_contents = [
+        _budget_panel(
+            "งบคงเหลือ",
+            [
+                {"type": "separator", "color": BRAND["muted"], "margin": "lg"},
+                _budget_progress_row("รายได้", total_income, total_income, BRAND["green"]),
+                _budget_progress_row(category_text, spent, budget_limit, BRAND["pink"], suffix=f" / ฿{budget_limit:,.0f}"),
+                _plain_text(f"รอบงบ: {period_label}", "xs", BRAND["muted"], align="end"),
+                _plain_text(f"เหลืองบอีก ฿{remaining:,.0f} ({usage_percent:.0f}% ใช้ไปแล้ว)", "xs", BRAND["muted"], align="end"),
+            ],
+        )
+    ]
+    if show_warning:
+        body_contents.append(
+            _budget_panel(
+                "ข้อความเตือนงบประมาณ",
+                [
+                    _plain_text(f"👵 {warning}", "sm", BRAND["black"], wrap=True),
+                ],
+            )
+        )
 
     return {
         "type": "flex",
-        "altText": f"แจ้งเตือนงบ: {category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}",
+        "altText": f"{'แจ้งเตือนงบ' if show_warning else 'งบคงเหลือ'}: {category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}",
         "contents": {
             "type": "bubble",
             "size": "mega",
@@ -296,24 +318,7 @@ def build_budget_alert_flex(
                 "layout": "vertical",
                 "spacing": "md",
                 "paddingAll": "16px",
-                "contents": [
-                    _budget_panel(
-                        "งบคงเหลือ",
-                        [
-                            {"type": "separator", "color": BRAND["muted"], "margin": "lg"},
-                            _budget_progress_row("รายได้", total_income, total_income, BRAND["green"]),
-                            _budget_progress_row(category_text, spent, budget_limit, BRAND["pink"], suffix=f" / ฿{budget_limit:,.0f}"),
-                            _plain_text(f"รอบงบ: {period_label}", "xs", BRAND["muted"], align="end"),
-                            _plain_text(f"เหลืองบอีก ฿{remaining:,.0f} ({usage_percent:.0f}% ใช้ไปแล้ว)", "xs", BRAND["muted"], align="end"),
-                        ],
-                    ),
-                    _budget_panel(
-                        "ข้อความเตือนงบประมาณ",
-                        [
-                            _plain_text(f"👵 {warning}", "sm", BRAND["black"], wrap=True),
-                        ],
-                    ),
-                ],
+                "contents": body_contents,
             },
             "footer": _single_uri_footer("ตั้งค่างบ", "/liff/categories", BRAND["green"]),
         },

@@ -134,6 +134,66 @@ def test_handle_line_message_detail_returns_budget_alert_when_category_budget_is
     assert _find_text(result.line_message[1], "ใช้จ่ายหมวดอาหารเต็มงบแล้วนะ") is True
 
 
+def test_handle_line_message_detail_does_not_alert_before_half_of_budget(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_onboarding(
+        "test-user-001",
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["อาหาร"],
+            income_categories=[],
+            monthly_budgets={"อาหาร": 200},
+        ),
+        db_path,
+    )
+
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ข้าว 50",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result.line_message is not None
+    assert isinstance(result.line_message, dict)
+    assert result.line_message["altText"] == "จดสำเร็จ: รายจ่าย 50 บาท"
+
+
+def test_handle_line_message_detail_returns_budget_progress_at_half_without_warning(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_onboarding(
+        "test-user-001",
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["อาหาร"],
+            income_categories=[],
+            monthly_budgets={"อาหาร": 200},
+        ),
+        db_path,
+    )
+
+    handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ข้าว 50",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ข้าว 50",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result.line_message is not None
+    assert isinstance(result.line_message, list)
+    assert result.line_message[1]["altText"] == "งบคงเหลือ: อาหาร ใช้ไป ฿100 / ฿200"
+    assert _find_text(result.line_message[1], "งบคงเหลือ") is True
+    assert _find_text(result.line_message[1], "ข้อความเตือนงบประมาณ") is False
+
+
 def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_path) -> None:
     db_path = str(tmp_path / "line.db")
     handle_line_message("test-user-001", "ข้าว 80", db_path=db_path, today=date(2026, 6, 25))
