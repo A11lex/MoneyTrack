@@ -25,6 +25,20 @@ def test_handle_line_message_saves_transaction_and_returns_reply(tmp_path) -> No
     assert result.reply == "บันทึกแล้ว: รายจ่าย 80 บาท\nหมวด: Food\nโหมด: ส่วนตัว"
 
 
+def test_line_transactions_are_scoped_by_user(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+
+    handle_line_message("user-a", "ข้าว 80", db_path=db_path, today=date(2026, 6, 25))
+    handle_line_message("user-b", "ข้าว 120", db_path=db_path, today=date(2026, 6, 25))
+
+    user_a_transactions = list_transactions(db_path, line_user_id="user-a")
+    user_b_transactions = list_transactions(db_path, line_user_id="user-b")
+
+    assert [transaction.amount for transaction in user_a_transactions] == [80]
+    assert [transaction.amount for transaction in user_b_transactions] == [120]
+    assert len(list_transactions(db_path)) == 2
+
+
 def test_handle_line_message_returns_parse_error_without_saving(tmp_path) -> None:
     db_path = str(tmp_path / "line.db")
 
@@ -252,6 +266,23 @@ def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_pa
     assert list_transactions(db_path) == []
     assert result.line_message is not None
     assert result.line_message["altText"] == "ลบสำเร็จ: รายจ่าย 80 บาท"
+
+
+def test_line_user_cannot_delete_another_users_transaction(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    handle_line_message("user-a", "ข้าว 80", db_path=db_path, today=date(2026, 6, 25))
+    transaction_id = list_transactions(db_path, line_user_id="user-a")[0].id
+
+    result = handle_line_message_detail(
+        line_user_id="user-b",
+        message=f"ลบรายการ {transaction_id}",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result.handled is False
+    assert [transaction.id for transaction in list_transactions(db_path, line_user_id="user-a")] == [transaction_id]
+    assert list_transactions(db_path, line_user_id="user-b") == []
 
 
 def test_handle_line_message_detail_deletes_transaction_and_returns_budget_progress(tmp_path) -> None:

@@ -28,18 +28,34 @@ const categoryNameMap: Record<string, string> = {
   Utilities: "ค่าน้ำค่าไฟ",
 };
 
+type LiffClient = {
+  init: (options: { liffId: string }) => Promise<void>;
+  isLoggedIn: () => boolean;
+  login: () => void;
+  getProfile: () => Promise<{ userId: string }>;
+};
+
 export default function EditTransactionPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const transactionId = Number(params.id);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
+  const [lineUserId, setLineUserId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!Number.isFinite(transactionId)) return;
-    getTransaction(transactionId)
+    loadLineUserId()
+      .catch(() => "")
+      .then((loadedLineUserId) => {
+        if (!loadedLineUserId) {
+          throw new Error("LINE profile is required");
+        }
+        setLineUserId(loadedLineUserId);
+        return getTransaction(transactionId, loadedLineUserId);
+      })
       .then((item) => setTransaction({ ...item, category: displayCategory(item.category, item.type) }))
       .catch(() => setError("โหลดรายการไม่สำเร็จ"));
   }, [transactionId]);
@@ -62,7 +78,7 @@ export default function EditTransactionPage() {
       mode: transaction.mode,
     };
     try {
-      await updateTransaction(transaction.id, payload);
+      await updateTransaction(transaction.id, payload, lineUserId || undefined);
       router.push("/liff/transactions");
     } catch {
       setError("บันทึกไม่สำเร็จ");
@@ -76,7 +92,7 @@ export default function EditTransactionPage() {
     setSaving(true);
     setError("");
     try {
-      await deleteTransaction(transaction.id);
+      await deleteTransaction(transaction.id, lineUserId || undefined);
       router.push("/liff/transactions");
     } catch {
       setError("ลบรายการไม่สำเร็จ");
@@ -256,6 +272,51 @@ function TypeButton({
       {label}
     </button>
   );
+}
+
+async function loadLineUserId(): Promise<string> {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  if (!liffId || typeof window === "undefined") {
+    return "";
+  }
+
+  await ensureLiffSdk();
+  const lineWindow = window as Window & { liff?: LiffClient };
+  if (!lineWindow.liff) {
+    return "";
+  }
+
+  await lineWindow.liff.init({ liffId });
+  if (!lineWindow.liff.isLoggedIn()) {
+    lineWindow.liff.login();
+    return "";
+  }
+
+  const profile = await lineWindow.liff.getProfile();
+  return profile.userId;
+}
+
+function ensureLiffSdk(): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+  const lineWindow = window as Window & { liff?: LiffClient };
+  if (lineWindow.liff) return Promise.resolve();
+
+  const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://static.line-scdn.net/liff/edge/2/sdk.js"]');
+  if (existingScript) {
+    return new Promise((resolve, reject) => {
+      existingScript.addEventListener("load", () => resolve(), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load LIFF SDK")), { once: true });
+    });
+  }
+
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://static.line-scdn.net/liff/edge/2/sdk.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load LIFF SDK"));
+    document.head.appendChild(script);
+  });
 }
 
 function transactionCategories(type: "expense" | "income") {

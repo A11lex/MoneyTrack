@@ -28,6 +28,7 @@ def init_db(db_path: str | None = None) -> None:
             """
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                line_user_id TEXT,
                 date TEXT NOT NULL,
                 type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
                 amount REAL NOT NULL CHECK(amount > 0),
@@ -37,6 +38,7 @@ def init_db(db_path: str | None = None) -> None:
             )
             """
         )
+        _ensure_column(conn, "transactions", "line_user_id", "TEXT")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS line_users (
@@ -100,29 +102,42 @@ def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
-def list_transactions(db_path: str | None = None) -> list[Transaction]:
+def list_transactions(db_path: str | None = None, line_user_id: str | None = None) -> list[Transaction]:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        rows = conn.execute("SELECT * FROM transactions ORDER BY date DESC, id DESC").fetchall()
+        if line_user_id:
+            rows = conn.execute(
+                "SELECT * FROM transactions WHERE line_user_id = ? ORDER BY date DESC, id DESC",
+                (line_user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM transactions ORDER BY date DESC, id DESC").fetchall()
         return [row_to_transaction(row) for row in rows]
 
 
-def get_transaction(transaction_id: int, db_path: str | None = None) -> Transaction | None:
+def get_transaction(transaction_id: int, db_path: str | None = None, line_user_id: str | None = None) -> Transaction | None:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+        if line_user_id:
+            row = conn.execute(
+                "SELECT * FROM transactions WHERE id = ? AND line_user_id = ?",
+                (transaction_id, line_user_id),
+            ).fetchone()
+        else:
+            row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         return row_to_transaction(row) if row else None
 
 
-def create_transaction(payload: TransactionCreate, db_path: str | None = None) -> Transaction:
+def create_transaction(payload: TransactionCreate, db_path: str | None = None, line_user_id: str | None = None) -> Transaction:
     init_db(db_path)
     with get_connection(db_path) as conn:
         cursor = conn.execute(
             """
-            INSERT INTO transactions (date, type, amount, category, description, mode)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO transactions (line_user_id, date, type, amount, category, description, mode)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                line_user_id,
                 payload.date.isoformat(),
                 payload.type.value,
                 payload.amount,
@@ -135,36 +150,65 @@ def create_transaction(payload: TransactionCreate, db_path: str | None = None) -
         return row_to_transaction(row)
 
 
-def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path: str | None = None) -> Transaction | None:
+def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path: str | None = None, line_user_id: str | None = None) -> Transaction | None:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        existing = conn.execute("SELECT id FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+        if line_user_id:
+            existing = conn.execute(
+                "SELECT id FROM transactions WHERE id = ? AND line_user_id = ?",
+                (transaction_id, line_user_id),
+            ).fetchone()
+        else:
+            existing = conn.execute("SELECT id FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         if existing is None:
             return None
-        conn.execute(
-            """
-            UPDATE transactions
-            SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?
-            WHERE id = ?
-            """,
-            (
-                payload.date.isoformat(),
-                payload.type.value,
-                payload.amount,
-                payload.category,
-                payload.description,
-                payload.mode.value,
-                transaction_id,
-            ),
-        )
-        row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+        if line_user_id:
+            conn.execute(
+                """
+                UPDATE transactions
+                SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?
+                WHERE id = ? AND line_user_id = ?
+                """,
+                (
+                    payload.date.isoformat(),
+                    payload.type.value,
+                    payload.amount,
+                    payload.category,
+                    payload.description,
+                    payload.mode.value,
+                    transaction_id,
+                    line_user_id,
+                ),
+            )
+            row = conn.execute("SELECT * FROM transactions WHERE id = ? AND line_user_id = ?", (transaction_id, line_user_id)).fetchone()
+        else:
+            conn.execute(
+                """
+                UPDATE transactions
+                SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?
+                WHERE id = ?
+                """,
+                (
+                    payload.date.isoformat(),
+                    payload.type.value,
+                    payload.amount,
+                    payload.category,
+                    payload.description,
+                    payload.mode.value,
+                    transaction_id,
+                ),
+            )
+            row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         return row_to_transaction(row)
 
 
-def delete_transaction(transaction_id: int, db_path: str | None = None) -> bool:
+def delete_transaction(transaction_id: int, db_path: str | None = None, line_user_id: str | None = None) -> bool:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        cursor = conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
+        if line_user_id:
+            cursor = conn.execute("DELETE FROM transactions WHERE id = ? AND line_user_id = ?", (transaction_id, line_user_id))
+        else:
+            cursor = conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
         return cursor.rowcount > 0
 
 

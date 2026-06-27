@@ -69,7 +69,12 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
 
   useEffect(() => {
     let mounted = true;
-    Promise.all([getDashboard(), getTransactions()])
+    loadLineProfile().then((loadedProfile) => {
+      if (!mounted) return Promise.reject(new Error("unmounted"));
+      setProfile(loadedProfile);
+      const lineUserId = loadedProfile.line_user_id || undefined;
+      return Promise.all([getDashboard(lineUserId), getTransactions(lineUserId)]);
+    }).catch(() => Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]))
       .then(([dashboardData, transactionData]) => {
         if (!mounted) return;
         setDashboard(dashboardData);
@@ -97,7 +102,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const latest = useMemo(() => transactions.slice(0, 4), [transactions]);
 
   function refreshDashboard() {
-    getDashboard()
+    getDashboard(profile.line_user_id || undefined)
       .then(setDashboard)
       .catch(() => setDashboard(null));
   }
@@ -141,6 +146,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         {editingTransaction && (
           <TransactionEditModal
             key={editingTransaction.id}
+            lineUserId={profile.line_user_id}
             transaction={editingTransaction}
             onClose={() => setEditingTransaction(null)}
             onDeleted={handleTransactionDeleted}
@@ -149,6 +155,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         )}
         {creatingTransaction && (
           <TransactionCreateModal
+            lineUserId={profile.line_user_id}
             onClose={() => setCreatingTransaction(false)}
             onCreated={handleTransactionCreated}
           />
@@ -1639,9 +1646,11 @@ function SummaryTransactionList({ transactions, onEdit }: { transactions: Transa
 }
 
 function TransactionCreateModal({
+  lineUserId,
   onClose,
   onCreated,
 }: {
+  lineUserId: string;
   onClose: () => void;
   onCreated: (transaction: Transaction) => void;
 }) {
@@ -1670,7 +1679,7 @@ function TransactionCreateModal({
         ...draft,
         amount: Number(draft.amount),
         description: draft.description.trim(),
-      });
+      }, lineUserId || undefined);
       onCreated(created);
     } catch {
       setError("เพิ่มรายการไม่สำเร็จ");
@@ -1741,11 +1750,13 @@ function TransactionCreateModal({
 }
 
 function TransactionEditModal({
+  lineUserId,
   transaction,
   onClose,
   onDeleted,
   onSaved,
 }: {
+  lineUserId: string;
   transaction: Transaction;
   onClose: () => void;
   onDeleted: (transactionId: number) => void;
@@ -1770,7 +1781,7 @@ function TransactionEditModal({
     };
 
     try {
-      const updated = await updateTransaction(draft.id, payload);
+      const updated = await updateTransaction(draft.id, payload, lineUserId || undefined);
       onSaved(updated);
     } catch {
       setError("บันทึกไม่สำเร็จ");
@@ -1783,7 +1794,7 @@ function TransactionEditModal({
     setSaving(true);
     setError("");
     try {
-      await deleteTransaction(draft.id);
+      await deleteTransaction(draft.id, lineUserId || undefined);
       onDeleted(draft.id);
     } catch {
       setError("ลบรายการไม่สำเร็จ");

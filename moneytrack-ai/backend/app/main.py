@@ -74,41 +74,41 @@ def categories() -> dict:
 
 
 @app.get("/transactions", response_model=list[Transaction])
-def get_transactions() -> list[Transaction]:
-    return list_transactions()
+def get_transactions(line_user_id: str | None = None) -> list[Transaction]:
+    return list_transactions(line_user_id=line_user_id)
 
 
 @app.get("/transactions/{transaction_id}", response_model=Transaction)
-def get_transaction_by_id(transaction_id: int) -> Transaction:
-    transaction = get_transaction(transaction_id)
+def get_transaction_by_id(transaction_id: int, line_user_id: str | None = None) -> Transaction:
+    transaction = get_transaction(transaction_id, line_user_id=line_user_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return transaction
 
 
 @app.post("/transactions", response_model=Transaction, status_code=201)
-def post_transaction(payload: TransactionCreate) -> Transaction:
-    return create_transaction(payload)
+def post_transaction(payload: TransactionCreate, line_user_id: str | None = None) -> Transaction:
+    return create_transaction(payload, line_user_id=line_user_id)
 
 
 @app.put("/transactions/{transaction_id}", response_model=Transaction)
-def put_transaction(transaction_id: int, payload: TransactionUpdate) -> Transaction:
-    transaction = update_transaction(transaction_id, payload)
+def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_id: str | None = None) -> Transaction:
+    transaction = update_transaction(transaction_id, payload, line_user_id=line_user_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return transaction
 
 
 @app.delete("/transactions/{transaction_id}", status_code=204)
-def remove_transaction(transaction_id: int) -> None:
-    deleted = delete_transaction(transaction_id)
+def remove_transaction(transaction_id: int, line_user_id: str | None = None) -> None:
+    deleted = delete_transaction(transaction_id, line_user_id=line_user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
 
 @app.get("/dashboard")
-def dashboard() -> dict:
-    transactions = list_transactions()
+def dashboard(line_user_id: str | None = None) -> dict:
+    transactions = list_transactions(line_user_id=line_user_id)
     return {
         "summary": calculate_summary(transactions),
         "charts": chart_data(transactions),
@@ -118,8 +118,8 @@ def dashboard() -> dict:
 
 
 @app.post("/what-if")
-def what_if(payload: WhatIfScenario) -> dict:
-    return simulate_what_if(list_transactions(), payload)
+def what_if(payload: WhatIfScenario, line_user_id: str | None = None) -> dict:
+    return simulate_what_if(list_transactions(line_user_id=line_user_id), payload)
 
 
 @app.post("/line/webhook")

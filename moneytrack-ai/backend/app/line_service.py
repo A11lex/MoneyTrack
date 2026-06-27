@@ -66,7 +66,7 @@ def handle_line_message_detail(
         )
 
     if normalized in {"สรุปวันนี้", "วันนี้ใช้ไปเท่าไหร่", "รายรับวันนี้"}:
-        income, expense, net, category_totals = _daily_summary_totals(db_path, current_date)
+        income, expense, net, category_totals = _daily_summary_totals(db_path, current_date, line_user_id)
         return LineMessageResult(
             reply=_daily_summary_reply(income, expense, net),
             handled=True,
@@ -85,7 +85,7 @@ def handle_line_message_detail(
             line_message=build_quick_start_flex(),
         )
 
-    saved = create_transaction(transaction, db_path)
+    saved = create_transaction(transaction, db_path, line_user_id=line_user_id)
     budget_context = _budget_context_after_transaction(line_user_id, saved, db_path)
     if budget_context:
         line_message = build_transaction_success_with_budget_flex(
@@ -127,11 +127,11 @@ def _delete_transaction_from_line(line_user_id: str, message: str, db_path: str 
         return LineMessageResult(reply="ยังลบไม่ได้: ไม่พบรหัสรายการ", handled=False, line_message=build_quick_start_flex())
 
     transaction_id = int(parts[1])
-    transaction = get_transaction(transaction_id, db_path)
+    transaction = get_transaction(transaction_id, db_path, line_user_id=line_user_id)
     if transaction is None:
         return LineMessageResult(reply="ลบไม่ได้: ไม่พบรายการนี้แล้ว", handled=False, line_message=build_quick_start_flex())
 
-    delete_transaction(transaction_id, db_path)
+    delete_transaction(transaction_id, db_path, line_user_id=line_user_id)
     budget_context = _budget_context_after_transaction(line_user_id, transaction, db_path)
     if budget_context:
         line_message = build_transaction_deleted_with_budget_flex(
@@ -157,8 +157,8 @@ def _delete_transaction_from_line(line_user_id: str, message: str, db_path: str 
     )
 
 
-def _daily_summary_totals(db_path: str | None, today: date) -> tuple[float, float, float, dict[str, float]]:
-    transactions = [transaction for transaction in list_transactions(db_path) if transaction.date == today]
+def _daily_summary_totals(db_path: str | None, today: date, line_user_id: str) -> tuple[float, float, float, dict[str, float]]:
+    transactions = [transaction for transaction in list_transactions(db_path, line_user_id=line_user_id) if transaction.date == today]
     income = sum(transaction.amount for transaction in transactions if transaction.type.value == "income")
     expense = sum(transaction.amount for transaction in transactions if transaction.type.value == "expense")
     net = income - expense
@@ -208,7 +208,7 @@ def _budget_context_after_transaction(line_user_id: str, transaction: Any, db_pa
     period_label = _budget_period_label(setup.budget_cycle, setup.budget_start_day)
     period_transactions = [
         item
-        for item in list_transactions(db_path)
+        for item in list_transactions(db_path, line_user_id=line_user_id)
         if _is_in_budget_period(item.date, transaction.date, setup.budget_cycle, setup.budget_start_day)
     ]
     total_income = sum(item.amount for item in period_transactions if item.type.value == "income")
