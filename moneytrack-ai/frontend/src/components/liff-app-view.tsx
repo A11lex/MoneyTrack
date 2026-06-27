@@ -129,7 +129,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
             <LoadingState />
           ) : (
             <>
-              {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} />}
+              {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} transactions={transactions} />}
               {tab === "insights" && <InsightsScreen dashboard={dashboard} transactions={transactions} />}
               {tab === "categories" && <CategoriesScreen profile={profile} transactions={transactions} />}
               {tab === "transactions" && <TransactionsScreen transactions={transactions} onCreate={() => setCreatingTransaction(true)} onEdit={setEditingTransaction} />}
@@ -178,18 +178,39 @@ function SummaryScreen({
   onEdit,
   plan,
   profile,
+  transactions,
 }: {
   dashboard: DashboardData | null;
   latest: Transaction[];
   onEdit: (transaction: Transaction) => void;
   plan: UserPlan;
   profile: LineProfile;
+  transactions: Transaction[];
 }) {
+  const [showMore, setShowMore] = useState(false);
+  const [budgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
+  const [budgetCycle] = useState<BudgetCycle>(() => loadStoredBudgetCycle());
+  const [budgetStartDay] = useState(() => loadStoredBudgetStartDay());
+  const [expenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
+  const [totalBudget] = useState(() => loadStoredTotalBudget());
   const summary = dashboard?.summary;
   const net = summary?.net_balance ?? 0;
   const income = summary?.total_income ?? 0;
   const expense = summary?.total_expense ?? 0;
   const isPositive = net >= 0;
+  const periodExpenses = transactions.filter((transaction) => transaction.type === "expense" && isInBudgetPeriod(transaction.date, budgetCycle, budgetStartDay));
+  const spentByCategory = periodExpenses.reduce<Record<string, number>>((acc, transaction) => {
+    const category = displayCategory(transaction.category, "expense");
+    acc[category] = (acc[category] ?? 0) + transaction.amount;
+    return acc;
+  }, {});
+  const budgetLimit = budgetMode === "total" ? totalBudget : Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
+  const spentInPeriod = periodExpenses.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const remainingBudget = budgetLimit > 0 ? Math.max(0, budgetLimit - spentInPeriod) : 0;
+  const topCategory = Object.entries(spentByCategory).sort((a, b) => b[1] - a[1])[0];
+  const categoryRows = summaryCategoryRows(spentByCategory, expenseBudgets);
+  const donutPercent = spentInPeriod > 0 ? Math.max(8, Math.min(100, budgetLimit > 0 ? (spentInPeriod / budgetLimit) * 100 : 100)) : 0;
+  const streakDays = periodExpenses.length > 0 ? 2 : 0;
 
   return (
     <div className="space-y-5">
@@ -215,10 +236,23 @@ function SummaryScreen({
           <MetricBox label="รายจ่าย" value={expense} tone="expense" />
           <MetricBox label="รายรับ" value={income} tone="income" />
         </div>
-        <Link href="/liff/insights" className="mx-auto mt-8 flex h-10 w-24 items-center justify-center gap-1 rounded-full border border-black/10 bg-white text-sm font-black text-[#DC143C] shadow-sm">
+        {showMore && (
+          <SummaryExpandedChart
+            budgetLimit={budgetLimit}
+            categoryRows={categoryRows}
+            remainingBudget={remainingBudget}
+            spentInPeriod={spentInPeriod}
+            streakDays={streakDays}
+            topCategory={topCategory}
+            transactionCount={periodExpenses.length}
+            usedPercent={donutPercent}
+          />
+        )}
+        <button type="button" onClick={() => setShowMore((value) => !value)} className="mx-auto mt-8 flex h-10 min-w-20 items-center justify-center gap-1 rounded-full border border-black/10 bg-white px-4 text-[0px] font-black text-transparent shadow-sm">
+          <span className="text-sm text-[#DC143C]">{showMore ? "ย่อ" : "ดูเพิ่ม"}</span>
           ดูเพิ่ม
-          <ChevronRight className="h-4 w-4 rotate-90" />
-        </Link>
+          <ChevronRight className={`h-4 w-4 text-[#DC143C] transition-transform ${showMore ? "-rotate-90" : "rotate-90"}`} />
+        </button>
       </section>
 
       <SectionTitle title="รายการล่าสุด" actionHref="/liff/transactions" action="ดูทั้งหมด" />
@@ -1158,6 +1192,88 @@ function MetricBox({ label, value, tone }: { label: string; value: number; tone:
   );
 }
 
+function SummaryExpandedChart({
+  budgetLimit,
+  categoryRows,
+  remainingBudget,
+  spentInPeriod,
+  streakDays,
+  topCategory,
+  transactionCount,
+  usedPercent,
+}: {
+  budgetLimit: number;
+  categoryRows: { budget: number; label: string; spent: number }[];
+  remainingBudget: number;
+  spentInPeriod: number;
+  streakDays: number;
+  topCategory?: [string, number];
+  transactionCount: number;
+  usedPercent: number;
+}) {
+  const donutStyle = {
+    background: `conic-gradient(#d83286 ${usedPercent * 3.6}deg, #f7d4e4 0deg)`,
+  };
+
+  return (
+    <div className="mt-8 space-y-6">
+      <div className="grid grid-cols-[150px_1fr] items-center gap-5">
+        <div className="grid h-36 w-36 place-items-center rounded-full" style={donutStyle}>
+          <div className="h-20 w-20 rounded-full bg-white" />
+        </div>
+        <dl className="space-y-3 text-xs">
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[#7a817d]">จดต่อเนื่องมา</dt>
+            <dd className="font-black text-[#151b18]">🔥 {streakDays} วัน</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[#7a817d]">จำนวนรายการ</dt>
+            <dd className="font-black text-[#151b18]">{transactionCount}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[#7a817d]">งบที่ตั้งไว้</dt>
+            <dd className="font-black text-[#151b18]">{budgetLimit > 0 ? formatBaht(budgetLimit) : "-"}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[#7a817d]">งบคงเหลือ</dt>
+            <dd className="font-black text-[#151b18]">{budgetLimit > 0 ? formatBaht(remainingBudget) : "-"}</dd>
+          </div>
+          <div className="flex items-center justify-between gap-3">
+            <dt className="text-[#7a817d]">ใช้ไปแล้ว</dt>
+            <dd className="font-black text-[#151b18]">{formatBaht(spentInPeriod)}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div className="space-y-4">
+        {categoryRows.length > 0 ? categoryRows.map((row) => {
+          const max = row.budget > 0 ? row.budget : Math.max(row.spent, 1);
+          const width = row.spent > 0 ? Math.max(4, Math.min(100, (row.spent / max) * 100)) : 0;
+          return (
+            <div key={row.label}>
+              <div className="flex items-center justify-between gap-3 text-sm font-black">
+                <span>{row.label}</span>
+                <span>{formatBudgetPair(row.spent, row.budget)}</span>
+              </div>
+              <div className="mt-2 h-2 rounded-full bg-[#f7d4e4]">
+                <div className="h-2 rounded-full bg-[#d83286]" style={{ width: `${width}%` }} />
+              </div>
+            </div>
+          );
+        }) : (
+          <p className="rounded-md bg-[#f7f8f7] p-4 text-center text-sm font-semibold text-[#7a817d]">ยังไม่มีรายจ่ายในรอบงบนี้</p>
+        )}
+      </div>
+
+      {topCategory && (
+        <p className="text-center text-xs font-semibold text-[#7a817d]">
+          หมวดที่ใช้เยอะสุดคือ <span className="font-black text-[#151b18]">{topCategory[0]}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 type HistoryChartPoint = {
   label: string;
   tooltipTitle: string;
@@ -1427,6 +1543,24 @@ function dailyTickLabels(days: number) {
   const labels = Array.from({ length: Math.floor((days - 1) / 3) + 1 }, (_, index) => index * 3 + 1);
   if (labels[labels.length - 1] !== days) labels.push(days);
   return labels;
+}
+
+function summaryCategoryRows(spentByCategory: Record<string, number>, budgets: Record<string, number>) {
+  const labels = Array.from(new Set([...expenseCategories, ...Object.keys(budgets), ...Object.keys(spentByCategory)]));
+  return labels
+    .map((label) => ({
+      label,
+      spent: spentByCategory[label] ?? 0,
+      budget: budgets[label] ?? 0,
+    }))
+    .filter((row) => row.spent > 0 || row.budget > 0)
+    .sort((a, b) => (b.spent || b.budget) - (a.spent || a.budget))
+    .slice(0, 6);
+}
+
+function formatBudgetPair(spent: number, budget: number) {
+  if (budget > 0) return `${formatBaht(spent)} / ${formatBudgetAmount(budget)}`;
+  return `${formatBaht(spent)} / -`;
 }
 
 function linePoints(values: number[], max: number) {
