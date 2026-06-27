@@ -372,6 +372,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
                 onChange={(event) => {
                   const value = event.target.value as BudgetMode;
                   setBudgetMode(value);
+                  if (value === "total") setSelectedExpenseCategory(null);
                   saveStoredBudgetMode(value);
                   void syncLineBudgetSettings({
                     profile,
@@ -408,6 +409,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
                 onChange={(event) => {
                   const value = event.target.value as BudgetMode;
                   setBudgetMode(value);
+                  if (value === "total") setSelectedExpenseCategory(null);
                   saveStoredBudgetMode(value);
                   void syncLineBudgetSettings({
                     profile,
@@ -453,14 +455,16 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
           <button
             key={item}
             type="button"
+            aria-disabled={kind === "expense" && budgetMode === "total"}
             onClick={() => {
               if (kind === "income") {
                 setSelectedIncomeCategory(item);
                 return;
               }
+              if (budgetMode === "total") return;
               setSelectedExpenseCategory(item);
             }}
-            className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm"
+            className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm ${kind === "expense" && budgetMode === "total" ? "cursor-default" : ""}`}
           >
             {kind === "expense" ? (
               <>
@@ -471,9 +475,9 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
                 <span className="flex shrink-0 items-center gap-3 text-sm">
                   <span className="font-semibold text-[#8a928e]">งบ</span>
                   <span className={expenseBudgets[item] > 0 ? "font-bold text-[#151b18]" : "font-semibold text-[#8a928e]"}>
-                    {expenseBudgets[item] > 0 ? formatBudgetAmount(expenseBudgets[item]) : "ไม่มีตั้งงบ"}
+                    {budgetMode === "total" ? "ใช้งบรวม" : expenseBudgets[item] > 0 ? formatBudgetAmount(expenseBudgets[item]) : "ไม่มีตั้งงบ"}
                   </span>
-                  <ChevronRight className="h-5 w-5 text-[#9aa1a0]" />
+                  {budgetMode === "category" && <ChevronRight className="h-5 w-5 text-[#9aa1a0]" />}
                 </span>
               </>
             ) : (
@@ -515,7 +519,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
               totalBudget,
             });
             setShowExpenseCategoryModal(false);
-            setSelectedExpenseCategory(category);
+            if (budgetMode === "category") setSelectedExpenseCategory(category);
           }}
         />
       )}
