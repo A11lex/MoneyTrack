@@ -13,8 +13,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MoneyTrack AI",
-  description: "Personal and small-business financial insights dashboard",
+  title: {
+    default: "เงินไปไหน?",
+    template: "%s | เงินไปไหน?",
+  },
+  description: "จดรายรับรายจ่ายผ่าน LINE พร้อมสรุปและวิเคราะห์การเงิน",
+  icons: {
+    icon: "/brand/moneytrack-icon-round.png",
+    apple: "/brand/moneytrack-icon-round.png",
+  },
 };
 
 export default function RootLayout({
