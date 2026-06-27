@@ -85,7 +85,7 @@ def test_build_transaction_success_with_budget_flex_combines_success_and_budget_
     assert _find_text(message, "งบคงเหลือ") is True
     assert _find_text(message, "฿100 / ฿200") is True
     assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
-    assert _find_text(message, "ใช้จ่ายหมวดอาหารใกล้เต็มงบแล้วนะ") is False
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารจะเกินงบแล้วนะ") is False
 
 
 def test_build_transaction_success_with_budget_flex_shows_compact_warning_without_panel_heading() -> None:
@@ -109,7 +109,7 @@ def test_build_transaction_success_with_budget_flex_shows_compact_warning_withou
     assert _find_text(message, "งบคงเหลือ") is True
     assert _find_text(message, "฿170 / ฿200") is True
     assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
-    assert _find_text(message, "ใช้จ่ายหมวดอาหารใกล้เต็มงบแล้วนะ") is True
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารจะเกินงบแล้วนะ") is True
 
 
 def test_build_transaction_deleted_flex_uses_crimson_expense_accent() -> None:
@@ -195,7 +195,7 @@ def test_build_budget_alert_flex_shows_budget_progress_and_warning(monkeypatch) 
     assert _find_text(message, "อาหาร") is True
     assert _find_text(message, "฿180 / ฿400") is True
     assert _find_text(message, "ข้อความเตือนงบประมาณ") is True
-    assert _find_text(message, "ใช้จ่ายหมวดอาหารใกล้เต็มงบแล้วนะ") is True
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารจะเกินงบแล้วนะ") is True
     assert _find_color(message, "#DC143C") is True
     assert _buttons(message)[0]["action"]["uri"] == "https://example.vercel.app/liff/categories"
 

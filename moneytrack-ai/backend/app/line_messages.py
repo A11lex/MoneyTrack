@@ -327,7 +327,7 @@ def build_budget_alert_flex(
     warning = (
         f"ใช้จ่ายหมวด{category_text}เต็มงบแล้วนะ"
         if spent >= budget_limit and budget_limit > 0
-        else f"ใช้จ่ายหมวด{category_text}ใกล้เต็มงบแล้วนะ"
+        else f"ใช้จ่ายหมวด{category_text}จะเกินงบแล้วนะ"
     )
     body_contents = [
         _budget_panel(
@@ -557,7 +557,7 @@ def _compact_budget_contents(
     warning = (
         f"ใช้จ่ายหมวด{category_text}เต็มงบแล้วนะ"
         if spent >= budget_limit and budget_limit > 0
-        else f"ใช้จ่ายหมวด{category_text}ใกล้เต็มงบแล้วนะ"
+        else f"ใช้จ่ายหมวด{category_text}จะเกินงบแล้วนะ"
     )
     contents = [
         _plain_text("งบคงเหลือ", "sm", BRAND["black"], weight="bold"),
