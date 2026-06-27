@@ -286,7 +286,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
   const items = kind === "expense" ? storedExpenseCategories : storedIncomeCategories;
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
   const budgetStartDayLabel = budgetStartDay === 1 ? "วันที่ 1" : `วันที่ ${budgetStartDay}`;
-  const budgetPeriodLabel = `${budgetCycleLabel} (${budgetStartDayLabel})`;
+  const budgetPeriodLabel = budgetCycle === "monthly" ? `${budgetCycleLabel} (${budgetStartDayLabel})` : budgetCycleLabel;
   const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
   const expenseSpentByCategory = useMemo(() => {
@@ -311,10 +311,12 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       expenseCategories: storedExpenseCategories,
       incomeCategories: storedIncomeCategories,
       budgetMode,
+      budgetCycle,
+      budgetStartDay,
       expenseBudgets,
       totalBudget,
     });
-  }, [profile, storedExpenseCategories, storedIncomeCategories, budgetMode, expenseBudgets, totalBudget]);
+  }, [profile, storedExpenseCategories, storedIncomeCategories, budgetMode, budgetCycle, budgetStartDay, expenseBudgets, totalBudget]);
 
   return (
     <div className="space-y-5">
@@ -623,6 +625,16 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
             setBudgetStartDay(startDay);
             saveStoredBudgetCycle(value);
             saveStoredBudgetStartDay(startDay);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: storedExpenseCategories,
+              incomeCategories: storedIncomeCategories,
+              budgetMode,
+              budgetCycle: value,
+              budgetStartDay: startDay,
+              expenseBudgets,
+              totalBudget,
+            });
             setShowBudgetCycleModal(false);
           }}
         />
@@ -1021,7 +1033,7 @@ function BudgetCycleModal({
           ))}
         </div>
 
-        <div className="mt-7">
+        {draft === "monthly" && <div className="mt-7">
           <p className="text-sm font-black">วันที่เริ่มต้นงบประมาณ</p>
           <select
             value={draftStartDay}
@@ -1032,9 +1044,9 @@ function BudgetCycleModal({
               <option key={day} value={day}>{day === 1 ? "วันแรกของเดือน" : day}</option>
             ))}
           </select>
-        </div>
+        </div>}
 
-        <button type="button" onClick={() => onSave(draft, draftStartDay)} className="mt-14 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
+        <button type="button" onClick={() => onSave(draft, draft === "monthly" ? draftStartDay : 1)} className="mt-14 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
           บันทึก
         </button>
       </div>
@@ -1679,6 +1691,8 @@ async function syncLineBudgetSettings({
   expenseCategories,
   incomeCategories,
   budgetMode,
+  budgetCycle = loadStoredBudgetCycle(),
+  budgetStartDay = loadStoredBudgetStartDay(),
   expenseBudgets,
   totalBudget,
 }: {
@@ -1686,6 +1700,8 @@ async function syncLineBudgetSettings({
   expenseCategories: string[];
   incomeCategories: string[];
   budgetMode: BudgetMode;
+  budgetCycle?: BudgetCycle;
+  budgetStartDay?: number;
   expenseBudgets: Record<string, number>;
   totalBudget: number;
 }) {
@@ -1709,6 +1725,8 @@ async function syncLineBudgetSettings({
       expense_categories: expenseCategories,
       income_categories: incomeCategories,
       monthly_budgets: monthlyBudgets,
+      budget_cycle: budgetCycle,
+      budget_start_day: budgetStartDay,
     });
   } catch {
     // Keep local budget settings usable even if the backend is temporarily unavailable.

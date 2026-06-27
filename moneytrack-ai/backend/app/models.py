@@ -1,6 +1,8 @@
 from datetime import date
 from enum import Enum
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -60,6 +62,8 @@ class OnboardingPayload(BaseModel):
     expense_categories: list[str] = Field(default_factory=list)
     income_categories: list[str] = Field(default_factory=list)
     monthly_budgets: dict[str, float] = Field(default_factory=dict)
+    budget_cycle: Literal["daily", "weekly", "monthly"] = "monthly"
+    budget_start_day: int = Field(default=1, ge=1, le=31)
 
 
 class UserSetup(BaseModel):
@@ -71,6 +75,8 @@ class UserSetup(BaseModel):
     expense_categories: list[str]
     income_categories: list[str]
     monthly_budgets: dict[str, float]
+    budget_cycle: Literal["daily", "weekly", "monthly"] = "monthly"
+    budget_start_day: int = Field(default=1, ge=1, le=31)
 
 
 class WhatIfScenario(BaseModel):

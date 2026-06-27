@@ -74,6 +74,8 @@ export type LineUserSetup = {
   expense_categories: string[];
   income_categories: string[];
   monthly_budgets: Record<string, number>;
+  budget_cycle: "daily" | "weekly" | "monthly";
+  budget_start_day: number;
 };
 
 export type LineUserInput = {
@@ -87,4 +89,6 @@ export type OnboardingInput = {
   expense_categories: string[];
   income_categories: string[];
   monthly_budgets: Record<string, number>;
+  budget_cycle?: "daily" | "weekly" | "monthly";
+  budget_start_day?: number;
 };

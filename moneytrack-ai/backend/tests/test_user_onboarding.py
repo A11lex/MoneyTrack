@@ -28,6 +28,8 @@ def test_upsert_line_user_and_get_initial_setup(tmp_path, monkeypatch) -> None:
         "expense_categories": [],
         "income_categories": [],
         "monthly_budgets": {},
+        "budget_cycle": "monthly",
+        "budget_start_day": 1,
     }
 
     setup = client.get("/users/line/line-user-001/setup")
@@ -51,6 +53,8 @@ def test_save_line_user_onboarding_categories_and_budgets(tmp_path, monkeypatch)
             "expense_categories": ["Food", "Transport", "Utilities"],
             "income_categories": ["Salary", "Business Revenue"],
             "monthly_budgets": {"Food": 15000, "Transport": 3000},
+            "budget_cycle": "weekly",
+            "budget_start_day": 3,
         },
     )
 
@@ -64,6 +68,8 @@ def test_save_line_user_onboarding_categories_and_budgets(tmp_path, monkeypatch)
         "expense_categories": ["Food", "Transport", "Utilities"],
         "income_categories": ["Salary", "Business Revenue"],
         "monthly_budgets": {"Food": 15000, "Transport": 3000},
+        "budget_cycle": "weekly",
+        "budget_start_day": 3,
     }
 
 

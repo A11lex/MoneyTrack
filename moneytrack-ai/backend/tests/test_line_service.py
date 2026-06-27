@@ -200,6 +200,41 @@ def test_handle_line_message_detail_returns_budget_progress_at_half_without_warn
     assert _find_text(result.line_message, "ข้อความเตือนงบประมาณ") is False
 
 
+def test_handle_line_message_detail_uses_custom_monthly_budget_start_day(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_onboarding(
+        "test-user-001",
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["อาหาร"],
+            income_categories=[],
+            monthly_budgets={"อาหาร": 200},
+            budget_cycle="monthly",
+            budget_start_day=15,
+        ),
+        db_path,
+    )
+
+    handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ข้าว 90",
+        db_path=db_path,
+        today=date(2026, 6, 14),
+    )
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ข้าว 10",
+        db_path=db_path,
+        today=date(2026, 6, 15),
+    )
+
+    assert result.line_message is not None
+    assert isinstance(result.line_message, dict)
+    assert result.line_message["altText"] == "จดสำเร็จและงบคงเหลือ: งบคงเหลือ: อาหาร ใช้ไป ฿10 / ฿200"
+    assert _find_text(result.line_message, "รอบงบ: รายเดือน (วันที่ 15)") is True
+
+
 def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_path) -> None:
     db_path = str(tmp_path / "line.db")
     handle_line_message("test-user-001", "ข้าว 80", db_path=db_path, today=date(2026, 6, 25))

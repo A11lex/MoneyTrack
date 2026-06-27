@@ -45,11 +45,15 @@ def init_db(db_path: str | None = None) -> None:
                 picture_url TEXT,
                 onboarding_completed INTEGER NOT NULL DEFAULT 0,
                 discovery_source TEXT,
+                budget_cycle TEXT NOT NULL DEFAULT 'monthly',
+                budget_start_day INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
+        _ensure_column(conn, "line_users", "budget_cycle", "TEXT NOT NULL DEFAULT 'monthly'")
+        _ensure_column(conn, "line_users", "budget_start_day", "INTEGER NOT NULL DEFAULT 1")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS user_categories (
@@ -88,6 +92,12 @@ def row_to_transaction(row: sqlite3.Row) -> Transaction:
         description=row["description"],
         mode=row["mode"],
     )
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in columns:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def list_transactions(db_path: str | None = None) -> list[Transaction]:
@@ -211,6 +221,8 @@ def get_user_setup(line_user_id: str, db_path: str | None = None) -> UserSetup |
         expense_categories=[row["category"] for row in category_rows if row["type"] == "expense"],
         income_categories=[row["category"] for row in category_rows if row["type"] == "income"],
         monthly_budgets={row["category"]: row["monthly_limit"] for row in budget_rows},
+        budget_cycle=user["budget_cycle"] if user["budget_cycle"] in {"daily", "weekly", "monthly"} else "monthly",
+        budget_start_day=user["budget_start_day"] if 1 <= int(user["budget_start_day"]) <= 31 else 1,
     )
 
 
@@ -226,10 +238,12 @@ def save_user_onboarding(line_user_id: str, payload: OnboardingPayload, db_path:
             UPDATE line_users
             SET onboarding_completed = 1,
                 discovery_source = ?,
+                budget_cycle = ?,
+                budget_start_day = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE line_user_id = ?
             """,
-            (payload.discovery_source, line_user_id),
+            (payload.discovery_source, payload.budget_cycle, payload.budget_start_day, line_user_id),
         )
         conn.execute("DELETE FROM user_categories WHERE line_user_id = ?", (line_user_id,))
         conn.execute("DELETE FROM user_budgets WHERE line_user_id = ?", (line_user_id,))

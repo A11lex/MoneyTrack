@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -205,19 +205,20 @@ def _budget_context_after_transaction(line_user_id: str, transaction: Any, db_pa
     if budget_limit is None or budget_limit <= 0:
         return None
 
-    month_transactions = [
+    period_label = _budget_period_label(setup.budget_cycle, setup.budget_start_day)
+    period_transactions = [
         item
         for item in list_transactions(db_path)
-        if item.date.year == transaction.date.year and item.date.month == transaction.date.month
+        if _is_in_budget_period(item.date, transaction.date, setup.budget_cycle, setup.budget_start_day)
     ]
-    total_income = sum(item.amount for item in month_transactions if item.type.value == "income")
+    total_income = sum(item.amount for item in period_transactions if item.type.value == "income")
     if use_total_budget:
-        spent = sum(item.amount for item in month_transactions if item.type.value == "expense")
+        spent = sum(item.amount for item in period_transactions if item.type.value == "expense")
         category = "รายจ่ายทั้งหมด"
     else:
         spent = sum(
             item.amount
-            for item in month_transactions
+            for item in period_transactions
             if item.type.value == "expense" and item.category in category_keys
         )
         category = transaction.category
@@ -227,11 +228,49 @@ def _budget_context_after_transaction(line_user_id: str, transaction: Any, db_pa
     return {
         "budget_limit": budget_limit,
         "budget_category": category,
-        "period_label": "รายเดือน",
+        "period_label": period_label,
         "spent": spent,
         "total_income": total_income,
         "show_warning": usage_ratio >= 0.8,
     }
+
+
+def _is_in_budget_period(value: date, reference: date, cycle: str, start_day: int) -> bool:
+    if cycle == "daily":
+        return value == reference
+
+    if cycle == "weekly":
+        start = reference - timedelta(days=reference.weekday())
+        end = start + timedelta(days=6)
+        return start <= value <= end
+
+    start = _monthly_period_start(reference, start_day)
+    end = _date_with_clamped_day(start.year, start.month + 1, start_day)
+    return start <= value < end
+
+
+def _monthly_period_start(reference: date, start_day: int) -> date:
+    current_start = _date_with_clamped_day(reference.year, reference.month, start_day)
+    if reference >= current_start:
+        return current_start
+    return _date_with_clamped_day(reference.year, reference.month - 1, start_day)
+
+
+def _date_with_clamped_day(year: int, month: int, day: int) -> date:
+    normalized_year = year + (month - 1) // 12
+    normalized_month = (month - 1) % 12 + 1
+    next_year = normalized_year + (normalized_month // 12)
+    next_month = normalized_month % 12 + 1
+    last_day = (date(next_year, next_month, 1) - timedelta(days=1)).day
+    return date(normalized_year, normalized_month, min(max(day, 1), last_day))
+
+
+def _budget_period_label(cycle: str, start_day: int) -> str:
+    if cycle == "daily":
+        return "รายวัน"
+    if cycle == "weekly":
+        return "รายสัปดาห์"
+    return f"รายเดือน (วันที่ {start_day})"
 
 
 def _first_budget_limit(monthly_budgets: dict[str, float], keys: set[str]) -> float | None:
