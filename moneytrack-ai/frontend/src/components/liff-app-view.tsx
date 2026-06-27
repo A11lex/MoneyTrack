@@ -274,6 +274,7 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
   const [storedIncomeCategories, setStoredIncomeCategories] = useState<string[]>(() => loadStoredIncomeCategories());
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
+  const [selectedIncomeCategory, setSelectedIncomeCategory] = useState<string | null>(null);
   const [showBudgetCycleModal, setShowBudgetCycleModal] = useState(false);
   const [showTotalBudgetModal, setShowTotalBudgetModal] = useState(false);
   const [budgetMode, setBudgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
@@ -364,7 +365,20 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
       </button>
       <div className="space-y-3">
         {items.map((item) => (
-          <button key={item} type="button" onClick={() => kind === "expense" && budgetMode === "category" && setSelectedExpenseCategory(item)} className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm">
+          <button
+            key={item}
+            type="button"
+            onClick={() => {
+              if (kind === "income") {
+                setSelectedIncomeCategory(item);
+                return;
+              }
+              if (budgetMode === "category") {
+                setSelectedExpenseCategory(item);
+              }
+            }}
+            className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm"
+          >
             {item}
             {kind === "expense" && budgetMode === "category" ? (
               <ChevronRight className="shrink-0 text-[#9aa1a0]" />
@@ -398,6 +412,27 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
               return next;
             });
             setShowIncomeCategoryModal(false);
+          }}
+        />
+      )}
+      {selectedIncomeCategory && (
+        <IncomeCategorySettingsModal
+          category={selectedIncomeCategory}
+          onClose={() => setSelectedIncomeCategory(null)}
+          onSave={(category) => {
+            const previousCategory = selectedIncomeCategory;
+            const nextCategories = storedIncomeCategories.map((item) => (item === previousCategory ? category : item));
+            saveStoredIncomeCategories(nextCategories);
+            setStoredIncomeCategories(nextCategories);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: storedExpenseCategories,
+              incomeCategories: nextCategories,
+              budgetMode,
+              expenseBudgets,
+              totalBudget,
+            });
+            setSelectedIncomeCategory(null);
           }}
         />
       )}
@@ -527,6 +562,60 @@ function IncomeCategoryModal({
         {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
 
         <button type="button" onClick={save} className="mt-6 h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
+          บันทึก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function IncomeCategorySettingsModal({
+  category,
+  onClose,
+  onSave,
+}: {
+  category: string;
+  onClose: () => void;
+  onSave: (category: string) => void;
+}) {
+  const [name, setName] = useState(category);
+  const [error, setError] = useState("");
+
+  function save() {
+    const value = name.trim();
+    if (!value) {
+      setError("กรอกชื่อหมวดก่อนบันทึก");
+      return;
+    }
+    onSave(value);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
+        <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
+        <div className="flex items-center justify-between">
+          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
+            <Trash2 className="h-4 w-4" /> ลบหมวด
+          </button>
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <h2 className="mt-6 text-center text-2xl font-black">ตั้งค่าหมวดและงบ</h2>
+
+        <div className="mt-8">
+          <label className="block">
+            <span className="text-sm font-black">ชื่อหมวด</span>
+            <input value={name} onChange={(event) => { setName(event.target.value); setError(""); }} className="mt-2 h-12 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+            <span className="mt-2 block text-xs font-semibold text-[#8a928e]">พิมพ์ชื่อหมวดเพื่อแก้ไข</span>
+          </label>
+        </div>
+
+        {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+        <button type="button" onClick={save} className="mt-8 h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
           บันทึก
         </button>
       </div>
