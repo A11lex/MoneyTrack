@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   BarChart3,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   Download,
   Home,
@@ -236,20 +237,14 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
       <Segmented first="รายรับรายจ่าย" second="เก็บออม" active="first" />
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-[#8a928e]">ภาพรวมย้อนหลัง</p>
-            <h2 className="mt-1 text-xl font-black leading-tight">รายรับเทียบรายจ่าย</h2>
-          </div>
-          <button className="rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-bold" type="button">
+          <h2 className="text-xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
+          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-bold shadow-sm" type="button">
             รายเดือน
+            <ChevronRight className="h-4 w-4 rotate-90 text-[#9aa1a0]" />
           </button>
         </div>
-        <div className="mt-5 h-56">
+        <div className="mt-6 h-80">
           <MiniBars data={chart} />
-        </div>
-        <div className="mt-4 flex justify-center gap-5 text-sm font-bold">
-          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#DC143C]" />รายจ่าย</span>
-          <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
         </div>
       </section>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
@@ -1156,19 +1151,59 @@ function MetricBox({ label, value, tone }: { label: string; value: number; tone:
 }
 
 function MiniBars({ data }: { data: { month: string; income: number; expense: number }[] }) {
-  const max = Math.max(1, ...data.flatMap((item) => [item.income, item.expense]));
   const months = data.length > 0 ? data.slice(-6) : ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย."].map((month) => ({ month, income: 0, expense: 0 }));
+  const max = Math.max(1, ...months.flatMap((item) => [item.income, item.expense]));
+  const averageExpense = months.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, months.length);
+  const averageIncome = months.reduce((sum, item) => sum + item.income, 0) / Math.max(1, months.length);
+  const hasData = months.some((item) => item.income > 0 || item.expense > 0);
+  const rangeLabel = `${months[0]?.month ?? "ม.ค."} - ${months[months.length - 1]?.month ?? "มิ.ย."} 69`;
   return (
-    <div className="flex h-full items-end justify-between gap-3 rounded-md bg-[#fbfcfb] px-3 pb-2 pt-4">
-      {months.map((item) => (
-        <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
-          <div className="flex h-40 items-end gap-1">
-            <div className="w-3 rounded-t bg-[#DC143C]" style={{ height: `${Math.max(6, (item.expense / max) * 144)}px` }} />
-            <div className="w-3 rounded-t bg-[#6dc5ad]" style={{ height: `${Math.max(6, (item.income / max) * 144)}px` }} />
-          </div>
-          <span className="text-xs font-black text-[#777f7b]">{item.month}</span>
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between px-1">
+        <button type="button" aria-label="ช่วงก่อนหน้า" className="grid h-9 w-9 place-items-center rounded-full text-[#151b18] active:bg-[#f4f5f4]">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <p className="text-sm font-black text-[#7a817d]">{rangeLabel}</p>
+        <button type="button" aria-label="ช่วงถัดไป" className="grid h-9 w-9 place-items-center rounded-full text-[#d8ddda] active:bg-[#f4f5f4]">
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className="relative mt-4 flex min-h-0 flex-1 items-end justify-between gap-3 px-2 pb-7 pt-2">
+        <div className="pointer-events-none absolute inset-x-2 top-2 h-[calc(100%-2rem)]">
+          <div className="absolute inset-x-0 top-0 border-t border-dashed border-[#e8ecea]" />
+          <div className="absolute inset-x-0 top-1/3 border-t border-dashed border-[#e8ecea]" />
+          <div className="absolute inset-x-0 top-2/3 border-t border-dashed border-[#e8ecea]" />
+          <div className="absolute inset-x-0 bottom-0 border-t border-dashed border-[#e8ecea]" />
         </div>
-      ))}
+        {months.map((item) => (
+          <div key={item.month} className="relative z-10 flex h-full flex-1 flex-col items-center justify-end gap-2">
+            <div className="flex h-full w-full items-end justify-center gap-1.5">
+              <div className="w-3 rounded-t-md bg-[#DC143C]" style={{ height: item.expense > 0 ? `${Math.max(8, (item.expense / max) * 100)}%` : "0%" }} />
+              <div className="w-6 rounded-t-md bg-[#8bded7]" style={{ height: item.income > 0 ? `${Math.max(8, (item.income / max) * 100)}%` : "0%" }} />
+            </div>
+            <span className="absolute -bottom-7 text-xs font-black text-[#777f7b]">{item.month}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 flex justify-center gap-5 text-sm font-black">
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#DC143C]" />รายจ่าย</span>
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
+      </div>
+      <p className="mt-6 text-center text-sm font-semibold text-[#8a928e]">
+        {hasData ? "แตะดูรายละเอียดแต่ละเดือนในรายการด้านล่าง" : "เอานิ้วจิ้มบนกราฟเพื่อดูค่าได้เลย"}
+      </p>
+      <div className="mt-5 grid grid-cols-2 gap-4 text-center">
+        <div>
+          <p className="text-xs font-bold text-[#555f5b]">รายจ่ายเฉลี่ยต่อเดือน</p>
+          <p className="mt-1 text-xl font-black text-[#DC143C]">{formatBaht(averageExpense)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-bold text-[#555f5b]">รายรับเฉลี่ยต่อเดือน</p>
+          <p className="mt-1 text-xl font-black text-[#6dc5ad]">{formatBaht(averageIncome)}</p>
+        </div>
+      </div>
     </div>
   );
 }
