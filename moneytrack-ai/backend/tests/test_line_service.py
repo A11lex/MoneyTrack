@@ -135,7 +135,7 @@ def test_handle_line_message_detail_returns_budget_alert_when_category_budget_is
     assert _find_text(result.line_message, "ใช้จ่ายหมวดอาหารเต็มงบแล้วนะ") is True
 
 
-def test_handle_line_message_detail_does_not_alert_before_half_of_budget(tmp_path) -> None:
+def test_handle_line_message_detail_returns_budget_progress_before_half_of_budget(tmp_path) -> None:
     db_path = str(tmp_path / "line.db")
     upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
     save_user_onboarding(
@@ -158,7 +158,11 @@ def test_handle_line_message_detail_does_not_alert_before_half_of_budget(tmp_pat
 
     assert result.line_message is not None
     assert isinstance(result.line_message, dict)
-    assert result.line_message["altText"] == "จดสำเร็จ: รายจ่าย 50 บาท"
+    assert result.line_message["altText"] == "จดสำเร็จและงบคงเหลือ: งบคงเหลือ: อาหาร ใช้ไป ฿50 / ฿200"
+    assert _find_text(result.line_message, "จดสำเร็จ") is True
+    assert _find_text(result.line_message, "งบคงเหลือ") is True
+    assert _find_text(result.line_message, "฿50 / ฿200") is True
+    assert _find_text(result.line_message, "ใช้จ่ายหมวดอาหารจะเกินงบแล้วนะ") is False
 
 
 def test_handle_line_message_detail_returns_budget_progress_at_half_without_warning(tmp_path) -> None:

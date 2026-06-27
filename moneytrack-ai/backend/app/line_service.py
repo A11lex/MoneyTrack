@@ -210,8 +210,6 @@ def _budget_context_after_transaction(line_user_id: str, transaction: Any, db_pa
         category = transaction.category
 
     usage_ratio = spent / budget_limit
-    if usage_ratio < 0.5:
-        return None
 
     return {
         "budget_limit": budget_limit,
