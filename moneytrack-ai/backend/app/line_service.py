@@ -9,6 +9,7 @@ from .line_messages import (
     build_daily_summary_flex,
     build_quick_start_flex,
     build_transaction_deleted_flex,
+    build_transaction_deleted_with_budget_flex,
     build_transaction_success_flex,
     build_transaction_success_with_budget_flex,
 )
@@ -73,7 +74,7 @@ def handle_line_message_detail(
         )
 
     if normalized.startswith("ลบรายการ"):
-        return _delete_transaction_from_line(normalized, db_path)
+        return _delete_transaction_from_line(line_user_id, normalized, db_path)
 
     try:
         transaction = parse_transaction_message(normalized, today=current_date)
@@ -120,7 +121,7 @@ def _transaction_reply(transaction_type: str, amount: float, category: str, mode
     return f"บันทึกแล้ว: {type_label} {_format_baht(amount)}\nหมวด: {category}\nโหมด: {mode_label}"
 
 
-def _delete_transaction_from_line(message: str, db_path: str | None) -> LineMessageResult:
+def _delete_transaction_from_line(line_user_id: str, message: str, db_path: str | None) -> LineMessageResult:
     parts = message.split()
     if len(parts) < 2 or not parts[1].isdigit():
         return LineMessageResult(reply="ยังลบไม่ได้: ไม่พบรหัสรายการ", handled=False, line_message=build_quick_start_flex())
@@ -131,16 +132,28 @@ def _delete_transaction_from_line(message: str, db_path: str | None) -> LineMess
         return LineMessageResult(reply="ลบไม่ได้: ไม่พบรายการนี้แล้ว", handled=False, line_message=build_quick_start_flex())
 
     delete_transaction(transaction_id, db_path)
-    return LineMessageResult(
-        reply=f"ลบแล้ว: {_format_baht(transaction.amount)}",
-        handled=True,
-        line_message=build_transaction_deleted_flex(
+    budget_context = _budget_context_after_transaction(line_user_id, transaction, db_path)
+    if budget_context:
+        line_message = build_transaction_deleted_with_budget_flex(
             transaction_type=transaction.type.value,
             amount=transaction.amount,
             category=transaction.category,
             description=transaction.description,
             transaction_date=transaction.date,
-        ),
+            **budget_context,
+        )
+    else:
+        line_message = build_transaction_deleted_flex(
+            transaction_type=transaction.type.value,
+            amount=transaction.amount,
+            category=transaction.category,
+            description=transaction.description,
+            transaction_date=transaction.date,
+        )
+    return LineMessageResult(
+        reply=f"ลบแล้ว: {_format_baht(transaction.amount)}",
+        handled=True,
+        line_message=line_message,
     )
 
 

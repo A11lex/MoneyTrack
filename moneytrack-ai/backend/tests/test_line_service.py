@@ -219,6 +219,38 @@ def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_pa
     assert result.line_message["altText"] == "ลบสำเร็จ: รายจ่าย 80 บาท"
 
 
+def test_handle_line_message_detail_deletes_transaction_and_returns_budget_progress(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_onboarding(
+        "test-user-001",
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["อาหาร"],
+            income_categories=[],
+            monthly_budgets={"อาหาร": 200},
+        ),
+        db_path,
+    )
+    handle_line_message("test-user-001", "ข้าว 50", db_path=db_path, today=date(2026, 6, 25))
+    handle_line_message("test-user-001", "ข้าว 10", db_path=db_path, today=date(2026, 6, 25))
+    transaction_id = next(transaction.id for transaction in list_transactions(db_path) if transaction.amount == 10)
+
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message=f"ลบรายการ {transaction_id}",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+
+    assert result.handled is True
+    assert result.line_message is not None
+    assert result.line_message["altText"] == "ลบสำเร็จและงบคงเหลือ: งบคงเหลือ: อาหาร ใช้ไป ฿50 / ฿200"
+    assert _find_text(result.line_message, "ลบสำเร็จ ×") is True
+    assert _find_text(result.line_message, "งบคงเหลือ") is True
+    assert _find_text(result.line_message, "฿50 / ฿200") is True
+
+
 def _buttons(value: Any) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     if isinstance(value, dict):

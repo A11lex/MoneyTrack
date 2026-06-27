@@ -7,6 +7,7 @@ from app.line_messages import (
     build_daily_summary_flex,
     build_quick_start_flex,
     build_transaction_deleted_flex,
+    build_transaction_deleted_with_budget_flex,
     build_transaction_success_flex,
     build_transaction_success_with_budget_flex,
 )
@@ -127,6 +128,29 @@ def test_build_transaction_deleted_flex_uses_crimson_expense_accent() -> None:
     assert message["altText"] == "ลบสำเร็จ: รายจ่าย 346 บาท"
     assert _find_text(message, "ลบสำเร็จ ×") is True
     assert _find_color(message, "#DC143C") is True
+
+
+def test_build_transaction_deleted_with_budget_flex_combines_delete_and_budget_in_one_bubble() -> None:
+    message = build_transaction_deleted_with_budget_flex(
+        transaction_type="expense",
+        amount=10,
+        category="Food",
+        description="ข้าว",
+        transaction_date=date(2026, 6, 27),
+        budget_limit=200,
+        budget_category="Food",
+        period_label="รายเดือน",
+        spent=190,
+        total_income=6000,
+        show_warning=True,
+    )
+
+    assert message["type"] == "flex"
+    assert message["altText"] == "ลบสำเร็จและงบคงเหลือ: แจ้งเตือนงบ: อาหาร ใช้ไป ฿190 / ฿200"
+    assert _find_text(message, "ลบสำเร็จ ×") is True
+    assert _find_text(message, "งบคงเหลือ") is True
+    assert _find_text(message, "฿190 / ฿200") is True
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารจะเกินงบแล้วนะ") is True
 
 
 def test_build_daily_summary_flex_shows_category_totals_and_frontend_buttons(monkeypatch) -> None:

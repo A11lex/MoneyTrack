@@ -247,6 +247,46 @@ def build_transaction_deleted_flex(
     }
 
 
+def build_transaction_deleted_with_budget_flex(
+    *,
+    transaction_type: str,
+    amount: float,
+    category: str,
+    description: str,
+    transaction_date: date,
+    budget_limit: float,
+    budget_category: str,
+    period_label: str,
+    spent: float,
+    total_income: float,
+    show_warning: bool = True,
+) -> dict[str, Any]:
+    deleted_message = build_transaction_deleted_flex(
+        transaction_type=transaction_type,
+        amount=amount,
+        category=category,
+        description=description,
+        transaction_date=transaction_date,
+    )
+    budget_category_text = _category_label(budget_category)
+    budget_alt = f"{'แจ้งเตือนงบ' if show_warning else 'งบคงเหลือ'}: {budget_category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}"
+    deleted_message["altText"] = f"ลบสำเร็จและงบคงเหลือ: {budget_alt}"
+    deleted_message["contents"]["body"]["contents"].append(
+        {"type": "separator", "color": BRAND["line"], "margin": "lg"}
+    )
+    deleted_message["contents"]["body"]["contents"].extend(
+        _compact_budget_contents(
+            budget_limit=budget_limit,
+            category=budget_category,
+            period_label=period_label,
+            spent=spent,
+            total_income=total_income,
+            show_warning=show_warning,
+        )
+    )
+    return deleted_message
+
+
 def build_daily_summary_flex(
     summary_date: date,
     income: float,
