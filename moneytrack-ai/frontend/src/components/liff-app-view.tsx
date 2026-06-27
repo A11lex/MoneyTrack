@@ -272,6 +272,7 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [storedExpenseCategories, setStoredExpenseCategories] = useState<string[]>(() => loadStoredExpenseCategories());
   const [storedIncomeCategories, setStoredIncomeCategories] = useState<string[]>(() => loadStoredIncomeCategories());
+  const [showExpenseCategoryModal, setShowExpenseCategoryModal] = useState(false);
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
   const [selectedIncomeCategory, setSelectedIncomeCategory] = useState<string | null>(null);
@@ -390,9 +391,30 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
           </button>
         ))}
       </div>
-      <button type="button" onClick={() => kind === "income" && setShowIncomeCategoryModal(true)} className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
+      <button type="button" onClick={() => (kind === "income" ? setShowIncomeCategoryModal(true) : setShowExpenseCategoryModal(true))} className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
         + เพิ่มหมวด
       </button>
+      {showExpenseCategoryModal && (
+        <ExpenseCategoryCreateModal
+          existingCategories={storedExpenseCategories}
+          onClose={() => setShowExpenseCategoryModal(false)}
+          onSave={(category) => {
+            const nextCategories = [...storedExpenseCategories, category];
+            saveStoredExpenseCategories(nextCategories);
+            setStoredExpenseCategories(nextCategories);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: nextCategories,
+              incomeCategories: storedIncomeCategories,
+              budgetMode,
+              expenseBudgets,
+              totalBudget,
+            });
+            setShowExpenseCategoryModal(false);
+            setSelectedExpenseCategory(category);
+          }}
+        />
+      )}
       {showIncomeCategoryModal && (
         <IncomeCategoryModal
           existingCategories={items}
@@ -563,6 +585,73 @@ function IncomeCategoryModal({
 
         <button type="button" onClick={save} className="mt-6 h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
           บันทึก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ExpenseCategoryCreateModal({
+  existingCategories,
+  onClose,
+  onSave,
+}: {
+  existingCategories: string[];
+  onClose: () => void;
+  onSave: (category: string) => void;
+}) {
+  const suggestions = ["อาหาร", "กาแฟ", "เดินทาง", "ช้อปปิ้ง", "ผ่อนรถ", "Subscriptions", "ผ่อนบ้าน", "อินเตอร์เน็ต"];
+  const [name, setName] = useState("");
+  const [error, setError] = useState("");
+
+  function save() {
+    const value = name.trim();
+    if (!value) {
+      setError("กรอกชื่อหมวดรายจ่ายก่อน");
+      return;
+    }
+    if (existingCategories.includes(value)) {
+      setError("มีหมวดนี้อยู่แล้ว");
+      return;
+    }
+    onSave(value);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
+        <div className="flex items-center justify-end">
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#151b18]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <h2 className="mt-4 text-center text-2xl font-black">เพิ่มหมวดรายจ่าย</h2>
+
+        <div className="mt-7">
+          <label className="block">
+            <span className="text-sm font-black">ตั้งชื่อหมวดรายจ่าย</span>
+            <input value={name} onChange={(event) => { setName(event.target.value); setError(""); }} className="mt-2 h-12 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#DC143C]" />
+          </label>
+          <p className="mt-2 text-xs font-semibold text-[#8a928e]">พิมพ์ชื่อหมวด หรือ เลือกจากตัวเลือกด้านล่าง</p>
+        </div>
+
+        <div className="mt-7 text-center">
+          <p className="text-lg font-black">ชื่อหมวดยอดฮิต</p>
+          <p className="mt-2 text-sm font-semibold text-[#8a928e]">หากนึกไม่ออกลองเลือกจากชื่อหมวดข้างล่างนี้ดูสิ</p>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {suggestions.map((suggestion) => (
+            <button key={suggestion} type="button" onClick={() => { setName(suggestion); setError(""); }} className="h-12 rounded-md border border-black/10 bg-white text-sm font-bold shadow-sm active:bg-[#FCECEF]">
+              {suggestion}
+            </button>
+          ))}
+        </div>
+
+        {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+        <button type="button" onClick={save} className="mt-6 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
+          ต่อไป
         </button>
       </div>
     </div>
