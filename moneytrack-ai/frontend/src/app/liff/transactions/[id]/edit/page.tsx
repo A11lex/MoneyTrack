@@ -10,8 +10,23 @@ import type { Transaction, TransactionInput } from "@/lib/types";
 const accent = "#DC143C";
 const green = "#6DC5AD";
 
-const expenseCategories = ["Food", "Transport", "Rent / Home", "Utilities", "Debt Payment", "Shopping", "Health", "Business Cost", "Other Expense"];
-const incomeCategories = ["Salary", "Freelance", "Business Revenue", "Other Income"];
+const expenseCategories = ["อาหาร", "เดินทาง", "ที่พัก", "ค่าโทรศัพท์", "ค่าเน็ต", "ค่าน้ำค่าไฟ", "ช้อปปิ้ง", "Subscription", "กาแฟ", "ผ่อนรถ", "อื่นๆ"];
+const incomeCategories = ["เงินเดือน", "ธุรกิจส่วนตัว", "งานพิเศษ", "ค่าคอมมิชชั่น", "ขายของ", "เงินปันผล", "อื่นๆ"];
+const categoryNameMap: Record<string, string> = {
+  "Business Cost": "ธุรกิจ",
+  "Business Revenue": "ธุรกิจส่วนตัว",
+  "Debt Payment": "ผ่อนรถ",
+  Food: "อาหาร",
+  Freelance: "งานพิเศษ",
+  Health: "สุขภาพ",
+  "Other Expense": "อื่นๆ",
+  "Other Income": "อื่นๆ",
+  "Rent / Home": "ที่พัก",
+  Salary: "เงินเดือน",
+  Shopping: "ช้อปปิ้ง",
+  Transport: "เดินทาง",
+  Utilities: "ค่าน้ำค่าไฟ",
+};
 
 export default function EditTransactionPage() {
   const params = useParams<{ id: string }>();
@@ -24,13 +39,13 @@ export default function EditTransactionPage() {
   useEffect(() => {
     if (!Number.isFinite(transactionId)) return;
     getTransaction(transactionId)
-      .then(setTransaction)
+      .then((item) => setTransaction({ ...item, category: displayCategory(item.category, item.type) }))
       .catch(() => setError("โหลดรายการไม่สำเร็จ"));
   }, [transactionId]);
 
   const categories = useMemo(
-    () => (transaction?.type === "income" ? incomeCategories : expenseCategories),
-    [transaction?.type],
+    () => ensureCategoryOption(transactionCategories(transaction?.type ?? "expense"), transaction?.category ?? ""),
+    [transaction?.type, transaction?.category],
   );
 
   async function save() {
@@ -114,13 +129,13 @@ export default function EditTransactionPage() {
                 active={transaction.type === "expense"}
                 label="รายจ่าย"
                 color={accent}
-                onClick={() => setTransaction({ ...transaction, type: "expense", category: "Other Expense" })}
+                onClick={() => setTransaction({ ...transaction, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })}
               />
               <TypeButton
                 active={transaction.type === "income"}
                 label="รายรับ"
                 color={green}
-                onClick={() => setTransaction({ ...transaction, type: "income", category: "Other Income" })}
+                onClick={() => setTransaction({ ...transaction, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })}
               />
             </div>
           </section>
@@ -206,4 +221,46 @@ function TypeButton({
       {label}
     </button>
   );
+}
+
+function transactionCategories(type: "expense" | "income") {
+  return type === "income" ? loadStoredIncomeCategories() : loadStoredExpenseCategories();
+}
+
+function ensureCategoryOption(categories: string[], category: string) {
+  return category && !categories.includes(category) ? [...categories, category] : categories;
+}
+
+function displayCategory(category: string, type: "expense" | "income") {
+  const mapped = categoryNameMap[category] ?? category;
+  const defaults = type === "income" ? incomeCategories : expenseCategories;
+  const stored = transactionCategories(type);
+  if (stored.includes(mapped)) return mapped;
+
+  const defaultIndex = defaults.indexOf(mapped);
+  if (defaultIndex >= 0 && stored[defaultIndex]) {
+    return stored[defaultIndex];
+  }
+
+  return mapped;
+}
+
+function loadStoredExpenseCategories(): string[] {
+  if (typeof window === "undefined") return expenseCategories;
+  try {
+    const value = JSON.parse(window.localStorage.getItem("moneytrack_expense_categories") ?? "null");
+    return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : expenseCategories;
+  } catch {
+    return expenseCategories;
+  }
+}
+
+function loadStoredIncomeCategories(): string[] {
+  if (typeof window === "undefined") return incomeCategories;
+  try {
+    const value = JSON.parse(window.localStorage.getItem("moneytrack_income_categories") ?? "null");
+    return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : incomeCategories;
+  } catch {
+    return incomeCategories;
+  }
 }
