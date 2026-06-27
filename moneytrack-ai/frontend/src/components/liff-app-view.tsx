@@ -779,6 +779,7 @@ function IncomeCategorySettingsModal({
 }) {
   const [name, setName] = useState(category);
   const [error, setError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function save() {
     const value = name.trim();
@@ -794,7 +795,7 @@ function IncomeCategorySettingsModal({
       <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
         <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
         <div className="flex items-center justify-between">
-          <button type="button" onClick={onDelete} className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
+          <button type="button" onClick={() => setConfirmingDelete(true)} className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
             <Trash2 className="h-4 w-4" /> ลบหมวด
           </button>
           <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
@@ -818,6 +819,15 @@ function IncomeCategorySettingsModal({
           บันทึก
         </button>
       </div>
+      {confirmingDelete && (
+        <ConfirmDeleteDialog
+          title="ยืนยันการลบหมวด"
+          body="คุณต้องการลบหมวดนี้ใช่หรือไม่?"
+          confirmLabel="ลบหมวด"
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={onDelete}
+        />
+      )}
     </div>
   );
 }
@@ -840,6 +850,7 @@ function ExpenseCategoryBudgetModal({
   const [name, setName] = useState(category);
   const [amount, setAmount] = useState(budget > 0 ? String(budget) : "");
   const [error, setError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function save() {
     const value = name.trim();
@@ -855,7 +866,7 @@ function ExpenseCategoryBudgetModal({
       <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
         <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
         <div className="flex items-center justify-between">
-          <button type="button" onClick={onDelete} className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
+          <button type="button" onClick={() => setConfirmingDelete(true)} className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
             <Trash2 className="h-4 w-4" /> ลบหมวด
           </button>
           <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
@@ -898,6 +909,15 @@ function ExpenseCategoryBudgetModal({
           บันทึก
         </button>
       </div>
+      {confirmingDelete && (
+        <ConfirmDeleteDialog
+          title="ยืนยันการลบหมวด"
+          body="คุณต้องการลบหมวดนี้ใช่หรือไม่?"
+          confirmLabel="ลบหมวด"
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={onDelete}
+        />
+      )}
     </div>
   );
 }
@@ -1320,6 +1340,7 @@ function TransactionEditModal({
   const [draft, setDraft] = useState<Transaction>(() => ({ ...transaction, category: displayCategory(transaction.category, transaction.type) }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const categories = ensureCategoryOption(transactionCategories(draft.type), draft.category);
 
   async function save() {
@@ -1362,7 +1383,7 @@ function TransactionEditModal({
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-black">แก้ไขรายการ</h2>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={remove} disabled={saving} aria-label="ลบรายการ" className="grid h-10 w-10 place-items-center rounded-md bg-[#DC143C] text-white disabled:opacity-60">
+            <button type="button" onClick={() => setConfirmingDelete(true)} disabled={saving} aria-label="ลบรายการ" className="grid h-10 w-10 place-items-center rounded-md bg-[#DC143C] text-white disabled:opacity-60">
               <Trash2 className="h-5 w-5" />
             </button>
             <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-10 w-10 place-items-center rounded-md border border-black/10">
@@ -1417,6 +1438,49 @@ function TransactionEditModal({
             {saving ? "กำลังบันทึก..." : "บันทึก"}
           </button>
         </form>
+      </div>
+      {confirmingDelete && (
+        <ConfirmDeleteDialog
+          title="ยืนยันการลบรายการ"
+          body="คุณต้องการลบรายการนี้ใช่หรือไม่?"
+          confirmLabel="ลบรายการ"
+          confirming={saving}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => void remove()}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfirmDeleteDialog({
+  body,
+  confirmLabel,
+  confirming = false,
+  onCancel,
+  onConfirm,
+  title,
+}: {
+  body: string;
+  confirmLabel: string;
+  confirming?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+  title: string;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 px-5">
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-delete-title" className="w-full max-w-md rounded-md bg-white p-6 shadow-2xl">
+        <h3 id="confirm-delete-title" className="text-lg font-black text-[#151b18]">{title}</h3>
+        <p className="mt-3 text-sm font-semibold text-[#6b7280]">{body}</p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} disabled={confirming} className="h-10 rounded-md border border-black/10 bg-white px-5 text-sm font-black text-[#151b18] shadow-sm disabled:opacity-60">
+            ยกเลิก
+          </button>
+          <button type="button" onClick={onConfirm} disabled={confirming} className="h-10 rounded-md bg-[#DC143C] px-5 text-sm font-black text-white shadow-sm disabled:opacity-60">
+            {confirmLabel}
+          </button>
+        </div>
       </div>
     </div>
   );

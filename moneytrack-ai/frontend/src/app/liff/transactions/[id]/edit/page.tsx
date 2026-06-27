@@ -35,6 +35,7 @@ export default function EditTransactionPage() {
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
     if (!Number.isFinite(transactionId)) return;
@@ -102,7 +103,7 @@ export default function EditTransactionPage() {
           <h1 className="text-2xl font-black">แก้ไขรายการ</h1>
           <button
             type="button"
-            onClick={remove}
+            onClick={() => setConfirmingDelete(true)}
             disabled={saving}
             aria-label="ลบรายการ"
             className="grid h-10 w-10 place-items-center rounded-md text-white disabled:opacity-60"
@@ -192,7 +193,41 @@ export default function EditTransactionPage() {
           </button>
         </form>
       </div>
+      {confirmingDelete && (
+        <ConfirmDeleteDialog
+          confirming={saving}
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={() => void remove()}
+        />
+      )}
     </main>
+  );
+}
+
+function ConfirmDeleteDialog({
+  confirming = false,
+  onCancel,
+  onConfirm,
+}: {
+  confirming?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 px-5">
+      <div role="dialog" aria-modal="true" aria-labelledby="confirm-delete-title" className="w-full max-w-md rounded-md bg-white p-6 shadow-2xl">
+        <h2 id="confirm-delete-title" className="text-lg font-black text-[#151b18]">ยืนยันการลบรายการ</h2>
+        <p className="mt-3 text-sm font-semibold text-[#6b7280]">คุณต้องการลบรายการนี้ใช่หรือไม่?</p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} disabled={confirming} className="h-10 rounded-md border border-black/10 bg-white px-5 text-sm font-black text-[#151b18] shadow-sm disabled:opacity-60">
+            ยกเลิก
+          </button>
+          <button type="button" onClick={onConfirm} disabled={confirming} className="h-10 rounded-md px-5 text-sm font-black text-white shadow-sm disabled:opacity-60" style={{ backgroundColor: accent }}>
+            ลบรายการ
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
