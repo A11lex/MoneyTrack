@@ -1169,8 +1169,13 @@ function IncomeExpenseHistoryChart({
   transactions: Transaction[];
 }) {
   const currentYear = new Date().getFullYear();
+  const currentMonthIndex = new Date().getMonth();
+  const currentMonthKey = currentYear * 12 + currentMonthIndex;
   const [monthlyYear, setMonthlyYear] = useState(currentYear);
-  const points = mode === "daily" ? buildDailyHistoryPoints(transactions) : buildMonthlyHistoryPoints(transactions, monthlyYear);
+  const [dailyMonthKey, setDailyMonthKey] = useState(currentMonthKey);
+  const dailyYear = Math.floor(dailyMonthKey / 12);
+  const dailyMonthIndex = dailyMonthKey % 12;
+  const points = mode === "daily" ? buildDailyHistoryPoints(transactions, dailyYear, dailyMonthIndex) : buildMonthlyHistoryPoints(transactions, monthlyYear);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePoint = activeIndex === null ? null : points[Math.min(activeIndex, points.length - 1)] ?? null;
   const tooltipLeft = activeIndex === null ? 0 : Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10));
@@ -1178,7 +1183,7 @@ function IncomeExpenseHistoryChart({
   const averageExpense = points.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, points.length);
   const averageIncome = points.reduce((sum, item) => sum + item.income, 0) / Math.max(1, points.length);
   const rangeLabel = mode === "daily" ? dailyRangeLabel(points) : monthlyRangeLabel(points, monthlyYear);
-  const canGoNextYear = mode === "monthly" && monthlyYear < currentYear;
+  const canGoNextPeriod = mode === "monthly" ? monthlyYear < currentYear : dailyMonthKey < currentMonthKey;
 
   return (
     <div className="flex h-full flex-col">
@@ -1190,24 +1195,31 @@ function IncomeExpenseHistoryChart({
             if (mode === "monthly") {
               setActiveIndex(null);
               setMonthlyYear((year) => year - 1);
+            } else {
+              setActiveIndex(null);
+              setDailyMonthKey((monthKey) => monthKey - 1);
             }
           }}
           className="grid h-9 w-9 place-items-center rounded-full text-[#151b18] active:bg-[#f4f5f4]"
         >
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <p className="text-sm font-black text-[#7a817d]">{rangeLabel}</p>
+        <p className="text-xs font-bold text-[#7a817d]">{rangeLabel}</p>
         <button
           type="button"
           aria-label={mode === "monthly" ? "ปีถัดไป" : "ช่วงถัดไป"}
-          disabled={mode === "monthly" && !canGoNextYear}
+          disabled={!canGoNextPeriod}
           onClick={() => {
-            if (canGoNextYear) {
+            if (!canGoNextPeriod) return;
+            if (mode === "monthly") {
               setActiveIndex(null);
               setMonthlyYear((year) => Math.min(currentYear, year + 1));
+            } else {
+              setActiveIndex(null);
+              setDailyMonthKey((monthKey) => Math.min(currentMonthKey, monthKey + 1));
             }
           }}
-          className={`grid h-9 w-9 place-items-center rounded-full active:bg-[#f4f5f4] ${canGoNextYear ? "text-[#151b18]" : "text-[#d8ddda]"}`}
+          className={`grid h-9 w-9 place-items-center rounded-full active:bg-[#f4f5f4] ${canGoNextPeriod ? "text-[#151b18]" : "text-[#d8ddda]"}`}
         >
           <ChevronRight className="h-5 w-5" />
         </button>
@@ -1241,7 +1253,7 @@ function IncomeExpenseHistoryChart({
                   <div className="w-2 rounded-t-md bg-[#DC143C] sm:w-3" style={{ height: item.expense > 0 ? `${Math.max(8, (item.expense / max) * 100)}%` : "0%" }} />
                   <div className="w-3 rounded-t-md bg-[#8bded7] sm:w-5" style={{ height: item.income > 0 ? `${Math.max(8, (item.income / max) * 100)}%` : "0%" }} />
                 </div>
-                <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-black text-[#777f7b] sm:text-xs">{item.label}</span>
+                <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold text-[#777f7b] sm:text-[11px]">{item.label}</span>
               </button>
             ))}
           </div>
@@ -1249,29 +1261,29 @@ function IncomeExpenseHistoryChart({
 
         {activePoint && (
           <div
-            className="pointer-events-none absolute top-6 z-20 min-w-36 rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-lg"
+            className="pointer-events-none absolute top-6 z-20 min-w-36 rounded-md border border-black/10 bg-white px-3 py-2 text-xs shadow-lg"
             style={{ left: `${tooltipLeft}%` }}
           >
-            <p className="font-black text-[#151b18]">{activePoint.tooltipTitle}</p>
-            <p className="mt-1 font-semibold text-[#6b756f]">รายจ่าย: {formatBaht(activePoint.expense)}</p>
-            <p className="mt-1 font-semibold text-[#6b756f]">รายรับ: {formatBaht(activePoint.income)}</p>
+            <p className="font-bold text-[#151b18]">{activePoint.tooltipTitle}</p>
+            <p className="mt-1 font-medium text-[#6b756f]">รายจ่าย: {formatBaht(activePoint.expense)}</p>
+            <p className="mt-1 font-medium text-[#6b756f]">รายรับ: {formatBaht(activePoint.income)}</p>
           </div>
         )}
       </div>
 
-      <div className="mt-2 flex justify-center gap-5 text-sm font-black">
+      <div className="mt-2 flex justify-center gap-5 text-xs font-semibold">
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#DC143C]" />รายจ่าย</span>
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
       </div>
-      <p className="mt-6 text-center text-sm font-semibold text-[#8a928e]">เอานิ้วจิ้มบนกราฟเพื่อดูค่าได้เลย</p>
+      <p className="mt-6 text-center text-xs font-medium text-[#8a928e]">เอานิ้วจิ้มบนกราฟเพื่อดูค่าได้เลย</p>
       <div className="mt-5 grid grid-cols-2 gap-4 text-center">
         <div>
-          <p className="text-xs font-bold text-[#555f5b]">รายจ่ายเฉลี่ยต่อ{mode === "daily" ? "วัน" : "เดือน"}</p>
-          <p className="mt-1 text-xl font-black text-[#DC143C]">{formatBaht(averageExpense)}</p>
+          <p className="text-[11px] font-semibold text-[#555f5b]">รายจ่ายเฉลี่ยต่อ{mode === "daily" ? "วัน" : "เดือน"}</p>
+          <p className="mt-1 text-lg font-bold text-[#DC143C]">{formatBaht(averageExpense)}</p>
         </div>
         <div>
-          <p className="text-xs font-bold text-[#555f5b]">รายรับเฉลี่ยต่อ{mode === "daily" ? "วัน" : "เดือน"}</p>
-          <p className="mt-1 text-xl font-black text-[#6dc5ad]">{formatBaht(averageIncome)}</p>
+          <p className="text-[11px] font-semibold text-[#555f5b]">รายรับเฉลี่ยต่อ{mode === "daily" ? "วัน" : "เดือน"}</p>
+          <p className="mt-1 text-lg font-bold text-[#6dc5ad]">{formatBaht(averageIncome)}</p>
         </div>
       </div>
     </div>
@@ -1317,7 +1329,7 @@ function DailyHistoryLine({
           />
         ))}
       </div>
-      <div className="absolute inset-x-0 -bottom-7 flex justify-between text-[10px] font-black text-[#777f7b] sm:text-xs">
+      <div className="absolute inset-x-0 -bottom-7 flex justify-between text-[10px] font-medium text-[#777f7b] sm:text-[11px]">
         {dailyTickLabels(points.length).map((day) => (
           <span key={day}>{day}</span>
         ))}
@@ -1352,11 +1364,10 @@ function buildMonthlyHistoryPoints(transactions: Transaction[], year: number): H
   return points;
 }
 
-function buildDailyHistoryPoints(transactions: Transaction[]): HistoryChartPoint[] {
+function buildDailyHistoryPoints(transactions: Transaction[], year: number, month: number): HistoryChartPoint[] {
   const today = new Date();
-  const year = today.getFullYear();
-  const month = today.getMonth();
-  const lastDay = today.getDate();
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth();
+  const lastDay = isCurrentMonth ? today.getDate() : new Date(year, month + 1, 0).getDate();
   const points = Array.from({ length: lastDay }, (_, index) => {
     const day = index + 1;
     const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
