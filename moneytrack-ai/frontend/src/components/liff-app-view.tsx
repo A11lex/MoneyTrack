@@ -128,7 +128,6 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   return (
     <main className="min-h-screen bg-[#f8faf9] text-[#151b18]">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
-        <LiffHeader title={titleFor(tab)} />
         <section className="flex-1 px-4 pb-24 pt-4">
           {loading ? (
             <LoadingState />
@@ -162,20 +161,6 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         )}
       </div>
     </main>
-  );
-}
-
-function LiffHeader({ title }: { title: string }) {
-  return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-black/5 bg-white/95 px-4 py-3 backdrop-blur">
-      <div>
-        <h1 className="text-xl font-black">{title}</h1>
-        <p className="text-xs font-semibold text-[#8a928e]">money-track-sandy.vercel.app</p>
-      </div>
-      <button type="button" aria-label="ปิด" onClick={closeLiffWindow} className="grid h-10 w-10 place-items-center rounded-full text-[#151b18]">
-        <X className="h-6 w-6" />
-      </button>
-    </header>
   );
 }
 
@@ -1914,10 +1899,10 @@ function TransactionCreateModal({
           <section>
             <p className="text-base font-black">ประเภทรายการ</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#F5C6D0] bg-white text-[#DC143C]"}`}>
                 รายจ่าย
               </button>
-              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#0d4a2b]"}`}>
                 รายรับ
               </button>
             </div>
@@ -2033,10 +2018,10 @@ function TransactionEditModal({
           <section>
             <p className="text-base font-black">ประเภทรายการ</p>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#F5C6D0] bg-white text-[#DC143C]"}`}>
                 รายจ่าย
               </button>
-              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
+              <button type="button" onClick={() => setDraft({ ...draft, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })} className={`h-12 rounded-md border text-base font-black ${draft.type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#0d4a2b]"}`}>
                 รายรับ
               </button>
             </div>
@@ -2178,11 +2163,6 @@ function BottomNav({ active }: { active: LiffTab }) {
       })}
     </nav>
   );
-}
-
-function titleFor(tab: LiffTab) {
-  const found = tabs.find((item) => item.id === tab);
-  return found?.label ?? "เงินไปไหน?";
 }
 
 function loadStoredUserPlan(): UserPlan {
@@ -2480,19 +2460,6 @@ function loadLiffSdk(): Promise<void> {
     script.onerror = () => reject(new Error("Failed to load LIFF SDK"));
     document.head.appendChild(script);
   });
-}
-
-function closeLiffWindow() {
-  if (typeof window === "undefined") return;
-  if (window.liff?.closeWindow) {
-    window.liff.closeWindow();
-    return;
-  }
-  if (window.history.length > 1) {
-    window.history.back();
-    return;
-  }
-  window.close();
 }
 
 function formatThaiShortDate(value?: string) {
