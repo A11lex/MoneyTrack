@@ -172,7 +172,7 @@ function LiffHeader({ title }: { title: string }) {
         <h1 className="text-xl font-black">{title}</h1>
         <p className="text-xs font-semibold text-[#8a928e]">money-track-sandy.vercel.app</p>
       </div>
-      <button type="button" aria-label="ปิด" onClick={() => window.close()} className="grid h-10 w-10 place-items-center rounded-full text-[#151b18]">
+      <button type="button" aria-label="ปิด" onClick={closeLiffWindow} className="grid h-10 w-10 place-items-center rounded-full text-[#151b18]">
         <X className="h-6 w-6" />
       </button>
     </header>
@@ -2480,6 +2480,19 @@ function loadLiffSdk(): Promise<void> {
     script.onerror = () => reject(new Error("Failed to load LIFF SDK"));
     document.head.appendChild(script);
   });
+}
+
+function closeLiffWindow() {
+  if (typeof window === "undefined") return;
+  if (window.liff?.closeWindow) {
+    window.liff.closeWindow();
+    return;
+  }
+  if (window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  window.close();
 }
 
 function formatThaiShortDate(value?: string) {

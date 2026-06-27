@@ -54,6 +54,7 @@ type LiffClient = {
   isLoggedIn: () => boolean;
   login: () => void;
   getProfile: () => Promise<LiffProfile>;
+  closeWindow?: () => void;
 };
 
 declare global {

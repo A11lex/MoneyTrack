@@ -33,6 +33,7 @@ type LiffClient = {
   isLoggedIn: () => boolean;
   login: () => void;
   getProfile: () => Promise<{ userId: string }>;
+  closeWindow?: () => void;
 };
 
 export default function EditTransactionPage() {
