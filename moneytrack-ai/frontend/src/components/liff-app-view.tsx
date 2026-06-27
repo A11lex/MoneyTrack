@@ -1157,20 +1157,22 @@ function TransactionsScreen({ transactions, onCreate, onEdit }: { transactions: 
           </button>
         </div>
       </section>
-      <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
-        <p className="text-sm font-black">หมวด</p>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {categoryOptions.map((category) => {
-            const isActive = categoryFilter === category;
-            const activeClass = typeFilter === "income" ? "bg-[#6dc5ad] text-[#082f24]" : "bg-[#DC143C] text-white";
-            return (
-              <button key={category} type="button" onClick={() => setCategoryFilter(category)} className={"h-8 rounded-md px-3 text-xs font-black " + (isActive ? activeClass : "bg-[#f0f2f1] text-[#555f5b]")}>
-                {category}
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {typeFilter !== "all" && (
+        <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
+          <p className="text-sm font-black">หมวด</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {categoryOptions.map((category) => {
+              const isActive = categoryFilter === category;
+              const activeClass = typeFilter === "income" ? "bg-[#6dc5ad] text-[#082f24]" : "bg-[#DC143C] text-white";
+              return (
+                <button key={category} type="button" onClick={() => setCategoryFilter(category)} className={"h-8 rounded-md px-3 text-xs font-black " + (isActive ? activeClass : "bg-[#f0f2f1] text-[#555f5b]")}>
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
       <div className="flex items-center justify-between gap-3">
         <button type="button" className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
           เลือกหลายรายการ
