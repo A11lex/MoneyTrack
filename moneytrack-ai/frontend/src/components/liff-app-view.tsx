@@ -1224,7 +1224,7 @@ function IncomeExpenseHistoryChart({
         {mode === "daily" ? (
           <DailyHistoryLine points={points} max={max} activeIndex={activeIndex} onActivate={setActiveIndex} />
         ) : (
-          <div className="relative z-10 flex h-full items-end justify-between gap-3">
+          <div className="relative z-10 flex h-full items-end justify-between gap-1">
             {points.map((item, index) => (
               <button
                 key={item.label}
@@ -1234,14 +1234,14 @@ function IncomeExpenseHistoryChart({
                 onPointerDown={() => setActiveIndex(index)}
                 onFocus={() => setActiveIndex(index)}
                 onBlur={() => setActiveIndex(null)}
-                className="relative flex h-full flex-1 touch-manipulation flex-col items-center justify-end gap-2 outline-none"
+                className="relative flex h-full min-w-0 flex-1 touch-manipulation flex-col items-center justify-end gap-2 outline-none"
                 aria-label={`${item.tooltipTitle} รายจ่าย ${formatBaht(item.expense)} รายรับ ${formatBaht(item.income)}`}
               >
-                <div className="flex h-full w-full items-end justify-center gap-1.5">
-                  <div className="w-3 rounded-t-md bg-[#DC143C]" style={{ height: item.expense > 0 ? `${Math.max(8, (item.expense / max) * 100)}%` : "0%" }} />
-                  <div className="w-6 rounded-t-md bg-[#8bded7]" style={{ height: item.income > 0 ? `${Math.max(8, (item.income / max) * 100)}%` : "0%" }} />
+                <div className="flex h-full w-full items-end justify-center gap-1">
+                  <div className="w-2 rounded-t-md bg-[#DC143C] sm:w-3" style={{ height: item.expense > 0 ? `${Math.max(8, (item.expense / max) * 100)}%` : "0%" }} />
+                  <div className="w-3 rounded-t-md bg-[#8bded7] sm:w-5" style={{ height: item.income > 0 ? `${Math.max(8, (item.income / max) * 100)}%` : "0%" }} />
                 </div>
-                <span className="absolute -bottom-7 text-xs font-black text-[#777f7b]">{item.label}</span>
+                <span className="absolute -bottom-7 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-black text-[#777f7b] sm:text-xs">{item.label}</span>
               </button>
             ))}
           </div>
@@ -1317,8 +1317,8 @@ function DailyHistoryLine({
           />
         ))}
       </div>
-      <div className="absolute inset-x-0 -bottom-7 flex justify-between text-xs font-black text-[#777f7b]">
-        {[1, 4, 7, 10, 13, 16, 19, 22, 25].map((day) => (
+      <div className="absolute inset-x-0 -bottom-7 flex justify-between text-[10px] font-black text-[#777f7b] sm:text-xs">
+        {dailyTickLabels(points.length).map((day) => (
           <span key={day}>{day}</span>
         ))}
       </div>
@@ -1353,13 +1353,10 @@ function buildMonthlyHistoryPoints(transactions: Transaction[], year: number): H
 }
 
 function buildDailyHistoryPoints(transactions: Transaction[]): HistoryChartPoint[] {
-  const latestDate = transactions
-    .map((transaction) => parseLocalDate(transaction.date))
-    .filter((value): value is Date => Boolean(value))
-    .sort((a, b) => b.getTime() - a.getTime())[0] ?? new Date();
-  const year = latestDate.getFullYear();
-  const month = latestDate.getMonth();
-  const lastDay = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const lastDay = today.getDate();
   const points = Array.from({ length: lastDay }, (_, index) => {
     const day = index + 1;
     const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -1376,6 +1373,7 @@ function buildDailyHistoryPoints(transactions: Transaction[]): HistoryChartPoint
     const parsed = parseLocalDate(transaction.date);
     if (!parsed || parsed.getFullYear() !== year || parsed.getMonth() !== month) continue;
     const point = points[parsed.getDate() - 1];
+    if (!point) continue;
     if (transaction.type === "income") point.income += transaction.amount;
     if (transaction.type === "expense") point.expense += transaction.amount;
   }
@@ -1393,6 +1391,16 @@ function monthlyRangeLabel(points: HistoryChartPoint[], year: number) {
   const first = points[0]?.label ?? "ม.ค.";
   const last = points[points.length - 1]?.label ?? "ธ.ค.";
   return `${first} - ${last} ${String(year + 543).slice(-2)}`;
+}
+
+function dailyTickLabels(days: number) {
+  if (days <= 7) {
+    return Array.from({ length: days }, (_, index) => index + 1);
+  }
+
+  const labels = Array.from({ length: Math.floor((days - 1) / 3) + 1 }, (_, index) => index * 3 + 1);
+  if (labels[labels.length - 1] !== days) labels.push(days);
+  return labels;
 }
 
 function linePoints(values: number[], max: number) {
