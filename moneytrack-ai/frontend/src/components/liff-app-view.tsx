@@ -229,7 +229,6 @@ function SummaryScreen({
 
 function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData | null; transactions: Transaction[] }) {
   const [chartMode, setChartMode] = useState<"monthly" | "daily">("monthly");
-  const chart = dashboard?.charts.income_vs_expense ?? [];
   const categories = dashboard?.charts.expense_by_category ?? [];
   const maxCategory = Math.max(1, ...categories.map((category) => category.amount));
 
@@ -249,7 +248,7 @@ function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData 
           </div>
         </div>
         <div className="mt-6 h-80">
-          <IncomeExpenseHistoryChart key={chartMode} mode={chartMode} monthlyData={chart} transactions={transactions} />
+          <IncomeExpenseHistoryChart key={chartMode} mode={chartMode} transactions={transactions} />
         </div>
       </section>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
@@ -1164,30 +1163,52 @@ type HistoryChartPoint = {
 
 function IncomeExpenseHistoryChart({
   mode,
-  monthlyData,
   transactions,
 }: {
   mode: "monthly" | "daily";
-  monthlyData: { month: string; income: number; expense: number }[];
   transactions: Transaction[];
 }) {
-  const points = mode === "daily" ? buildDailyHistoryPoints(transactions) : buildMonthlyHistoryPoints(monthlyData);
+  const currentYear = new Date().getFullYear();
+  const [monthlyYear, setMonthlyYear] = useState(currentYear);
+  const points = mode === "daily" ? buildDailyHistoryPoints(transactions) : buildMonthlyHistoryPoints(transactions, monthlyYear);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePoint = activeIndex === null ? null : points[Math.min(activeIndex, points.length - 1)] ?? null;
   const tooltipLeft = activeIndex === null ? 0 : Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10));
   const max = Math.max(1, ...points.flatMap((item) => [item.income, item.expense]));
   const averageExpense = points.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, points.length);
   const averageIncome = points.reduce((sum, item) => sum + item.income, 0) / Math.max(1, points.length);
-  const rangeLabel = mode === "daily" ? dailyRangeLabel(points) : `${points[0]?.label ?? "ม.ค."} - ${points[points.length - 1]?.label ?? "มิ.ย."} 69`;
+  const rangeLabel = mode === "daily" ? dailyRangeLabel(points) : monthlyRangeLabel(points, monthlyYear);
+  const canGoNextYear = mode === "monthly" && monthlyYear < currentYear;
 
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-1">
-        <button type="button" aria-label="ช่วงก่อนหน้า" className="grid h-9 w-9 place-items-center rounded-full text-[#151b18] active:bg-[#f4f5f4]">
+        <button
+          type="button"
+          aria-label={mode === "monthly" ? "ปีก่อนหน้า" : "ช่วงก่อนหน้า"}
+          onClick={() => {
+            if (mode === "monthly") {
+              setActiveIndex(null);
+              setMonthlyYear((year) => year - 1);
+            }
+          }}
+          className="grid h-9 w-9 place-items-center rounded-full text-[#151b18] active:bg-[#f4f5f4]"
+        >
           <ChevronLeft className="h-5 w-5" />
         </button>
         <p className="text-sm font-black text-[#7a817d]">{rangeLabel}</p>
-        <button type="button" aria-label="ช่วงถัดไป" className="grid h-9 w-9 place-items-center rounded-full text-[#d8ddda] active:bg-[#f4f5f4]">
+        <button
+          type="button"
+          aria-label={mode === "monthly" ? "ปีถัดไป" : "ช่วงถัดไป"}
+          disabled={mode === "monthly" && !canGoNextYear}
+          onClick={() => {
+            if (canGoNextYear) {
+              setActiveIndex(null);
+              setMonthlyYear((year) => Math.min(currentYear, year + 1));
+            }
+          }}
+          className={`grid h-9 w-9 place-items-center rounded-full active:bg-[#f4f5f4] ${canGoNextYear ? "text-[#151b18]" : "text-[#d8ddda]"}`}
+        >
           <ChevronRight className="h-5 w-5" />
         </button>
       </div>
@@ -1305,14 +1326,30 @@ function DailyHistoryLine({
   );
 }
 
-function buildMonthlyHistoryPoints(data: { month: string; income: number; expense: number }[]): HistoryChartPoint[] {
-  const fallback = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย."].map((month) => ({ month, income: 0, expense: 0 }));
-  return (data.length > 0 ? data.slice(-6) : fallback).map((item, index, items) => ({
-    label: item.month,
-    tooltipTitle: index === items.length - 1 ? `1 ${item.month} - 30 ${item.month} 2569` : item.month,
-    income: item.income,
-    expense: item.expense,
-  }));
+function buildMonthlyHistoryPoints(transactions: Transaction[], year: number): HistoryChartPoint[] {
+  const now = new Date();
+  const lastMonthIndex = year === now.getFullYear() ? now.getMonth() : 11;
+  const points = Array.from({ length: lastMonthIndex + 1 }, (_, monthIndex) => {
+    const label = thaiMonthName(monthIndex);
+    const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+    return {
+      label,
+      tooltipTitle: `1 ${label} - ${lastDay} ${label} ${year + 543}`,
+      income: 0,
+      expense: 0,
+    };
+  });
+
+  for (const transaction of transactions) {
+    const parsed = parseLocalDate(transaction.date);
+    if (!parsed || parsed.getFullYear() !== year) continue;
+    const point = points[parsed.getMonth()];
+    if (!point) continue;
+    if (transaction.type === "income") point.income += transaction.amount;
+    if (transaction.type === "expense") point.expense += transaction.amount;
+  }
+
+  return points;
 }
 
 function buildDailyHistoryPoints(transactions: Transaction[]): HistoryChartPoint[] {
@@ -1350,6 +1387,12 @@ function dailyRangeLabel(points: HistoryChartPoint[]) {
   const title = points[0]?.tooltipTitle ?? "";
   const parts = title.split(" ");
   return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : "รายวัน";
+}
+
+function monthlyRangeLabel(points: HistoryChartPoint[], year: number) {
+  const first = points[0]?.label ?? "ม.ค.";
+  const last = points[points.length - 1]?.label ?? "ธ.ค.";
+  return `${first} - ${last} ${String(year + 543).slice(-2)}`;
 }
 
 function linePoints(values: number[], max: number) {
