@@ -194,7 +194,7 @@ def build_transaction_success_with_budget_flex(
             show_warning=show_warning,
         )
     )
-    success_message["contents"]["footer"] = _single_uri_footer("ตั้งค่างบ", "/liff/categories", BRAND["green"])
+    success_message["contents"].pop("footer", None)
     return success_message
 
 

@@ -86,6 +86,8 @@ def test_build_transaction_success_with_budget_flex_combines_success_and_budget_
     assert _find_text(message, "฿100 / ฿200") is True
     assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
     assert _find_text(message, "ใช้จ่ายหมวดอาหารจะเกินงบแล้วนะ") is False
+    assert _find_text(message, "ตั้งค่างบ") is False
+    assert "footer" not in message["contents"]
 
 
 def test_build_transaction_success_with_budget_flex_shows_compact_warning_without_panel_heading() -> None:
