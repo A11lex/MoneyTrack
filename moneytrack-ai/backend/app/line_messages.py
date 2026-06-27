@@ -345,9 +345,66 @@ def build_daily_summary_flex(
                 "paddingAll": "16px",
                 "contents": [
                     _uri_button("ดูสรุปย้อนหลัง", "/liff/summary", BRAND["green"], "primary"),
-                    _uri_button("วิเคราะห์ต่อ", "/liff/insights", BRAND["dark_green"], "secondary"),
                 ],
             },
+        },
+    }
+
+
+def build_monthly_summary_flex(
+    *,
+    period_start: date,
+    period_end: date,
+    income: float,
+    expense: float,
+    net: float,
+    income_totals: dict[str, float] | None = None,
+    expense_totals: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    income_rows = _monthly_category_rows(income_totals or {}, BRAND["green"])
+    expense_rows = _monthly_category_rows(expense_totals or {}, BRAND["pink"])
+    net_color = BRAND["green"] if net >= 0 else BRAND["pink"]
+    advice = _monthly_summary_advice(income, expense, net)
+
+    return {
+        "type": "flex",
+        "altText": f"รายงานประจำเดือน: คงเหลือ {'+' if net >= 0 else '-'}{abs(net):,.0f} บาท",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "paddingAll": "18px",
+                "contents": [
+                    _monthly_report_header(period_start, period_end),
+                    _plain_text("รายงานรวม", "sm", BRAND["muted"], weight="bold"),
+                    _pill("รายรับ", BRAND["soft_green"], BRAND["green"]),
+                    *income_rows,
+                    _amount_row("รายรับทั้งหมด", income, BRAND["green"]),
+                    {"type": "separator", "color": BRAND["line"], "margin": "sm"},
+                    _pill("รายจ่าย", BRAND["soft_pink"], BRAND["pink"]),
+                    *expense_rows,
+                    _amount_row("ใช้ไปทั้งหมด", expense, BRAND["pink"]),
+                    {"type": "separator", "color": BRAND["line"], "margin": "md"},
+                    _amount_row("คงเหลือ", net, net_color, signed=True),
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "backgroundColor": BRAND["cream"],
+                        "cornerRadius": "md",
+                        "paddingAll": "12px",
+                        "contents": [
+                            _plain_text("ข้อแนะนำจากเงินไปไหน", "sm", BRAND["black"], weight="bold"),
+                            _plain_text(advice, "xs", BRAND["black"], wrap=True),
+                        ],
+                    },
+                ],
+            },
+            "footer": _single_uri_footer("ดูรายละเอียดในแอป", "/liff/summary", BRAND["green"]),
         },
     }
 
@@ -676,6 +733,51 @@ def _category_summary_rows(category_totals: dict[str, float]) -> list[dict[str, 
     if rows:
         return rows[:10]
     return [_plain_text("ยังไม่มีรายจ่ายวันนี้", "sm", BRAND["muted"])]
+
+
+def _monthly_report_header(period_start: date, period_end: date) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "horizontal",
+        "contents": [
+            _plain_text("รายงานประจำเดือน", "lg", BRAND["black"], weight="bold", wrap=True),
+            {
+                "type": "text",
+                "text": f"{_format_thai_date(period_start)} - {_format_thai_date(period_end)}",
+                "size": "xs",
+                "color": BRAND["black"],
+                "align": "end",
+                "flex": 1,
+                "wrap": True,
+            },
+        ],
+    }
+
+
+def _monthly_category_rows(category_totals: dict[str, float], amount_color: str) -> list[dict[str, Any]]:
+    rows = [
+        _amount_row(_category_label(category), amount, amount_color)
+        for category, amount in sorted(category_totals.items(), key=lambda item: item[1], reverse=True)
+        if amount > 0
+    ]
+    if rows:
+        return rows[:8]
+    return [_plain_text("ยังไม่มีรายการ", "sm", BRAND["muted"])]
+
+
+def _monthly_summary_advice(income: float, expense: float, net: float) -> str:
+    if income <= 0 and expense <= 0:
+        return "เดือนนี้ยังไม่มีข้อมูล ลองเริ่มจดรายรับรายจ่ายเพื่อให้ระบบช่วยสรุปภาพรวมได้แม่นขึ้น"
+    if income <= 0:
+        return "เดือนนี้ยังไม่มีรายรับ ลองตรวจสอบแหล่งรายได้และลดรายจ่ายที่ไม่จำเป็นก่อน"
+    ratio = (expense / income) * 100
+    if net < 0:
+        return "รายจ่ายมากกว่ารายรับ เดือนหน้าควรลดหมวดที่ใช้เยอะที่สุดและกันเงินสำรองก่อนใช้จ่าย"
+    if ratio >= 80:
+        return "รายจ่ายใกล้แตะรายรับแล้ว ควรกำหนดงบให้หมวดหลักและเลี่ยงรายจ่ายที่ไม่จำเป็น"
+    if ratio >= 50:
+        return "ภาพรวมยังคุมได้ ลองเพิ่มเงินเก็บจากรายรับทุกครั้งและติดตามหมวดที่ใช้บ่อย"
+    return "กระแสเงินสดดีมาก รักษาวินัยการจดและเพิ่มเป้าหมายเงินเก็บรายเดือนต่อได้เลย"
 
 
 def _format_thai_date(value: date) -> str:

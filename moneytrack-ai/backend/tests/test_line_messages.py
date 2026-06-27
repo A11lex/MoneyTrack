@@ -5,6 +5,7 @@ from app.line_messages import (
     build_budget_alert_flex,
     build_category_budget_flex,
     build_daily_summary_flex,
+    build_monthly_summary_flex,
     build_quick_start_flex,
     build_transaction_deleted_flex,
     build_transaction_deleted_with_budget_flex,
@@ -172,7 +173,32 @@ def test_build_daily_summary_flex_shows_category_totals_and_frontend_buttons(mon
     assert _find_text(message, "ใช้ไปทั้งหมด") is True
     assert _find_text(message, "฿346") is True
     assert buttons[0]["action"]["uri"] == "https://example.vercel.app/liff/summary"
-    assert buttons[1]["action"]["uri"] == "https://example.vercel.app/liff/insights"
+    assert len(buttons) == 1
+
+
+def test_build_monthly_summary_flex_shows_income_expense_totals_and_advice(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
+
+    message = build_monthly_summary_flex(
+        period_start=date(2026, 6, 1),
+        period_end=date(2026, 6, 30),
+        income=41000,
+        expense=1165,
+        net=39835,
+        income_totals={"Salary": 41000},
+        expense_totals={"Food": 740, "Transport": 425},
+    )
+
+    buttons = _buttons(message)
+    assert message["type"] == "flex"
+    assert message["altText"] == "รายงานประจำเดือน: คงเหลือ +39,835 บาท"
+    assert _find_text(message, "รายงานประจำเดือน") is True
+    assert _find_text(message, "รายรับทั้งหมด") is True
+    assert _find_text(message, "ใช้ไปทั้งหมด") is True
+    assert _find_text(message, "เงินเดือน") is True
+    assert _find_text(message, "อาหาร") is True
+    assert _find_text(message, "ข้อแนะนำจากเงินไปไหน") is True
+    assert buttons[0]["action"]["uri"] == "https://example.vercel.app/liff/summary"
 
 
 def test_build_quick_start_flex_opens_keyboard_for_recording() -> None:

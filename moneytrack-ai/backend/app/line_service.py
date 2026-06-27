@@ -7,6 +7,7 @@ from .database import create_transaction, delete_transaction, get_transaction, g
 from .line_messages import (
     build_category_budget_flex,
     build_daily_summary_flex,
+    build_monthly_summary_flex,
     build_quick_start_flex,
     build_transaction_deleted_flex,
     build_transaction_deleted_with_budget_flex,
@@ -71,6 +72,26 @@ def handle_line_message_detail(
             reply=_daily_summary_reply(income, expense, net),
             handled=True,
             line_message=build_daily_summary_flex(current_date, income, expense, net, category_totals),
+        )
+
+    if normalized in {"สรุปเดือนนี้", "สรุปประจำเดือน", "รายงานประจำเดือน", "เดือนนี้ใช้ไปเท่าไหร่"}:
+        period_start, period_end, income, expense, net, income_totals, expense_totals = _monthly_summary_totals(
+            db_path,
+            current_date,
+            line_user_id,
+        )
+        return LineMessageResult(
+            reply=_monthly_summary_reply(income, expense, net),
+            handled=True,
+            line_message=build_monthly_summary_flex(
+                period_start=period_start,
+                period_end=period_end,
+                income=income,
+                expense=expense,
+                net=net,
+                income_totals=income_totals,
+                expense_totals=expense_totals,
+            ),
         )
 
     if normalized.startswith("ลบรายการ"):
@@ -170,12 +191,45 @@ def _daily_summary_totals(db_path: str | None, today: date, line_user_id: str) -
     return income, expense, net, category_totals
 
 
+def _monthly_summary_totals(
+    db_path: str | None,
+    today: date,
+    line_user_id: str,
+) -> tuple[date, date, float, float, float, dict[str, float], dict[str, float]]:
+    period_start = date(today.year, today.month, 1)
+    next_month = date(today.year + 1, 1, 1) if today.month == 12 else date(today.year, today.month + 1, 1)
+    period_end = next_month - timedelta(days=1)
+    transactions = [
+        transaction
+        for transaction in list_transactions(db_path, line_user_id=line_user_id)
+        if period_start <= transaction.date <= period_end
+    ]
+    income = sum(transaction.amount for transaction in transactions if transaction.type.value == "income")
+    expense = sum(transaction.amount for transaction in transactions if transaction.type.value == "expense")
+    net = income - expense
+    income_totals: dict[str, float] = {}
+    expense_totals: dict[str, float] = {}
+    for transaction in transactions:
+        target = income_totals if transaction.type.value == "income" else expense_totals
+        target[transaction.category] = target.get(transaction.category, 0) + transaction.amount
+    return period_start, period_end, income, expense, net, income_totals, expense_totals
+
+
 def _daily_summary_reply(income: float, expense: float, net: float) -> str:
     return (
         "สรุปวันนี้\n"
         f"รายรับ: {_format_baht(income)}\n"
         f"รายจ่าย: {_format_baht(expense)}\n"
         f"สุทธิ: {_format_signed_baht(net)}"
+    )
+
+
+def _monthly_summary_reply(income: float, expense: float, net: float) -> str:
+    return (
+        "สรุปประจำเดือน\n"
+        f"รายรับ: {_format_baht(income)}\n"
+        f"รายจ่าย: {_format_baht(expense)}\n"
+        f"คงเหลือ: {_format_signed_baht(net)}"
     )
 
 

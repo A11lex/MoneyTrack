@@ -87,6 +87,28 @@ def test_handle_line_message_detail_returns_daily_summary_flex_with_category_row
     assert _buttons(result.line_message)[0]["action"]["uri"].endswith("/liff/summary")
 
 
+def test_handle_line_message_detail_returns_monthly_summary_flex(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    handle_line_message("test-user-001", "เงินเดือน 41000", db_path=db_path, today=date(2026, 6, 1))
+    handle_line_message("test-user-001", "ข้าว 740", db_path=db_path, today=date(2026, 6, 25))
+    handle_line_message("test-user-001", "น้ำมัน 425", db_path=db_path, today=date(2026, 6, 26))
+    handle_line_message("test-user-001", "ข้าว 999", db_path=db_path, today=date(2026, 5, 26))
+
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="สรุปประจำเดือน",
+        db_path=db_path,
+        today=date(2026, 6, 27),
+    )
+
+    assert result.line_message is not None
+    assert result.line_message["type"] == "flex"
+    assert result.line_message["altText"] == "รายงานประจำเดือน: คงเหลือ +39,835 บาท"
+    assert _find_text(result.line_message, "รายรับทั้งหมด") is True
+    assert _find_text(result.line_message, "ใช้ไปทั้งหมด") is True
+    assert _find_text(result.line_message, "฿999") is False
+
+
 def test_handle_line_message_detail_returns_quick_start_flex_for_help() -> None:
     result = handle_line_message_detail(
         line_user_id="test-user-001",
