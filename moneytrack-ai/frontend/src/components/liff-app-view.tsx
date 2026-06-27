@@ -130,7 +130,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
           ) : (
             <>
               {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} />}
-              {tab === "insights" && <InsightsScreen dashboard={dashboard} />}
+              {tab === "insights" && <InsightsScreen dashboard={dashboard} transactions={transactions} />}
               {tab === "categories" && <CategoriesScreen profile={profile} transactions={transactions} />}
               {tab === "transactions" && <TransactionsScreen transactions={transactions} onCreate={() => setCreatingTransaction(true)} onEdit={setEditingTransaction} />}
               {tab === "settings" && <SettingsScreen />}
@@ -227,7 +227,8 @@ function SummaryScreen({
   );
 }
 
-function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
+function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData | null; transactions: Transaction[] }) {
+  const [chartMode, setChartMode] = useState<"monthly" | "daily">("monthly");
   const chart = dashboard?.charts.income_vs_expense ?? [];
   const categories = dashboard?.charts.expense_by_category ?? [];
   const maxCategory = Math.max(1, ...categories.map((category) => category.amount));
@@ -238,13 +239,17 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
-          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-sm font-bold shadow-sm" type="button">
-            รายเดือน
-            <ChevronRight className="h-4 w-4 rotate-90 text-[#9aa1a0]" />
-          </button>
+          <div className="grid grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm">
+            <button type="button" onClick={() => setChartMode("monthly")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "monthly" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
+              รายเดือน
+            </button>
+            <button type="button" onClick={() => setChartMode("daily")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "daily" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
+              รายวัน
+            </button>
+          </div>
         </div>
         <div className="mt-6 h-80">
-          <MiniBars data={chart} />
+          <IncomeExpenseHistoryChart key={chartMode} mode={chartMode} monthlyData={chart} transactions={transactions} />
         </div>
       </section>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
@@ -1150,13 +1155,31 @@ function MetricBox({ label, value, tone }: { label: string; value: number; tone:
   );
 }
 
-function MiniBars({ data }: { data: { month: string; income: number; expense: number }[] }) {
-  const months = data.length > 0 ? data.slice(-6) : ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย."].map((month) => ({ month, income: 0, expense: 0 }));
-  const max = Math.max(1, ...months.flatMap((item) => [item.income, item.expense]));
-  const averageExpense = months.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, months.length);
-  const averageIncome = months.reduce((sum, item) => sum + item.income, 0) / Math.max(1, months.length);
-  const hasData = months.some((item) => item.income > 0 || item.expense > 0);
-  const rangeLabel = `${months[0]?.month ?? "ม.ค."} - ${months[months.length - 1]?.month ?? "มิ.ย."} 69`;
+type HistoryChartPoint = {
+  label: string;
+  tooltipTitle: string;
+  income: number;
+  expense: number;
+};
+
+function IncomeExpenseHistoryChart({
+  mode,
+  monthlyData,
+  transactions,
+}: {
+  mode: "monthly" | "daily";
+  monthlyData: { month: string; income: number; expense: number }[];
+  transactions: Transaction[];
+}) {
+  const points = mode === "daily" ? buildDailyHistoryPoints(transactions) : buildMonthlyHistoryPoints(monthlyData);
+  const firstActiveIndex = Math.max(0, points.findLastIndex((item) => item.income > 0 || item.expense > 0));
+  const [activeIndex, setActiveIndex] = useState(firstActiveIndex);
+  const activePoint = points[Math.min(activeIndex, points.length - 1)] ?? points[0];
+  const max = Math.max(1, ...points.flatMap((item) => [item.income, item.expense]));
+  const averageExpense = points.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, points.length);
+  const averageIncome = points.reduce((sum, item) => sum + item.income, 0) / Math.max(1, points.length);
+  const rangeLabel = mode === "daily" ? dailyRangeLabel(points) : `${points[0]?.label ?? "ม.ค."} - ${points[points.length - 1]?.label ?? "มิ.ย."} 69`;
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-1">
@@ -1169,43 +1192,173 @@ function MiniBars({ data }: { data: { month: string; income: number; expense: nu
         </button>
       </div>
 
-      <div className="relative mt-4 flex min-h-0 flex-1 items-end justify-between gap-3 px-2 pb-7 pt-2">
-        <div className="pointer-events-none absolute inset-x-2 top-2 h-[calc(100%-2rem)]">
+      <div className="relative mt-4 min-h-0 flex-1 px-2 pb-7 pt-2">
+        <div className="pointer-events-none absolute inset-x-2 top-2 h-[calc(100%-2rem)] rounded-sm">
           <div className="absolute inset-x-0 top-0 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 top-1/3 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 top-2/3 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 bottom-0 border-t border-dashed border-[#e8ecea]" />
         </div>
-        {months.map((item) => (
-          <div key={item.month} className="relative z-10 flex h-full flex-1 flex-col items-center justify-end gap-2">
-            <div className="flex h-full w-full items-end justify-center gap-1.5">
-              <div className="w-3 rounded-t-md bg-[#DC143C]" style={{ height: item.expense > 0 ? `${Math.max(8, (item.expense / max) * 100)}%` : "0%" }} />
-              <div className="w-6 rounded-t-md bg-[#8bded7]" style={{ height: item.income > 0 ? `${Math.max(8, (item.income / max) * 100)}%` : "0%" }} />
-            </div>
-            <span className="absolute -bottom-7 text-xs font-black text-[#777f7b]">{item.month}</span>
+
+        {mode === "daily" ? (
+          <DailyHistoryLine points={points} max={max} activeIndex={activeIndex} onActivate={setActiveIndex} />
+        ) : (
+          <div className="relative z-10 flex h-full items-end justify-between gap-3">
+            {points.map((item, index) => (
+              <button
+                key={item.label}
+                type="button"
+                onClick={() => setActiveIndex(index)}
+                onPointerEnter={() => setActiveIndex(index)}
+                onPointerDown={() => setActiveIndex(index)}
+                className="relative flex h-full flex-1 touch-manipulation flex-col items-center justify-end gap-2 outline-none"
+                aria-label={`${item.tooltipTitle} รายจ่าย ${formatBaht(item.expense)} รายรับ ${formatBaht(item.income)}`}
+              >
+                <div className="flex h-full w-full items-end justify-center gap-1.5">
+                  <div className="w-3 rounded-t-md bg-[#DC143C]" style={{ height: item.expense > 0 ? `${Math.max(8, (item.expense / max) * 100)}%` : "0%" }} />
+                  <div className="w-6 rounded-t-md bg-[#8bded7]" style={{ height: item.income > 0 ? `${Math.max(8, (item.income / max) * 100)}%` : "0%" }} />
+                </div>
+                <span className="absolute -bottom-7 text-xs font-black text-[#777f7b]">{item.label}</span>
+              </button>
+            ))}
           </div>
-        ))}
+        )}
+
+        {activePoint && (
+          <div
+            className="pointer-events-none absolute top-6 z-20 min-w-36 rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-lg"
+            style={{ left: `${Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10))}%` }}
+          >
+            <p className="font-black text-[#151b18]">{activePoint.tooltipTitle}</p>
+            <p className="mt-1 font-semibold text-[#6b756f]">รายจ่าย: {formatBaht(activePoint.expense)}</p>
+            <p className="mt-1 font-semibold text-[#6b756f]">รายรับ: {formatBaht(activePoint.income)}</p>
+          </div>
+        )}
       </div>
 
       <div className="mt-2 flex justify-center gap-5 text-sm font-black">
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#DC143C]" />รายจ่าย</span>
         <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-[#6dc5ad]" />รายรับ</span>
       </div>
-      <p className="mt-6 text-center text-sm font-semibold text-[#8a928e]">
-        {hasData ? "แตะดูรายละเอียดแต่ละเดือนในรายการด้านล่าง" : "เอานิ้วจิ้มบนกราฟเพื่อดูค่าได้เลย"}
-      </p>
+      <p className="mt-6 text-center text-sm font-semibold text-[#8a928e]">เอานิ้วจิ้มบนกราฟเพื่อดูค่าได้เลย</p>
       <div className="mt-5 grid grid-cols-2 gap-4 text-center">
         <div>
-          <p className="text-xs font-bold text-[#555f5b]">รายจ่ายเฉลี่ยต่อเดือน</p>
+          <p className="text-xs font-bold text-[#555f5b]">รายจ่ายเฉลี่ยต่อ{mode === "daily" ? "วัน" : "เดือน"}</p>
           <p className="mt-1 text-xl font-black text-[#DC143C]">{formatBaht(averageExpense)}</p>
         </div>
         <div>
-          <p className="text-xs font-bold text-[#555f5b]">รายรับเฉลี่ยต่อเดือน</p>
+          <p className="text-xs font-bold text-[#555f5b]">รายรับเฉลี่ยต่อ{mode === "daily" ? "วัน" : "เดือน"}</p>
           <p className="mt-1 text-xl font-black text-[#6dc5ad]">{formatBaht(averageIncome)}</p>
         </div>
       </div>
     </div>
   );
+}
+
+function DailyHistoryLine({
+  activeIndex,
+  max,
+  onActivate,
+  points,
+}: {
+  activeIndex: number;
+  max: number;
+  onActivate: (index: number) => void;
+  points: HistoryChartPoint[];
+}) {
+  const expensePath = linePoints(points.map((point) => point.expense), max);
+  const incomePath = linePoints(points.map((point) => point.income), max);
+  const activeX = pointX(activeIndex, points.length);
+  const activePoint = points[activeIndex] ?? points[0];
+  const activeValue = Math.max(activePoint?.income ?? 0, activePoint?.expense ?? 0);
+  const activeY = 94 - (activeValue / max) * 88;
+
+  return (
+    <div className="relative z-10 h-full">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+        <polyline points={expensePath} fill="none" stroke="#DC143C" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
+        <polyline points={incomePath} fill="none" stroke="#8bded7" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
+        <circle cx={activeX} cy={activeY} r="1.2" fill="#151b18" stroke="#8bded7" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}>
+        {points.map((item, index) => (
+          <button
+            key={item.label}
+            type="button"
+            onClick={() => onActivate(index)}
+            onPointerEnter={() => onActivate(index)}
+            onPointerDown={() => onActivate(index)}
+            className="touch-manipulation outline-none"
+            aria-label={`${item.tooltipTitle} รายจ่าย ${formatBaht(item.expense)} รายรับ ${formatBaht(item.income)}`}
+          />
+        ))}
+      </div>
+      <div className="absolute inset-x-0 -bottom-7 flex justify-between text-xs font-black text-[#777f7b]">
+        {[1, 4, 7, 10, 13, 16, 19, 22, 25].map((day) => (
+          <span key={day}>{day}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildMonthlyHistoryPoints(data: { month: string; income: number; expense: number }[]): HistoryChartPoint[] {
+  const fallback = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย."].map((month) => ({ month, income: 0, expense: 0 }));
+  return (data.length > 0 ? data.slice(-6) : fallback).map((item, index, items) => ({
+    label: item.month,
+    tooltipTitle: index === items.length - 1 ? `1 ${item.month} - 30 ${item.month} 2569` : item.month,
+    income: item.income,
+    expense: item.expense,
+  }));
+}
+
+function buildDailyHistoryPoints(transactions: Transaction[]): HistoryChartPoint[] {
+  const latestDate = transactions
+    .map((transaction) => parseLocalDate(transaction.date))
+    .filter((value): value is Date => Boolean(value))
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? new Date();
+  const year = latestDate.getFullYear();
+  const month = latestDate.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const points = Array.from({ length: lastDay }, (_, index) => {
+    const day = index + 1;
+    const dateKey = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    return {
+      label: String(day),
+      tooltipTitle: `${day} ${thaiMonthName(month)} ${year + 543}`,
+      income: 0,
+      expense: 0,
+      dateKey,
+    };
+  });
+
+  for (const transaction of transactions) {
+    const parsed = parseLocalDate(transaction.date);
+    if (!parsed || parsed.getFullYear() !== year || parsed.getMonth() !== month) continue;
+    const point = points[parsed.getDate() - 1];
+    if (transaction.type === "income") point.income += transaction.amount;
+    if (transaction.type === "expense") point.expense += transaction.amount;
+  }
+
+  return points;
+}
+
+function dailyRangeLabel(points: HistoryChartPoint[]) {
+  const title = points[0]?.tooltipTitle ?? "";
+  const parts = title.split(" ");
+  return parts.length >= 3 ? `${parts[1]} ${parts[2]}` : "รายวัน";
+}
+
+function linePoints(values: number[], max: number) {
+  return values.map((value, index) => `${pointX(index, values.length)},${94 - (value / max) * 88}`).join(" ");
+}
+
+function pointX(index: number, length: number) {
+  return length <= 1 ? 0 : (index / (length - 1)) * 100;
+}
+
+function thaiMonthName(monthIndex: number) {
+  return ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][monthIndex] ?? "ม.ค.";
 }
 
 function CategoryBar({ label, amount, max }: { label: string; amount: number; max: number }) {
