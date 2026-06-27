@@ -441,6 +441,20 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
         <IncomeCategorySettingsModal
           category={selectedIncomeCategory}
           onClose={() => setSelectedIncomeCategory(null)}
+          onDelete={() => {
+            const nextCategories = storedIncomeCategories.filter((item) => item !== selectedIncomeCategory);
+            saveStoredIncomeCategories(nextCategories);
+            setStoredIncomeCategories(nextCategories);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: storedExpenseCategories,
+              incomeCategories: nextCategories,
+              budgetMode,
+              expenseBudgets,
+              totalBudget,
+            });
+            setSelectedIncomeCategory(null);
+          }}
           onSave={(category) => {
             const previousCategory = selectedIncomeCategory;
             const nextCategories = storedIncomeCategories.map((item) => (item === previousCategory ? category : item));
@@ -464,6 +478,24 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
           budgetCycleLabel={budgetCycleLabel}
           category={selectedExpenseCategory}
           onClose={() => setSelectedExpenseCategory(null)}
+          onDelete={() => {
+            const nextCategories = storedExpenseCategories.filter((item) => item !== selectedExpenseCategory);
+            const nextBudgets = { ...expenseBudgets };
+            delete nextBudgets[selectedExpenseCategory];
+            saveStoredExpenseCategories(nextCategories);
+            saveStoredExpenseBudgets(nextBudgets);
+            setStoredExpenseCategories(nextCategories);
+            setExpenseBudgets(nextBudgets);
+            void syncLineBudgetSettings({
+              profile,
+              expenseCategories: nextCategories,
+              incomeCategories: storedIncomeCategories,
+              budgetMode,
+              expenseBudgets: nextBudgets,
+              totalBudget,
+            });
+            setSelectedExpenseCategory(null);
+          }}
           onSave={(category, budget) => {
             const previousCategory = selectedExpenseCategory;
             const nextCategories = storedExpenseCategories.map((item) => (item === previousCategory ? category : item));
@@ -661,10 +693,12 @@ function ExpenseCategoryCreateModal({
 function IncomeCategorySettingsModal({
   category,
   onClose,
+  onDelete,
   onSave,
 }: {
   category: string;
   onClose: () => void;
+  onDelete: () => void;
   onSave: (category: string) => void;
 }) {
   const [name, setName] = useState(category);
@@ -684,7 +718,7 @@ function IncomeCategorySettingsModal({
       <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
         <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
         <div className="flex items-center justify-between">
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
+          <button type="button" onClick={onDelete} className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
             <Trash2 className="h-4 w-4" /> ลบหมวด
           </button>
           <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
@@ -717,12 +751,14 @@ function ExpenseCategoryBudgetModal({
   budgetCycleLabel,
   category,
   onClose,
+  onDelete,
   onSave,
 }: {
   budget: number;
   budgetCycleLabel: string;
   category: string;
   onClose: () => void;
+  onDelete: () => void;
   onSave: (category: string, budget: number) => void;
 }) {
   const [name, setName] = useState(category);
@@ -743,7 +779,7 @@ function ExpenseCategoryBudgetModal({
       <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-md bg-white px-5 pb-6 pt-4 shadow-2xl">
         <div className="mx-auto mb-5 h-1 w-16 rounded-full bg-[#eef1ef]" />
         <div className="flex items-center justify-between">
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
+          <button type="button" onClick={onDelete} className="inline-flex h-9 items-center gap-2 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#8a928e] shadow-sm">
             <Trash2 className="h-4 w-4" /> ลบหมวด
           </button>
           <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#6b7280]">
