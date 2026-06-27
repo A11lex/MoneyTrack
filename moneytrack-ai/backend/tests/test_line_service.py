@@ -127,11 +127,11 @@ def test_handle_line_message_detail_returns_budget_alert_when_category_budget_is
 
     assert result.handled is True
     assert result.line_message is not None
-    assert isinstance(result.line_message, list)
-    assert result.line_message[0]["altText"] == "จดสำเร็จ: รายจ่าย 180 บาท"
-    assert result.line_message[1]["altText"] == "แจ้งเตือนงบ: อาหาร ใช้ไป ฿180 / ฿100"
-    assert _find_text(result.line_message[1], "งบคงเหลือ") is True
-    assert _find_text(result.line_message[1], "ใช้จ่ายหมวดอาหารเต็มงบแล้วนะ") is True
+    assert isinstance(result.line_message, dict)
+    assert result.line_message["altText"] == "จดสำเร็จและงบคงเหลือ: แจ้งเตือนงบ: อาหาร ใช้ไป ฿180 / ฿100"
+    assert _find_text(result.line_message, "จดสำเร็จ") is True
+    assert _find_text(result.line_message, "งบคงเหลือ") is True
+    assert _find_text(result.line_message, "ใช้จ่ายหมวดอาหารเต็มงบแล้วนะ") is True
 
 
 def test_handle_line_message_detail_does_not_alert_before_half_of_budget(tmp_path) -> None:
@@ -188,10 +188,11 @@ def test_handle_line_message_detail_returns_budget_progress_at_half_without_warn
     )
 
     assert result.line_message is not None
-    assert isinstance(result.line_message, list)
-    assert result.line_message[1]["altText"] == "งบคงเหลือ: อาหาร ใช้ไป ฿100 / ฿200"
-    assert _find_text(result.line_message[1], "งบคงเหลือ") is True
-    assert _find_text(result.line_message[1], "ข้อความเตือนงบประมาณ") is False
+    assert isinstance(result.line_message, dict)
+    assert result.line_message["altText"] == "จดสำเร็จและงบคงเหลือ: งบคงเหลือ: อาหาร ใช้ไป ฿100 / ฿200"
+    assert _find_text(result.line_message, "จดสำเร็จ") is True
+    assert _find_text(result.line_message, "งบคงเหลือ") is True
+    assert _find_text(result.line_message, "ข้อความเตือนงบประมาณ") is False
 
 
 def test_handle_line_message_detail_deletes_transaction_by_button_command(tmp_path) -> None:

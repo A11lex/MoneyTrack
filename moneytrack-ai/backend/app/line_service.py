@@ -5,12 +5,12 @@ from pydantic import BaseModel, Field
 
 from .database import create_transaction, delete_transaction, get_transaction, get_user_setup, list_transactions
 from .line_messages import (
-    build_budget_alert_flex,
     build_category_budget_flex,
     build_daily_summary_flex,
     build_quick_start_flex,
     build_transaction_deleted_flex,
     build_transaction_success_flex,
+    build_transaction_success_with_budget_flex,
 )
 from .message_parser import ParseError, parse_transaction_message
 
@@ -85,17 +85,28 @@ def handle_line_message_detail(
         )
 
     saved = create_transaction(transaction, db_path)
-    success_message = build_transaction_success_flex(
-        transaction_id=saved.id,
-        transaction_type=saved.type.value,
-        amount=saved.amount,
-        category=saved.category,
-        description=saved.description,
-        mode=saved.mode.value,
-        transaction_date=saved.date,
-    )
-    budget_alert = _budget_alert_after_transaction(line_user_id, saved, db_path)
-    line_message = [success_message, budget_alert] if budget_alert else success_message
+    budget_context = _budget_context_after_transaction(line_user_id, saved, db_path)
+    if budget_context:
+        line_message = build_transaction_success_with_budget_flex(
+            transaction_id=saved.id,
+            transaction_type=saved.type.value,
+            amount=saved.amount,
+            category=saved.category,
+            description=saved.description,
+            mode=saved.mode.value,
+            transaction_date=saved.date,
+            **budget_context,
+        )
+    else:
+        line_message = build_transaction_success_flex(
+            transaction_id=saved.id,
+            transaction_type=saved.type.value,
+            amount=saved.amount,
+            category=saved.category,
+            description=saved.description,
+            mode=saved.mode.value,
+            transaction_date=saved.date,
+        )
     return LineMessageResult(
         reply=_transaction_reply(saved.type.value, saved.amount, saved.category, saved.mode.value),
         handled=True,
@@ -164,7 +175,7 @@ def _format_signed_baht(amount: float) -> str:
     return f"{sign}{abs(amount):,.0f} บาท"
 
 
-def _budget_alert_after_transaction(line_user_id: str, transaction: Any, db_path: str | None) -> dict[str, Any] | None:
+def _budget_context_after_transaction(line_user_id: str, transaction: Any, db_path: str | None) -> dict[str, Any] | None:
     if transaction.type.value != "expense":
         return None
 
@@ -202,14 +213,14 @@ def _budget_alert_after_transaction(line_user_id: str, transaction: Any, db_path
     if usage_ratio < 0.5:
         return None
 
-    return build_budget_alert_flex(
-        budget_limit=budget_limit,
-        category=category,
-        period_label="รายเดือน",
-        spent=spent,
-        total_income=total_income,
-        show_warning=usage_ratio >= 0.8,
-    )
+    return {
+        "budget_limit": budget_limit,
+        "budget_category": category,
+        "period_label": "รายเดือน",
+        "spent": spent,
+        "total_income": total_income,
+        "show_warning": usage_ratio >= 0.8,
+    }
 
 
 def _first_budget_limit(monthly_budgets: dict[str, float], keys: set[str]) -> float | None:

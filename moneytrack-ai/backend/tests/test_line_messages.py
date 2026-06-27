@@ -8,6 +8,7 @@ from app.line_messages import (
     build_quick_start_flex,
     build_transaction_deleted_flex,
     build_transaction_success_flex,
+    build_transaction_success_with_budget_flex,
 )
 
 
@@ -59,6 +60,31 @@ def test_build_transaction_success_flex_uses_green_amount_for_income() -> None:
     assert message["altText"] == "จดสำเร็จ: รายรับ 2,500 บาท"
     assert _find_text(message, "฿2,500") is True
     assert _find_color(message, "#6DC5AD") is True
+
+
+def test_build_transaction_success_with_budget_flex_combines_success_and_budget_in_one_bubble() -> None:
+    message = build_transaction_success_with_budget_flex(
+        transaction_id=42,
+        transaction_type="expense",
+        amount=50,
+        category="Food",
+        description="ข้าว",
+        mode="personal",
+        transaction_date=date(2026, 6, 27),
+        budget_limit=200,
+        budget_category="Food",
+        period_label="รายเดือน",
+        spent=100,
+        total_income=6000,
+        show_warning=False,
+    )
+
+    assert message["type"] == "flex"
+    assert message["altText"] == "จดสำเร็จและงบคงเหลือ: งบคงเหลือ: อาหาร ใช้ไป ฿100 / ฿200"
+    assert _find_text(message, "จดสำเร็จ") is True
+    assert _find_text(message, "งบคงเหลือ") is True
+    assert _find_text(message, "฿100 / ฿200") is True
+    assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
 
 
 def test_build_transaction_deleted_flex_uses_crimson_expense_accent() -> None:

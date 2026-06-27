@@ -153,6 +153,50 @@ def build_transaction_success_flex(
     }
 
 
+def build_transaction_success_with_budget_flex(
+    *,
+    transaction_id: int,
+    transaction_type: str,
+    amount: float,
+    category: str,
+    description: str,
+    mode: str,
+    transaction_date: date,
+    budget_limit: float,
+    budget_category: str,
+    period_label: str,
+    spent: float,
+    total_income: float,
+    show_warning: bool = True,
+) -> dict[str, Any]:
+    success_message = build_transaction_success_flex(
+        transaction_id=transaction_id,
+        transaction_type=transaction_type,
+        amount=amount,
+        category=category,
+        description=description,
+        mode=mode,
+        transaction_date=transaction_date,
+    )
+    budget_message = build_budget_alert_flex(
+        budget_limit=budget_limit,
+        category=budget_category,
+        period_label=period_label,
+        spent=spent,
+        total_income=total_income,
+        show_warning=show_warning,
+    )
+    success_message["altText"] = f"จดสำเร็จและงบคงเหลือ: {budget_message['altText']}"
+    success_message["contents"]["body"]["contents"].append(
+        {"type": "separator", "color": BRAND["line"], "margin": "lg"}
+    )
+    success_message["contents"]["body"]["contents"].extend(
+        budget_message["contents"]["body"]["contents"]
+    )
+    success_message["contents"]["footer"] = budget_message["contents"]["footer"]
+    return success_message
+
+
 def build_transaction_deleted_flex(
     transaction_type: str,
     amount: float,
