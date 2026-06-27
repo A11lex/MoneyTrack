@@ -130,7 +130,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
             <>
               {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} />}
               {tab === "insights" && <InsightsScreen dashboard={dashboard} />}
-              {tab === "categories" && <CategoriesScreen profile={profile} />}
+              {tab === "categories" && <CategoriesScreen profile={profile} transactions={transactions} />}
               {tab === "transactions" && <TransactionsScreen transactions={transactions} onCreate={() => setCreatingTransaction(true)} onEdit={setEditingTransaction} />}
               {tab === "settings" && <SettingsScreen />}
             </>
@@ -268,7 +268,7 @@ function InsightsScreen({ dashboard }: { dashboard: DashboardData | null }) {
   );
 }
 
-function CategoriesScreen({ profile }: { profile: LineProfile }) {
+function CategoriesScreen({ profile, transactions }: { profile: LineProfile; transactions: Transaction[] }) {
   const [kind, setKind] = useState<"expense" | "income">("expense");
   const [storedExpenseCategories, setStoredExpenseCategories] = useState<string[]>(() => loadStoredExpenseCategories());
   const [storedIncomeCategories, setStoredIncomeCategories] = useState<string[]>(() => loadStoredIncomeCategories());
@@ -286,6 +286,20 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
   const categoryBudgetTotal = Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const displayedBudget = budgetMode === "total" ? totalBudget : categoryBudgetTotal;
+  const expenseSpentByCategory = useMemo(() => {
+    return transactions
+      .filter((transaction) => transaction.type === "expense" && isInBudgetPeriod(transaction.date, budgetCycle))
+      .reduce<Record<string, number>>((result, transaction) => {
+        const category = displayCategory(transaction.category, "expense");
+        result[category] = (result[category] ?? 0) + transaction.amount;
+        return result;
+      }, {});
+  }, [transactions, budgetCycle]);
+  const displayedSpent =
+    budgetMode === "total"
+      ? Object.values(expenseSpentByCategory).reduce((sum, value) => sum + value, 0)
+      : storedExpenseCategories.reduce((sum, category) => sum + (expenseSpentByCategory[category] ?? 0), 0);
+  const budgetUsagePercent = displayedBudget > 0 ? Math.min(100, Math.round((displayedSpent / displayedBudget) * 100)) : 0;
 
   useEffect(() => {
     if (!profile.line_user_id) return;
@@ -311,7 +325,43 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
       </div>
       {kind === "expense" && (
         <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-[1fr_124px] gap-4">
+            <button type="button" onClick={() => budgetMode === "total" && setShowTotalBudgetModal(true)} className="rounded-md text-left focus:outline-none focus:ring-2 focus:ring-[#DC143C]/30">
+              <p className="text-sm font-black text-[#151b18]">งบที่ตั้งไว้</p>
+              <p className={`mt-1 text-3xl font-black leading-none ${displayedBudget > 0 ? "text-[#DC143C]" : "text-[#9aa1a0]"}`}>{displayedBudget > 0 ? formatBaht(displayedBudget) : "ยังไม่ได้ตั้งงบ"}</p>
+              <p className="mt-2 text-xs font-semibold text-[#8a928e]">ใช้ไป {formatBaht(displayedSpent)} · {budgetUsagePercent}%</p>
+            </button>
+            <div>
+              <p className="text-sm font-black">ชนิดงบ</p>
+              <select
+                value={budgetMode}
+                onChange={(event) => {
+                  const value = event.target.value as BudgetMode;
+                  setBudgetMode(value);
+                  saveStoredBudgetMode(value);
+                  void syncLineBudgetSettings({
+                    profile,
+                    expenseCategories: storedExpenseCategories,
+                    incomeCategories: storedIncomeCategories,
+                    budgetMode: value,
+                    expenseBudgets,
+                    totalBudget,
+                  });
+                }}
+                className="mt-2 h-10 w-full rounded-md border border-black/10 bg-white px-3 text-sm font-bold shadow-sm outline-none focus:border-[#DC143C]"
+              >
+                <option value="category">แยกหมวด</option>
+                <option value="total">รวม</option>
+              </select>
+            </div>
+          </div>
+          <div className="mt-4 h-4 overflow-hidden rounded-full bg-[#edf0ef]">
+            <div
+              className={`h-full rounded-full ${budgetUsagePercent >= 80 ? "bg-[#DC143C]" : "bg-[#6dc5ad]"}`}
+              style={{ width: displayedBudget > 0 ? `${Math.max(4, budgetUsagePercent)}%` : "0%" }}
+            />
+          </div>
+          <div className="hidden">
             <button type="button" onClick={() => budgetMode === "total" && setShowTotalBudgetModal(true)} className="rounded-md text-left focus:outline-none focus:ring-2 focus:ring-[#DC143C]/30">
               <p className="text-base font-black">งบที่ตั้งไว้</p>
               <p className={`mt-2 text-xl font-black ${displayedBudget > 0 ? "text-[#151b18]" : "text-[#9aa1a0]"}`}>{displayedBudget > 0 ? formatBaht(displayedBudget) : "ยังไม่ได้ตั้งงบ"}</p>
@@ -341,7 +391,7 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
               </select>
             </div>
           </div>
-          <div className="mt-5 rounded-md bg-[#eaf8f4] p-4 text-[#0d4a2b]">
+          <div className="hidden mt-5 rounded-md bg-[#eaf8f4] p-4 text-[#0d4a2b]">
             <p className="font-black">เงินสำรองฉุกเฉิน</p>
             <p className="mt-1 text-sm font-semibold">เริ่มจากตั้งงบเก็บเดือนละนิดก่อนก็ได้</p>
           </div>
@@ -374,12 +424,31 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
                 setSelectedIncomeCategory(item);
                 return;
               }
-              if (budgetMode === "category") {
-                setSelectedExpenseCategory(item);
-              }
+              setSelectedExpenseCategory(item);
             }}
             className="flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm"
           >
+            {kind === "expense" ? (
+              <>
+                <span className="flex min-w-0 items-center gap-3">
+                  <span className="h-3 w-3 shrink-0 rounded-full bg-[#DC143C]" />
+                  <span className="truncate">{item}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-3 text-sm">
+                  <span className="font-semibold text-[#8a928e]">งบ</span>
+                  <span className={expenseBudgets[item] > 0 ? "font-bold text-[#151b18]" : "font-semibold text-[#8a928e]"}>
+                    {expenseBudgets[item] > 0 ? formatBudgetAmount(expenseBudgets[item]) : "ไม่มีตั้งงบ"}
+                  </span>
+                  <ChevronRight className="h-5 w-5 text-[#9aa1a0]" />
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="truncate">{item}</span>
+                <ChevronRight className="shrink-0 text-[#9aa1a0]" />
+              </>
+            )}
+            <span className="hidden">
             {item}
             {kind === "expense" && budgetMode === "category" ? (
               <ChevronRight className="shrink-0 text-[#9aa1a0]" />
@@ -388,6 +457,7 @@ function CategoriesScreen({ profile }: { profile: LineProfile }) {
             ) : (
               <span className="text-xs font-semibold text-[#8a928e]">รวม</span>
             )}
+            </span>
           </button>
         ))}
       </div>
@@ -1559,6 +1629,35 @@ function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function isInBudgetPeriod(value: string, cycle: BudgetCycle) {
+  const transactionDate = parseLocalDate(value);
+  if (!transactionDate) return false;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (cycle === "daily") {
+    return transactionDate.getTime() === today.getTime();
+  }
+
+  if (cycle === "weekly") {
+    const day = today.getDay() || 7;
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - day + 1);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+    return transactionDate >= startOfWeek && transactionDate <= endOfWeek;
+  }
+
+  return transactionDate.getFullYear() === today.getFullYear() && transactionDate.getMonth() === today.getMonth();
+}
+
+function parseLocalDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
 async function loadLineProfile(): Promise<LineProfile> {
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
   if (!liffId || typeof window === "undefined") {
@@ -1619,6 +1718,10 @@ function formatTimeFallback(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "วันนี้";
   return date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatBudgetAmount(value: number) {
+  return value.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 }
 
 function formatBaht(value: number) {
