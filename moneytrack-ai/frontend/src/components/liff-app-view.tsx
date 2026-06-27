@@ -1099,29 +1099,122 @@ function BudgetCycleModal({
 }
 
 function TransactionsScreen({ transactions, onCreate, onEdit }: { transactions: Transaction[]; onCreate: () => void; onEdit: (transaction: Transaction) => void }) {
+  const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "income">("all");
+  const [categoryFilter, setCategoryFilter] = useState("???????");
+  const [startDate, setStartDate] = useState(() => monthStartInputValue());
+  const [endDate, setEndDate] = useState(() => todayInputValue());
+  const typeButtons: { value: "all" | "expense" | "income"; label: string }[] = [
+    { value: "all", label: "???????" },
+    { value: "expense", label: "???????" },
+    { value: "income", label: "??????" },
+  ];
+  const categoryOptions = useMemo(() => {
+    const base =
+      typeFilter === "income"
+        ? loadStoredIncomeCategories()
+        : typeFilter === "expense"
+          ? loadStoredExpenseCategories()
+          : [...loadStoredExpenseCategories(), ...loadStoredIncomeCategories()];
+    const used = transactions
+      .filter((transaction) => typeFilter === "all" || transaction.type === typeFilter)
+      .filter((transaction) => isWithinDateRange(transaction.date, startDate, endDate))
+      .map((transaction) => displayCategory(transaction.category, transaction.type));
+    return ["???????", ...Array.from(new Set([...base, ...used]))];
+  }, [transactions, typeFilter, startDate, endDate]);
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((transaction) => {
+      if (typeFilter !== "all" && transaction.type !== typeFilter) return false;
+      if (!isWithinDateRange(transaction.date, startDate, endDate)) return false;
+      if (categoryFilter !== "???????" && displayCategory(transaction.category, transaction.type) !== categoryFilter) return false;
+      return true;
+    });
+  }, [transactions, typeFilter, categoryFilter, startDate, endDate]);
+  const filteredTotal = filteredTransactions.reduce(
+    (sum, transaction) => sum + (transaction.type === "income" ? transaction.amount : -transaction.amount),
+    0,
+  );
+
+  function selectType(value: "all" | "expense" | "income") {
+    setTypeFilter(value);
+    setCategoryFilter("???????");
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
-        <button type="button" className="flex h-11 w-full items-center justify-between rounded-md bg-[#f7f8f7] px-3 text-sm font-black text-[#151b18]">
-          <span>1 มิ.ย. 2569 - 30 มิ.ย. 2569</span>
-          <CalendarDays className="h-5 w-5 text-[#6b756f]" />
-        </button>
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="flex gap-2 overflow-x-auto">
-            {["ทั้งหมด", "รายจ่าย", "รายรับ"].map((item, index) => (
-              <button key={item} type="button" className={`h-9 shrink-0 rounded-full px-4 text-sm font-black ${index === 0 ? "bg-[#DC143C] text-white" : "bg-[#f0f2f1] text-[#555f5b]"}`}>
-                {item}
-              </button>
-            ))}
+        <div className="rounded-md bg-[#f7f8f7] p-3">
+          <div className="flex items-center justify-between gap-2 text-sm font-black text-[#151b18]">
+            <span>{formatThaiDateRange(startDate, endDate)}</span>
+            <CalendarDays className="h-5 w-5 text-[#6b756f]" />
           </div>
-          <button type="button" aria-label="ส่งออก" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-black/10 bg-white text-[#0d4a2b]">
-            <Download className="h-4 w-4" />
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="block">
+              <span className="sr-only">??????????????</span>
+              <input type="date" value={startDate} max={endDate} onChange={(event) => setStartDate(event.target.value)} className="h-10 w-full rounded-md border border-black/10 bg-white px-2 text-xs font-bold outline-none focus:border-[#DC143C]" />
+            </label>
+            <label className="block">
+              <span className="sr-only">?????????????</span>
+              <input type="date" value={endDate} min={startDate} onChange={(event) => setEndDate(event.target.value)} className="h-10 w-full rounded-md border border-black/10 bg-white px-2 text-xs font-bold outline-none focus:border-[#DC143C]" />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button type="button" onClick={() => { setStartDate(monthStartInputValue()); setEndDate(todayInputValue()); }} className="h-8 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#555f5b] shadow-sm">
+              ????????
+            </button>
+            <button type="button" onClick={() => { setStartDate(todayInputValue()); setEndDate(todayInputValue()); }} className="h-8 rounded-md border border-black/10 bg-white px-3 text-xs font-black text-[#555f5b] shadow-sm">
+              ??????
+            </button>
+          </div>
+        </div>
+        <div className="mt-3 flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-black">???????????????????</p>
+            <div className="mt-2 flex gap-2 overflow-x-auto">
+              {typeButtons.map((item) => {
+                const isActive = typeFilter === item.value;
+                const activeClass = item.value === "income" ? "bg-[#6dc5ad] text-[#082f24]" : "bg-[#DC143C] text-white";
+                return (
+                  <button key={item.value} type="button" onClick={() => selectType(item.value)} className={"h-8 shrink-0 rounded-md px-4 text-xs font-black " + (isActive ? activeClass : "bg-[#f0f2f1] text-[#555f5b]")}>
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <button type="button" aria-label="??????" className="grid h-14 w-14 shrink-0 place-items-center rounded-md border border-black/10 bg-white text-[#0d4a2b] shadow-sm">
+            <Download className="h-5 w-5" />
+            <span className="-mt-2 text-[10px] font-black">??????</span>
           </button>
         </div>
       </section>
-      <SectionTitle title="รายการทั้งหมด" actionHref="/liff/summary" action="สรุป" />
-      {transactions.length > 0 ? <TransactionList transactions={transactions} onEdit={onEdit} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="กดปุ่ม + หรือจดผ่านแชท LINE เพื่อเพิ่มรายการแรก" />}
-      <button type="button" onClick={onCreate} aria-label="เพิ่มรายการ" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-14 w-14 place-items-center rounded-full bg-[#DC143C] text-3xl font-light text-white shadow-xl">
+      <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
+        <p className="text-sm font-black">????</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {categoryOptions.map((category) => {
+            const isActive = categoryFilter === category;
+            const activeClass = typeFilter === "income" ? "bg-[#6dc5ad] text-[#082f24]" : "bg-[#DC143C] text-white";
+            return (
+              <button key={category} type="button" onClick={() => setCategoryFilter(category)} className={"h-8 rounded-md px-3 text-xs font-black " + (isActive ? activeClass : "bg-[#f0f2f1] text-[#555f5b]")}>
+                {category}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+      <div className="flex items-center justify-between gap-3">
+        <button type="button" className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
+          ???????????????
+        </button>
+        <button type="button" className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
+          ?????????????????
+        </button>
+      </div>
+      <div className="flex items-end justify-between border-b border-[#9aa1a0] pb-2">
+        <p className="text-xs font-semibold text-[#8a928e]">{formatThaiShortDate(startDate)} - {formatThaiShortDate(endDate)}</p>
+        <p className={"text-xs font-black " + (filteredTotal >= 0 ? "text-[#10b95f]" : "text-[#DC143C]")}>???: {filteredTotal >= 0 ? "+" : "-"}{formatBaht(Math.abs(filteredTotal))}</p>
+      </div>
+      {filteredTransactions.length > 0 ? <TransactionList transactions={filteredTransactions} onEdit={onEdit} /> : <EmptyState title="?????????????????" body="???????????????? ?????? ?????????????????????????" />}
+      <button type="button" onClick={onCreate} aria-label="???????????" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-14 w-14 place-items-center rounded-full bg-[#DC143C] text-3xl font-light text-white shadow-xl">
         +
       </button>
     </div>
@@ -2148,6 +2241,33 @@ async function syncLineBudgetSettings({
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function monthStartInputValue() {
+  const now = new Date();
+  return inputDateValue(new Date(now.getFullYear(), now.getMonth(), 1));
+}
+
+function inputDateValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isWithinDateRange(value: string, startDate: string, endDate: string) {
+  const date = parseLocalDate(value);
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  if (!date || !start || !end) return false;
+  return date >= start && date <= end;
+}
+
+function formatThaiDateRange(startDate: string, endDate: string) {
+  const start = parseLocalDate(startDate);
+  const end = parseLocalDate(endDate);
+  if (!start || !end) return `${startDate} - ${endDate}`;
+  return `${start.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })} - ${end.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric" })}`;
 }
 
 function isInBudgetPeriod(value: string, cycle: BudgetCycle, startDay: number) {
