@@ -178,22 +178,23 @@ def build_transaction_success_with_budget_flex(
         mode=mode,
         transaction_date=transaction_date,
     )
-    budget_message = build_budget_alert_flex(
-        budget_limit=budget_limit,
-        category=budget_category,
-        period_label=period_label,
-        spent=spent,
-        total_income=total_income,
-        show_warning=show_warning,
-    )
-    success_message["altText"] = f"จดสำเร็จและงบคงเหลือ: {budget_message['altText']}"
+    budget_category_text = _category_label(budget_category)
+    budget_alt = f"{'แจ้งเตือนงบ' if show_warning else 'งบคงเหลือ'}: {budget_category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}"
+    success_message["altText"] = f"จดสำเร็จและงบคงเหลือ: {budget_alt}"
     success_message["contents"]["body"]["contents"].append(
         {"type": "separator", "color": BRAND["line"], "margin": "lg"}
     )
     success_message["contents"]["body"]["contents"].extend(
-        budget_message["contents"]["body"]["contents"]
+        _compact_budget_contents(
+            budget_limit=budget_limit,
+            category=budget_category,
+            period_label=period_label,
+            spent=spent,
+            total_income=total_income,
+            show_warning=show_warning,
+        )
     )
-    success_message["contents"]["footer"] = budget_message["contents"]["footer"]
+    success_message["contents"]["footer"] = _single_uri_footer("ตั้งค่างบ", "/liff/categories", BRAND["green"])
     return success_message
 
 
@@ -539,6 +540,35 @@ def _budget_panel(title: str, contents: list[dict[str, Any]]) -> dict[str, Any]:
             *contents,
         ],
     }
+
+
+def _compact_budget_contents(
+    *,
+    budget_limit: float,
+    category: str,
+    period_label: str,
+    spent: float,
+    total_income: float,
+    show_warning: bool,
+) -> list[dict[str, Any]]:
+    category_text = _category_label(category)
+    remaining = max(budget_limit - spent, 0)
+    usage_percent = 0 if budget_limit <= 0 else min((spent / budget_limit) * 100, 100)
+    warning = (
+        f"ใช้จ่ายหมวด{category_text}เต็มงบแล้วนะ"
+        if spent >= budget_limit and budget_limit > 0
+        else f"ใช้จ่ายหมวด{category_text}ใกล้เต็มงบแล้วนะ"
+    )
+    contents = [
+        _plain_text("งบคงเหลือ", "sm", BRAND["black"], weight="bold"),
+        _budget_progress_row("รายได้", total_income, total_income, BRAND["green"]),
+        _budget_progress_row(category_text, spent, budget_limit, BRAND["pink"], suffix=f" / ฿{budget_limit:,.0f}"),
+        _plain_text(f"รอบงบ: {period_label}", "xs", BRAND["muted"], align="end"),
+        _plain_text(f"เหลืองบอีก ฿{remaining:,.0f} ({usage_percent:.0f}% ใช้ไปแล้ว)", "xs", BRAND["muted"], align="end"),
+    ]
+    if show_warning:
+        contents.append(_plain_text(f"👵 {warning}", "sm", BRAND["black"], wrap=True))
+    return contents
 
 
 def _budget_progress_row(label: str, amount: float, max_amount: float, color: str, *, suffix: str = "") -> dict[str, Any]:

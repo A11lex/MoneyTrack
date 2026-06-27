@@ -131,6 +131,7 @@ def test_handle_line_message_detail_returns_budget_alert_when_category_budget_is
     assert result.line_message["altText"] == "จดสำเร็จและงบคงเหลือ: แจ้งเตือนงบ: อาหาร ใช้ไป ฿180 / ฿100"
     assert _find_text(result.line_message, "จดสำเร็จ") is True
     assert _find_text(result.line_message, "งบคงเหลือ") is True
+    assert _find_text(result.line_message, "ข้อความเตือนงบประมาณ") is False
     assert _find_text(result.line_message, "ใช้จ่ายหมวดอาหารเต็มงบแล้วนะ") is True
 
 

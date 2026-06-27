@@ -85,6 +85,31 @@ def test_build_transaction_success_with_budget_flex_combines_success_and_budget_
     assert _find_text(message, "งบคงเหลือ") is True
     assert _find_text(message, "฿100 / ฿200") is True
     assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารใกล้เต็มงบแล้วนะ") is False
+
+
+def test_build_transaction_success_with_budget_flex_shows_compact_warning_without_panel_heading() -> None:
+    message = build_transaction_success_with_budget_flex(
+        transaction_id=42,
+        transaction_type="expense",
+        amount=170,
+        category="Food",
+        description="ข้าว",
+        mode="personal",
+        transaction_date=date(2026, 6, 27),
+        budget_limit=200,
+        budget_category="Food",
+        period_label="รายเดือน",
+        spent=170,
+        total_income=6000,
+        show_warning=True,
+    )
+
+    assert _find_text(message, "จดสำเร็จ") is True
+    assert _find_text(message, "งบคงเหลือ") is True
+    assert _find_text(message, "฿170 / ฿200") is True
+    assert _find_text(message, "ข้อความเตือนงบประมาณ") is False
+    assert _find_text(message, "ใช้จ่ายหมวดอาหารใกล้เต็มงบแล้วนะ") is True
 
 
 def test_build_transaction_deleted_flex_uses_crimson_expense_accent() -> None:
