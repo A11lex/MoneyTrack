@@ -1172,9 +1172,9 @@ function IncomeExpenseHistoryChart({
   transactions: Transaction[];
 }) {
   const points = mode === "daily" ? buildDailyHistoryPoints(transactions) : buildMonthlyHistoryPoints(monthlyData);
-  const firstActiveIndex = Math.max(0, points.findLastIndex((item) => item.income > 0 || item.expense > 0));
-  const [activeIndex, setActiveIndex] = useState(firstActiveIndex);
-  const activePoint = points[Math.min(activeIndex, points.length - 1)] ?? points[0];
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const activePoint = activeIndex === null ? null : points[Math.min(activeIndex, points.length - 1)] ?? null;
+  const tooltipLeft = activeIndex === null ? 0 : Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10));
   const max = Math.max(1, ...points.flatMap((item) => [item.income, item.expense]));
   const averageExpense = points.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, points.length);
   const averageIncome = points.reduce((sum, item) => sum + item.income, 0) / Math.max(1, points.length);
@@ -1192,7 +1192,7 @@ function IncomeExpenseHistoryChart({
         </button>
       </div>
 
-      <div className="relative mt-4 min-h-0 flex-1 px-2 pb-7 pt-2">
+      <div className="relative mt-4 min-h-0 flex-1 px-2 pb-7 pt-2" onPointerLeave={() => setActiveIndex(null)}>
         <div className="pointer-events-none absolute inset-x-2 top-2 h-[calc(100%-2rem)] rounded-sm">
           <div className="absolute inset-x-0 top-0 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 top-1/3 border-t border-dashed border-[#e8ecea]" />
@@ -1211,6 +1211,8 @@ function IncomeExpenseHistoryChart({
                 onClick={() => setActiveIndex(index)}
                 onPointerEnter={() => setActiveIndex(index)}
                 onPointerDown={() => setActiveIndex(index)}
+                onFocus={() => setActiveIndex(index)}
+                onBlur={() => setActiveIndex(null)}
                 className="relative flex h-full flex-1 touch-manipulation flex-col items-center justify-end gap-2 outline-none"
                 aria-label={`${item.tooltipTitle} รายจ่าย ${formatBaht(item.expense)} รายรับ ${formatBaht(item.income)}`}
               >
@@ -1227,7 +1229,7 @@ function IncomeExpenseHistoryChart({
         {activePoint && (
           <div
             className="pointer-events-none absolute top-6 z-20 min-w-36 rounded-md border border-black/10 bg-white px-3 py-2 text-sm shadow-lg"
-            style={{ left: `${Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10))}%` }}
+            style={{ left: `${tooltipLeft}%` }}
           >
             <p className="font-black text-[#151b18]">{activePoint.tooltipTitle}</p>
             <p className="mt-1 font-semibold text-[#6b756f]">รายจ่าย: {formatBaht(activePoint.expense)}</p>
@@ -1261,15 +1263,15 @@ function DailyHistoryLine({
   onActivate,
   points,
 }: {
-  activeIndex: number;
+  activeIndex: number | null;
   max: number;
   onActivate: (index: number) => void;
   points: HistoryChartPoint[];
 }) {
   const expensePath = linePoints(points.map((point) => point.expense), max);
   const incomePath = linePoints(points.map((point) => point.income), max);
-  const activeX = pointX(activeIndex, points.length);
-  const activePoint = points[activeIndex] ?? points[0];
+  const activeX = activeIndex === null ? 0 : pointX(activeIndex, points.length);
+  const activePoint = activeIndex === null ? null : points[activeIndex] ?? null;
   const activeValue = Math.max(activePoint?.income ?? 0, activePoint?.expense ?? 0);
   const activeY = 94 - (activeValue / max) * 88;
 
@@ -1278,7 +1280,7 @@ function DailyHistoryLine({
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
         <polyline points={expensePath} fill="none" stroke="#DC143C" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
         <polyline points={incomePath} fill="none" stroke="#8bded7" strokeWidth="0.9" vectorEffect="non-scaling-stroke" />
-        <circle cx={activeX} cy={activeY} r="1.2" fill="#151b18" stroke="#8bded7" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />
+        {activePoint && <circle cx={activeX} cy={activeY} r="1.2" fill="#151b18" stroke="#8bded7" strokeWidth="0.6" vectorEffect="non-scaling-stroke" />}
       </svg>
       <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${points.length}, minmax(0, 1fr))` }}>
         {points.map((item, index) => (
@@ -1288,6 +1290,7 @@ function DailyHistoryLine({
             onClick={() => onActivate(index)}
             onPointerEnter={() => onActivate(index)}
             onPointerDown={() => onActivate(index)}
+            onFocus={() => onActivate(index)}
             className="touch-manipulation outline-none"
             aria-label={`${item.tooltipTitle} รายจ่าย ${formatBaht(item.expense)} รายรับ ${formatBaht(item.income)}`}
           />
