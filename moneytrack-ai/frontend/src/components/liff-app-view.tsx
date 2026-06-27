@@ -229,8 +229,12 @@ function SummaryScreen({
 
 function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData | null; transactions: Transaction[] }) {
   const [chartMode, setChartMode] = useState<"monthly" | "daily">("monthly");
+  const [budgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
+  const [expenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
+  const [totalBudget] = useState(() => loadStoredTotalBudget());
   const categories = dashboard?.charts.expense_by_category ?? [];
   const maxCategory = Math.max(1, ...categories.map((category) => category.amount));
+  const expenseBudgetLimit = budgetMode === "total" ? totalBudget : Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
 
   return (
     <div className="space-y-4">
@@ -248,7 +252,7 @@ function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData 
           </div>
         </div>
         <div className="mt-6 h-80">
-          <IncomeExpenseHistoryChart key={chartMode} mode={chartMode} transactions={transactions} />
+          <IncomeExpenseHistoryChart key={chartMode} budgetLimit={expenseBudgetLimit} mode={chartMode} transactions={transactions} />
         </div>
       </section>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
@@ -1162,9 +1166,11 @@ type HistoryChartPoint = {
 };
 
 function IncomeExpenseHistoryChart({
+  budgetLimit,
   mode,
   transactions,
 }: {
+  budgetLimit: number;
   mode: "monthly" | "daily";
   transactions: Transaction[];
 }) {
@@ -1179,7 +1185,8 @@ function IncomeExpenseHistoryChart({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePoint = activeIndex === null ? null : points[Math.min(activeIndex, points.length - 1)] ?? null;
   const tooltipLeft = activeIndex === null ? 0 : Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10));
-  const max = Math.max(1, ...points.flatMap((item) => [item.income, item.expense]));
+  const max = Math.max(1, budgetLimit, ...points.flatMap((item) => [item.income, item.expense]));
+  const budgetLineTop = budgetLimit > 0 ? Math.min(94, Math.max(6, 94 - (budgetLimit / max) * 88)) : null;
   const averageExpense = points.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, points.length);
   const averageIncome = points.reduce((sum, item) => sum + item.income, 0) / Math.max(1, points.length);
   const rangeLabel = mode === "daily" ? dailyRangeLabel(points) : monthlyRangeLabel(points, monthlyYear);
@@ -1231,6 +1238,14 @@ function IncomeExpenseHistoryChart({
           <div className="absolute inset-x-0 top-1/3 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 top-2/3 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 bottom-0 border-t border-dashed border-[#e8ecea]" />
+          {budgetLineTop !== null && (
+            <div className="absolute inset-x-0 z-20" style={{ top: `${budgetLineTop}%` }}>
+              <div className="border-t border-dashed border-[#151b18]" />
+              <span className="absolute -left-1 top-1/2 -translate-y-1/2 rounded-full bg-[#344055] px-2 py-0.5 text-[9px] font-bold text-white shadow-sm">
+                งบรายจ่าย ฿{formatBudgetAmount(budgetLimit)}
+              </span>
+            </div>
+          )}
         </div>
 
         {mode === "daily" ? (
