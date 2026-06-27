@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   BarChart3,
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -136,7 +137,18 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
               {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} transactions={transactions} />}
               {tab === "insights" && <InsightsScreen dashboard={dashboard} transactions={transactions} />}
               {tab === "categories" && <CategoriesScreen profile={profile} transactions={transactions} />}
-              {tab === "transactions" && <TransactionsScreen transactions={transactions} onCreate={() => setCreatingTransaction(true)} onEdit={setEditingTransaction} />}
+              {tab === "transactions" && (
+                <TransactionsScreen
+                  lineUserId={profile.line_user_id}
+                  transactions={transactions}
+                  onCreate={() => setCreatingTransaction(true)}
+                  onEdit={setEditingTransaction}
+                  onTransactionsChanged={(nextTransactions) => {
+                    setTransactions(nextTransactions);
+                    refreshDashboard();
+                  }}
+                />
+              )}
               {tab === "settings" && <SettingsScreen />}
             </>
           )}
@@ -1087,12 +1099,30 @@ function BudgetCycleModal({
   );
 }
 
-function TransactionsScreen({ transactions, onCreate, onEdit }: { transactions: Transaction[]; onCreate: () => void; onEdit: (transaction: Transaction) => void }) {
+function TransactionsScreen({
+  lineUserId,
+  transactions,
+  onCreate,
+  onEdit,
+  onTransactionsChanged,
+}: {
+  lineUserId: string;
+  transactions: Transaction[];
+  onCreate: () => void;
+  onEdit: (transaction: Transaction) => void;
+  onTransactionsChanged: (transactions: Transaction[]) => void;
+}) {
   const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "income">("all");
   const [categoryFilter, setCategoryFilter] = useState("ทั้งหมด");
   const [startDate, setStartDate] = useState(() => monthStartInputValue());
   const [endDate, setEndDate] = useState(() => todayInputValue());
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkAction, setBulkAction] = useState<"category" | "date" | null>(null);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState("");
   const typeButtons: { value: "all" | "expense" | "income"; label: string }[] = [
     { value: "all", label: "ทั้งหมด" },
     { value: "expense", label: "รายจ่าย" },
@@ -1123,14 +1153,135 @@ function TransactionsScreen({ transactions, onCreate, onEdit }: { transactions: 
     (sum, transaction) => sum + (transaction.type === "income" ? transaction.amount : -transaction.amount),
     0,
   );
+  const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const selectedTransactions = useMemo(
+    () => filteredTransactions.filter((transaction) => selectedIdSet.has(transaction.id)),
+    [filteredTransactions, selectedIdSet],
+  );
+  const allVisibleSelected = filteredTransactions.length > 0 && filteredTransactions.every((transaction) => selectedIdSet.has(transaction.id));
 
   function selectType(value: "all" | "expense" | "income") {
     setTypeFilter(value);
     setCategoryFilter("ทั้งหมด");
   }
 
+  function enterMultiSelectMode() {
+    setMultiSelectMode(true);
+    setSelectedIds([]);
+    setBulkError("");
+  }
+
+  function exitMultiSelectMode() {
+    setMultiSelectMode(false);
+    setSelectedIds([]);
+    setBulkAction(null);
+    setConfirmBulkDelete(false);
+    setBulkError("");
+  }
+
+  function toggleSelected(id: number) {
+    setSelectedIds((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]));
+  }
+
+  function toggleAllVisible() {
+    if (allVisibleSelected) {
+      setSelectedIds([]);
+      return;
+    }
+    setSelectedIds(filteredTransactions.map((transaction) => transaction.id));
+  }
+
+  async function saveBulkCategory(nextType: "expense" | "income", nextCategory: string) {
+    if (selectedTransactions.length === 0) return;
+    setBulkSaving(true);
+    setBulkError("");
+    try {
+      const updated = await Promise.all(
+        selectedTransactions.map((transaction) =>
+          updateTransaction(
+            transaction.id,
+            {
+              date: transaction.date,
+              type: nextType,
+              amount: transaction.amount,
+              category: nextCategory,
+              description: transaction.description,
+              mode: transaction.mode,
+            },
+            lineUserId || undefined,
+          ),
+        ),
+      );
+      const updatedById = new Map(updated.map((transaction) => [transaction.id, transaction]));
+      onTransactionsChanged(transactions.map((transaction) => updatedById.get(transaction.id) ?? transaction));
+      exitMultiSelectMode();
+    } catch {
+      setBulkError("แก้ไขหมวดไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function saveBulkDate(nextDate: string) {
+    if (selectedTransactions.length === 0) return;
+    setBulkSaving(true);
+    setBulkError("");
+    try {
+      const updated = await Promise.all(
+        selectedTransactions.map((transaction) =>
+          updateTransaction(
+            transaction.id,
+            {
+              date: nextDate,
+              type: transaction.type,
+              amount: transaction.amount,
+              category: transaction.category,
+              description: transaction.description,
+              mode: transaction.mode,
+            },
+            lineUserId || undefined,
+          ),
+        ),
+      );
+      const updatedById = new Map(updated.map((transaction) => [transaction.id, transaction]));
+      onTransactionsChanged(transactions.map((transaction) => updatedById.get(transaction.id) ?? transaction));
+      exitMultiSelectMode();
+    } catch {
+      setBulkError("แก้ไขวันที่ไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
+  async function deleteBulkTransactions() {
+    if (selectedTransactions.length === 0) return;
+    setBulkSaving(true);
+    setBulkError("");
+    try {
+      await Promise.all(selectedTransactions.map((transaction) => deleteTransaction(transaction.id, lineUserId || undefined)));
+      const deletingIds = new Set(selectedTransactions.map((transaction) => transaction.id));
+      onTransactionsChanged(transactions.filter((transaction) => !deletingIds.has(transaction.id)));
+      exitMultiSelectMode();
+    } catch {
+      setBulkError("ลบรายการไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {multiSelectMode && (
+        <BulkSelectHeader
+          allVisibleSelected={allVisibleSelected}
+          selectedCount={selectedIds.length}
+          onClose={exitMultiSelectMode}
+          onToggleAll={toggleAllVisible}
+        />
+      )}
+      {bulkError && <p className="rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{bulkError}</p>}
+      {!multiSelectMode && (
+        <>
       <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
         <button type="button" onClick={() => setShowDatePicker(true)} className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#151b18] shadow-sm">
             <span>{formatThaiDateRange(startDate, endDate)}</span>
@@ -1174,21 +1325,70 @@ function TransactionsScreen({ transactions, onCreate, onEdit }: { transactions: 
         </section>
       )}
       <div className="flex items-center justify-between gap-3">
-        <button type="button" className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
+        <button type="button" onClick={enterMultiSelectMode} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
           เลือกหลายรายการ
         </button>
         <button type="button" className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
           ตั้งรายการจดประจำ
         </button>
       </div>
+        </>
+      )}
       <div className="flex items-end justify-between border-b border-[#9aa1a0] pb-2">
         <p className="text-xs font-semibold text-[#8a928e]">{formatThaiShortDate(startDate)} - {formatThaiShortDate(endDate)}</p>
         <p className={"text-xs font-black " + (filteredTotal >= 0 ? "text-[#10b95f]" : "text-[#DC143C]")}>รวม: {filteredTotal >= 0 ? "+" : "-"}{formatBaht(Math.abs(filteredTotal))}</p>
       </div>
-      {filteredTransactions.length > 0 ? <TransactionList transactions={filteredTransactions} onEdit={onEdit} /> : <EmptyState title="ไม่มีข้อมูลรายการ" body="ลองเปลี่ยนวันที่ ประเภท หรือหมวดเพื่อดูรายการอื่น" />}
+      {filteredTransactions.length > 0 ? (
+        multiSelectMode ? (
+          <BulkTransactionList selectedIds={selectedIdSet} transactions={filteredTransactions} onToggle={toggleSelected} />
+        ) : (
+          <TransactionList transactions={filteredTransactions} onEdit={onEdit} />
+        )
+      ) : (
+        <EmptyState title="ไม่มีข้อมูลรายการ" body="ลองเปลี่ยนวันที่ ประเภท หรือหมวดเพื่อดูรายการอื่น" />
+      )}
+      {!multiSelectMode && (
       <button type="button" onClick={onCreate} aria-label="เพิ่มรายการ" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-14 w-14 place-items-center rounded-full bg-[#DC143C] text-3xl font-light text-white shadow-xl">
         +
       </button>
+      )}
+      {multiSelectMode && selectedIds.length > 0 && (
+        <BulkActionBar
+          selectedCount={selectedIds.length}
+          saving={bulkSaving}
+          onEditCategory={() => setBulkAction("category")}
+          onEditDate={() => setBulkAction("date")}
+          onDelete={() => setConfirmBulkDelete(true)}
+        />
+      )}
+      {bulkAction === "category" && (
+        <BulkCategoryModal
+          count={selectedIds.length}
+          saving={bulkSaving}
+          transactions={selectedTransactions}
+          onClose={() => setBulkAction(null)}
+          onSave={(nextType, nextCategory) => void saveBulkCategory(nextType, nextCategory)}
+        />
+      )}
+      {bulkAction === "date" && (
+        <BulkDateModal
+          count={selectedIds.length}
+          initialDate={selectedTransactions[0]?.date ?? todayInputValue()}
+          saving={bulkSaving}
+          onClose={() => setBulkAction(null)}
+          onSave={(nextDate) => void saveBulkDate(nextDate)}
+        />
+      )}
+      {confirmBulkDelete && (
+        <ConfirmDeleteDialog
+          title="ยืนยันการลบรายการ"
+          body={`คุณต้องการลบ ${selectedIds.length} รายการนี้หรือไม่?`}
+          confirmLabel={`ลบ (${selectedIds.length})`}
+          confirming={bulkSaving}
+          onCancel={() => setConfirmBulkDelete(false)}
+          onConfirm={() => void deleteBulkTransactions()}
+        />
+      )}
       {showDatePicker && (
         <DateRangePickerModal
           endDate={endDate}
@@ -1201,6 +1401,274 @@ function TransactionsScreen({ transactions, onCreate, onEdit }: { transactions: 
           startDate={startDate}
         />
       )}
+    </div>
+  );
+}
+
+function BulkSelectHeader({
+  allVisibleSelected,
+  onClose,
+  onToggleAll,
+  selectedCount,
+}: {
+  allVisibleSelected: boolean;
+  onClose: () => void;
+  onToggleAll: () => void;
+  selectedCount: number;
+}) {
+  return (
+    <section className="-mx-4 -mt-4 flex items-center justify-between border-b border-[#f6c5d0] bg-[#fff5f7] px-4 py-4">
+      <button type="button" onClick={onClose} aria-label="ปิดโหมดเลือกหลายรายการ" className="grid h-9 w-9 place-items-center rounded-md text-[#151b18]">
+        <X className="h-5 w-5" />
+      </button>
+      <p className="flex-1 pl-2 text-sm font-black text-[#151b18]">เลือก {selectedCount} รายการ</p>
+      <button type="button" onClick={onToggleAll} className="flex items-center gap-2 text-xs font-bold text-[#8a6f78]">
+        <span>เลือกทั้งหมด</span>
+        <span className={`grid h-5 w-5 place-items-center rounded border ${allVisibleSelected ? "border-[#DC143C] bg-[#DC143C] text-white" : "border-black/10 bg-white"}`}>
+          {allVisibleSelected && <Check className="h-3.5 w-3.5" />}
+        </span>
+      </button>
+    </section>
+  );
+}
+
+function BulkTransactionList({
+  onToggle,
+  selectedIds,
+  transactions,
+}: {
+  onToggle: (id: number) => void;
+  selectedIds: Set<number>;
+  transactions: Transaction[];
+}) {
+  const groups = useMemo(() => groupTransactionsByDate(transactions), [transactions]);
+
+  return (
+    <div className="space-y-5 pb-28">
+      {groups.map((group) => {
+        const total = group.transactions.reduce((sum, transaction) => sum + (transaction.type === "income" ? transaction.amount : -transaction.amount), 0);
+        return (
+          <section key={group.date} className="space-y-2">
+            <div className="flex items-end justify-between border-b border-[#9aa1a0] pb-2">
+              <p className="text-xs font-semibold text-[#8a928e]">{formatThaiShortDate(group.date)}</p>
+              <p className={`text-xs font-black ${total >= 0 ? "text-[#10b95f]" : "text-[#DC143C]"}`}>
+                รวม: {total >= 0 ? "+" : "-"}{formatBaht(Math.abs(total))}
+              </p>
+            </div>
+            <div className="space-y-3">
+              {group.transactions.map((transaction) => {
+                const selected = selectedIds.has(transaction.id);
+                const amountColor = transaction.type === "income" ? "text-[#10b95f]" : "text-[#DC143C]";
+                return (
+                  <button
+                    key={transaction.id}
+                    type="button"
+                    onClick={() => onToggle(transaction.id)}
+                    className={`flex w-full items-center gap-3 rounded-md border px-4 py-3 text-left shadow-sm transition ${
+                      selected ? "border-[#f2a8bb] bg-[#fff2f5]" : "border-black/10 bg-white active:bg-[#f7f8f7]"
+                    }`}
+                  >
+                    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded border ${selected ? "border-[#DC143C] bg-[#DC143C] text-white" : "border-black/10 bg-white"}`}>
+                      {selected && <Check className="h-3.5 w-3.5" />}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-black text-[#151b18]">{transaction.description || displayCategory(transaction.category, transaction.type)}</span>
+                      <span className="mt-1 flex items-center gap-2 text-xs font-semibold text-[#8a928e]">
+                        {formatTimeFallback(transaction.date)}
+                        <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-[11px] font-black text-[#6b756f]">{displayCategory(transaction.category, transaction.type)}</span>
+                      </span>
+                    </span>
+                    <span className={`shrink-0 text-sm font-black ${amountColor}`}>
+                      {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function BulkActionBar({
+  onDelete,
+  onEditCategory,
+  onEditDate,
+  saving,
+  selectedCount,
+}: {
+  onDelete: () => void;
+  onEditCategory: () => void;
+  onEditDate: () => void;
+  saving: boolean;
+  selectedCount: number;
+}) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-40 border-t border-black/10 bg-white px-4 py-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
+      <div className="mx-auto grid max-w-md grid-cols-3 gap-2">
+        <button type="button" onClick={onEditCategory} disabled={saving} className="h-12 rounded-md border border-black/10 bg-white text-sm font-black text-[#151b18] shadow-sm disabled:opacity-50">
+          แก้หมวด
+        </button>
+        <button type="button" onClick={onEditDate} disabled={saving} className="h-12 rounded-md border border-black/10 bg-white text-sm font-black text-[#151b18] shadow-sm disabled:opacity-50">
+          แก้วันที่
+        </button>
+        <button type="button" onClick={onDelete} disabled={saving} className="h-12 rounded-md bg-[#e60023] text-sm font-black text-white shadow-sm disabled:opacity-50">
+          ลบ ({selectedCount})
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function BulkCategoryModal({
+  count,
+  onClose,
+  onSave,
+  saving,
+  transactions,
+}: {
+  count: number;
+  onClose: () => void;
+  onSave: (type: "expense" | "income", category: string) => void;
+  saving: boolean;
+  transactions: Transaction[];
+}) {
+  const firstType = transactions[0]?.type ?? "expense";
+  const sameType = transactions.every((transaction) => transaction.type === firstType);
+  const [draftType, setDraftType] = useState<"expense" | "income">(sameType ? firstType : "expense");
+  const [draftCategory, setDraftCategory] = useState(() => transactionCategories(sameType ? firstType : "expense")[0] ?? "");
+  const categories = transactionCategories(draftType);
+  const canSave = Boolean(draftCategory) && count > 0 && !saving;
+
+  function changeType(nextType: "expense" | "income") {
+    setDraftType(nextType);
+    setDraftCategory(transactionCategories(nextType)[0] ?? "");
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div role="dialog" aria-modal="true" aria-labelledby="bulk-category-title" className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl">
+        <div className="mx-auto mb-6 h-1.5 w-16 rounded-full bg-[#f0f2f1]" />
+        <div className="flex justify-end">
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-md">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <h2 id="bulk-category-title" className="text-center text-2xl font-black">แก้ไขหมวด ({count} รายการ)</h2>
+        <p className="mt-4 text-center text-sm font-semibold text-[#8a928e]">เลือกหมวดใหม่สำหรับรายการที่เลือก</p>
+
+        <section className="mt-6">
+          <p className="text-base font-black">ประเภทรายการ</p>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => changeType("expense")} className={`h-12 rounded-md border text-sm font-black ${draftType === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#F5C6D0] bg-white text-[#DC143C]"}`}>
+              รายจ่าย
+            </button>
+            <button type="button" onClick={() => changeType("income")} className={`h-12 rounded-md border text-sm font-black ${draftType === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#0d4a2b]"}`}>
+              รายรับ
+            </button>
+          </div>
+        </section>
+
+        <label className="mt-5 block">
+          <span className="text-base font-black">หมวด</span>
+          <select value={draftCategory} onChange={(event) => setDraftCategory(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+            {categories.map((category) => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </label>
+
+        <div className="mt-10 bg-[#fbfbfb] p-3">
+          <button type="button" disabled={!canSave} onClick={() => onSave(draftType, draftCategory)} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:bg-[#e99ab8]">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BulkDateModal({
+  count,
+  initialDate,
+  onClose,
+  onSave,
+  saving,
+}: {
+  count: number;
+  initialDate: string;
+  onClose: () => void;
+  onSave: (date: string) => void;
+  saving: boolean;
+}) {
+  const initial = parseLocalDate(initialDate) ?? new Date();
+  const [selectedDate, setSelectedDate] = useState(inputDateValue(initial));
+  const [viewMonth, setViewMonth] = useState(() => new Date(initial.getFullYear(), initial.getMonth(), 1));
+  const [hour, setHour] = useState("12");
+  const [minute, setMinute] = useState("00");
+  const days = calendarGridDays(viewMonth);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div role="dialog" aria-modal="true" aria-labelledby="bulk-date-title" className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl">
+        <div className="mx-auto mb-6 h-1.5 w-16 rounded-full bg-[#f0f2f1]" />
+        <div className="flex justify-end">
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-md">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <h2 id="bulk-date-title" className="text-center text-2xl font-black">แก้ไขวันที่ ({count} รายการ)</h2>
+        <p className="mt-4 text-center text-sm font-semibold text-[#8a928e]">เลือกวันที่ใหม่สำหรับรายการที่เลือก</p>
+        <p className="mt-4 text-center text-sm font-bold text-[#6b756f]">
+          วันที่เลือก: {formatThaiLongDate(selectedDate)}, {hour}:{minute}
+        </p>
+
+        <div className="mt-5 flex items-center justify-between">
+          <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="เดือนก่อนหน้า" className="grid h-9 w-9 place-items-center rounded-md">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <p className="text-sm font-black">{viewMonth.toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</p>
+          <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="เดือนถัดไป" className="grid h-9 w-9 place-items-center rounded-md">
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs font-black text-[#8a928e]">
+          {["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."].map((day) => <span key={day}>{day}</span>)}
+        </div>
+        <div className="mt-2 grid grid-cols-7 gap-y-2 text-center">
+          {days.map((day) => {
+            const dateValue = inputDateValue(day.date);
+            const selected = dateValue === selectedDate;
+            const isCurrentMonth = day.date.getMonth() === viewMonth.getMonth();
+            return (
+              <button
+                key={dateValue}
+                type="button"
+                onClick={() => setSelectedDate(dateValue)}
+                className={`h-8 rounded-md text-sm font-bold ${selected ? "bg-[#DC143C] text-white" : isCurrentMonth ? "text-[#151b18] hover:bg-[#f7f8f7]" : "text-[#9aa1a0]"}`}
+              >
+                {day.date.getDate()}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mx-auto mt-6 flex max-w-[220px] items-center justify-center gap-3 border-t border-black/10 pt-4">
+          <select value={hour} onChange={(event) => setHour(event.target.value)} className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-bold shadow-sm">
+            {Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0")).map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+          <span className="font-black text-[#8a928e]">:</span>
+          <select value={minute} onChange={(event) => setMinute(event.target.value)} className="h-10 rounded-md border border-black/10 bg-white px-4 text-sm font-bold shadow-sm">
+            {["00", "15", "30", "45"].map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </div>
+        <div className="mt-8 bg-[#fbfbfb] p-3">
+          <button type="button" disabled={saving} onClick={() => onSave(selectedDate)} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:bg-[#e99ab8]">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -2473,6 +2941,22 @@ function formatThaiShortDate(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+}
+
+function formatThaiLongDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("th-TH", { day: "numeric", month: "long", year: "numeric" });
+}
+
+function groupTransactionsByDate(transactions: Transaction[]) {
+  const groups = new Map<string, Transaction[]>();
+  for (const transaction of transactions) {
+    const key = transaction.date;
+    groups.set(key, [...(groups.get(key) ?? []), transaction]);
+  }
+  return Array.from(groups.entries()).map(([date, items]) => ({ date, transactions: items }));
 }
 
 function formatTimeFallback(value?: string) {
