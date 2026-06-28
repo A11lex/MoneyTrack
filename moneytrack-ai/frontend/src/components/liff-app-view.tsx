@@ -107,8 +107,15 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
     loadLineProfile().then((loadedProfile) => {
       if (!mounted) return Promise.reject(new Error("unmounted"));
       setProfile(loadedProfile);
-      const lineUserId = loadedProfile.line_user_id || undefined;
-      return Promise.all([getDashboard(lineUserId), getTransactions(lineUserId)]);
+      if (!loadedProfile.line_user_id) {
+        return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
+      }
+      void upsertLineUser({
+        line_user_id: loadedProfile.line_user_id,
+        display_name: loadedProfile.display_name,
+        picture_url: loadedProfile.picture_url,
+      }).catch(() => undefined);
+      return Promise.all([getDashboard(loadedProfile.line_user_id), getTransactions(loadedProfile.line_user_id)]);
     }).catch(() => Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]))
       .then(([dashboardData, transactionData]) => {
         if (!mounted) return;
@@ -126,12 +133,6 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
     return () => {
       mounted = false;
     };
-  }, []);
-
-  useEffect(() => {
-    loadLineProfile()
-      .then(setProfile)
-      .catch(() => setProfile({ line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null }));
   }, []);
 
   const latest = useMemo(() => transactions.slice(0, 4), [transactions]);
