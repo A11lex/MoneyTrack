@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -1190,13 +1190,39 @@ function TransactionsScreen({
   );
   const allVisibleSelected = filteredTransactions.length > 0 && filteredTransactions.every((transaction) => selectedIdSet.has(transaction.id));
 
+  const persistRecurringItems = useCallback((nextItems: RecurringItem[]) => {
+    setRecurringItems(nextItems);
+    saveStoredRecurringItems(lineUserId, nextItems);
+  }, [lineUserId]);
+
+  const syncLocalRecurringItems = useCallback(async (localItems: RecurringItem[]) => {
+    if (!lineUserId) return;
+    setRecurringSaving(true);
+    setRecurringError("");
+    try {
+      const created = await Promise.all(
+        localItems.map((item) => createRecurringTransaction(itemToApiRecurringInput(item), lineUserId).then(apiRecurringToItem)),
+      );
+      persistRecurringItems(created);
+    } catch {
+      setRecurringError("ซิงก์รายการจดประจำไม่สำเร็จ");
+    } finally {
+      setRecurringSaving(false);
+    }
+  }, [lineUserId, persistRecurringItems]);
+
   useEffect(() => {
     if (!lineUserId) return;
     let mounted = true;
+    const localItems = loadStoredRecurringItems(lineUserId);
     getRecurringTransactions(lineUserId)
       .then((items) => {
         if (!mounted) return;
         const mapped = items.map(apiRecurringToItem);
+        if (mapped.length === 0 && localItems.length > 0) {
+          void syncLocalRecurringItems(localItems);
+          return;
+        }
         setRecurringItems(mapped);
         saveStoredRecurringItems(lineUserId, mapped);
       })
@@ -1206,12 +1232,7 @@ function TransactionsScreen({
     return () => {
       mounted = false;
     };
-  }, [lineUserId]);
-
-  function persistRecurringItems(nextItems: RecurringItem[]) {
-    setRecurringItems(nextItems);
-    saveStoredRecurringItems(lineUserId, nextItems);
-  }
+  }, [lineUserId, syncLocalRecurringItems]);
 
   async function createRecurringItem(item: RecurringItem) {
     if (!lineUserId) return;
@@ -1228,14 +1249,21 @@ function TransactionsScreen({
   }
 
   async function updateRecurringItem(item: RecurringItem) {
-    if (!lineUserId || typeof item.id !== "number") return;
+    if (!lineUserId) return;
     setRecurringSaving(true);
     setRecurringError("");
     try {
-      const updated = await updateRecurringTransaction(item.id, itemToApiRecurringInput(item), lineUserId);
+      const updated = typeof item.id === "number"
+        ? await updateRecurringTransaction(item.id, itemToApiRecurringInput(item), lineUserId)
+        : await createRecurringTransaction(itemToApiRecurringInput(item), lineUserId);
       persistRecurringItems(recurringItems.map((current) => (current.id === item.id ? apiRecurringToItem(updated) : current)));
     } catch {
-      setRecurringError("แก้ไขรายการจดประจำไม่สำเร็จ");
+      try {
+        const created = await createRecurringTransaction(itemToApiRecurringInput(item), lineUserId);
+        persistRecurringItems(recurringItems.map((current) => (current.id === item.id ? apiRecurringToItem(created) : current)));
+      } catch {
+        setRecurringError("แก้ไขรายการจดประจำไม่สำเร็จ");
+      }
     } finally {
       setRecurringSaving(false);
     }
@@ -1266,8 +1294,10 @@ function TransactionsScreen({
       const updated = await Promise.all(
         nextItems.map((item) =>
           typeof item.id === "number"
-            ? updateRecurringTransaction(item.id, itemToApiRecurringInput(item), lineUserId).then(apiRecurringToItem)
-            : Promise.resolve(item),
+            ? updateRecurringTransaction(item.id, itemToApiRecurringInput(item), lineUserId)
+                .catch(() => createRecurringTransaction(itemToApiRecurringInput(item), lineUserId))
+                .then(apiRecurringToItem)
+            : createRecurringTransaction(itemToApiRecurringInput(item), lineUserId).then(apiRecurringToItem),
         ),
       );
       persistRecurringItems(updated);
