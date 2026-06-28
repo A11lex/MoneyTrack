@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type DragEvent, useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  GripVertical,
   Home,
   LayoutList,
   Loader2,
@@ -371,6 +372,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
   const [storedIncomeCategories, setStoredIncomeCategories] = useState<string[]>(() => loadStoredIncomeCategories());
   const [showExpenseCategoryModal, setShowExpenseCategoryModal] = useState(false);
   const [showIncomeCategoryModal, setShowIncomeCategoryModal] = useState(false);
+  const [showReorderModal, setShowReorderModal] = useState(false);
   const [selectedExpenseCategory, setSelectedExpenseCategory] = useState<string | null>(null);
   const [selectedIncomeCategory, setSelectedIncomeCategory] = useState<string | null>(null);
   const [showBudgetCycleModal, setShowBudgetCycleModal] = useState(false);
@@ -414,6 +416,37 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       totalBudget,
     });
   }, [profile, storedExpenseCategories, storedIncomeCategories, budgetMode, budgetCycle, budgetStartDay, expenseBudgets, totalBudget]);
+
+  function saveCategoryOrder(nextCategories: string[]) {
+    if (kind === "income") {
+      saveStoredIncomeCategories(nextCategories);
+      setStoredIncomeCategories(nextCategories);
+      void syncLineBudgetSettings({
+        profile,
+        expenseCategories: storedExpenseCategories,
+        incomeCategories: nextCategories,
+        budgetMode,
+        budgetCycle,
+        budgetStartDay,
+        expenseBudgets,
+        totalBudget,
+      });
+      return;
+    }
+
+    saveStoredExpenseCategories(nextCategories);
+    setStoredExpenseCategories(nextCategories);
+    void syncLineBudgetSettings({
+      profile,
+      expenseCategories: nextCategories,
+      incomeCategories: storedIncomeCategories,
+      budgetMode,
+      budgetCycle,
+      budgetStartDay,
+      expenseBudgets,
+      totalBudget,
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -515,7 +548,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
           </div>
         </section>
       )}
-      <button type="button" className="inline-flex h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-base font-black shadow-sm">
+      <button type="button" onClick={() => setShowReorderModal(true)} className="inline-flex h-11 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-base font-black shadow-sm">
         <LayoutList className="h-5 w-5" /> จัดเรียง
       </button>
       <div className="space-y-3">
@@ -740,6 +773,122 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
           }}
         />
       )}
+      {showReorderModal && (
+        <CategoryReorderModal
+          categories={items}
+          kind={kind}
+          onClose={() => setShowReorderModal(false)}
+          onSave={(nextCategories) => {
+            saveCategoryOrder(nextCategories);
+            setShowReorderModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CategoryReorderModal({
+  categories,
+  kind,
+  onClose,
+  onSave,
+}: {
+  categories: string[];
+  kind: "expense" | "income";
+  onClose: () => void;
+  onSave: (categories: string[]) => void;
+}) {
+  const [draftCategories, setDraftCategories] = useState(categories);
+  const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+  const accent = kind === "expense" ? "#DC143C" : "#6dc5ad";
+  const title = kind === "expense" ? "จัดเรียงหมวดรายจ่าย" : "จัดเรียงหมวดรายรับ";
+
+  function moveCategory(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex || toIndex < 0 || toIndex >= draftCategories.length) return;
+    setDraftCategories((current) => {
+      const next = [...current];
+      const [item] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, item);
+      return next;
+    });
+    setDraggingIndex(toIndex);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, targetIndex: number) {
+    event.preventDefault();
+    if (draggingIndex === null) return;
+    moveCategory(draggingIndex, targetIndex);
+    setDraggingIndex(null);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div className="max-h-[92vh] w-full max-w-md overflow-hidden rounded-md bg-white shadow-2xl">
+        <div className="px-5 pb-4 pt-4">
+          <div className="mx-auto mb-4 h-1 w-16 rounded-full bg-[#eef1ef]" />
+          <div className="flex items-center justify-end">
+            <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-full text-[#151b18]">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <h2 className="text-center text-2xl font-black" style={{ color: accent }}>{title}</h2>
+          <p className="mt-4 text-center text-sm font-semibold text-[#8a928e]">ลากไอคอนเพื่อจัดเรียงหมวดตามความต้องการ</p>
+        </div>
+
+        <div className="max-h-[56vh] space-y-2 overflow-y-auto px-5 pb-4">
+          {draftCategories.map((category, index) => (
+            <div
+              key={category}
+              draggable
+              onDragStart={() => setDraggingIndex(index)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => handleDrop(event, index)}
+              onDragEnd={() => setDraggingIndex(null)}
+              className={`flex min-h-14 items-center gap-3 rounded-md border bg-white px-3 shadow-sm transition ${draggingIndex === index ? "border-[#9aa1a0] opacity-60" : "border-black/10"}`}
+            >
+              <button
+                type="button"
+                aria-label={`ลากเพื่อย้าย ${category}`}
+                className="grid h-9 w-8 shrink-0 place-items-center rounded-md text-[#64748b] active:bg-[#f3f5f4]"
+              >
+                <GripVertical className="h-5 w-5" />
+              </button>
+              {kind === "expense" && <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: accent }} />}
+              <span className="min-w-0 flex-1 truncate text-base font-black text-[#151b18]">{category}</span>
+              <div className="flex shrink-0 gap-1">
+                <button
+                  type="button"
+                  onClick={() => moveCategory(index, index - 1)}
+                  disabled={index === 0}
+                  className="h-8 rounded-md border border-black/10 px-2 text-xs font-black text-[#5f6f69] disabled:opacity-30"
+                >
+                  ขึ้น
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveCategory(index, index + 1)}
+                  disabled={index === draftCategories.length - 1}
+                  className="h-8 rounded-md border border-black/10 px-2 text-xs font-black text-[#5f6f69] disabled:opacity-30"
+                >
+                  ลง
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="border-t border-black/5 bg-white px-5 py-4">
+          <button
+            type="button"
+            onClick={() => onSave(draftCategories)}
+            className="h-12 w-full rounded-md text-base font-black text-white shadow-sm"
+            style={{ backgroundColor: accent }}
+          >
+            บันทึก
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
