@@ -317,51 +317,59 @@ function SummaryScreen({
 
 function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData | null; transactions: Transaction[] }) {
   const [chartMode, setChartMode] = useState<"monthly" | "daily">("monthly");
+  const [insightMode, setInsightMode] = useState<"cashflow" | "savings">("cashflow");
   const [budgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
   const [expenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
   const [totalBudget] = useState(() => loadStoredTotalBudget());
   const categories = dashboard?.charts.expense_by_category ?? [];
   const expenseBudgetLimit = budgetMode === "total" ? totalBudget : Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const expenseComparison = useMemo(() => buildExpenseComparison(transactions), [transactions]);
+  const savingsInsight = useMemo(() => buildSavingsInsight(transactions), [transactions]);
 
   return (
     <div className="space-y-4">
-      <Segmented first="รายรับรายจ่าย" second="เก็บออม" active="first" />
-      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
-          <div className="grid grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm">
-            <button type="button" onClick={() => setChartMode("monthly")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "monthly" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
-              รายเดือน
-            </button>
-            <button type="button" onClick={() => setChartMode("daily")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "daily" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
-              รายวัน
-            </button>
-          </div>
-        </div>
-        <div className="mt-6 h-80">
-          <IncomeExpenseHistoryChart key={chartMode} budgetLimit={expenseBudgetLimit} mode={chartMode} transactions={transactions} />
-        </div>
-      </section>
-      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-xs font-bold text-[#8a928e]">จุดที่ใช้เงินเยอะ</p>
-            <h2 className="mt-1 text-xl font-black">รายจ่ายตามหมวด</h2>
-          </div>
-          {categories.length > 0 && <span className="rounded-md bg-[#f4f7f5] px-2 py-1 text-xs font-bold text-[#6b756f]">สะสม</span>}
-        </div>
-        {categories.length > 0 ? (
-          <>
-            <ExpenseCategoryDonut categories={categories} />
-            <ExpenseComparePanel comparison={expenseComparison} />
-          </>
-        ) : (
-          <div className="mt-4">
-            <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />
-          </div>
-        )}
-      </section>
+      <Segmented first="รายรับรายจ่าย" second="เก็บออม" active={insightMode === "cashflow" ? "first" : "second"} onFirst={() => setInsightMode("cashflow")} onSecond={() => setInsightMode("savings")} />
+      {insightMode === "cashflow" ? (
+        <>
+          <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
+              <div className="grid grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm">
+                <button type="button" onClick={() => setChartMode("monthly")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "monthly" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
+                  รายเดือน
+                </button>
+                <button type="button" onClick={() => setChartMode("daily")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "daily" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
+                  รายวัน
+                </button>
+              </div>
+            </div>
+            <div className="mt-6 h-80">
+              <IncomeExpenseHistoryChart key={chartMode} budgetLimit={expenseBudgetLimit} mode={chartMode} transactions={transactions} />
+            </div>
+          </section>
+          <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-bold text-[#8a928e]">จุดที่ใช้เงินเยอะ</p>
+                <h2 className="mt-1 text-xl font-black">รายจ่ายตามหมวด</h2>
+              </div>
+              {categories.length > 0 && <span className="rounded-md bg-[#f4f7f5] px-2 py-1 text-xs font-bold text-[#6b756f]">สะสม</span>}
+            </div>
+            {categories.length > 0 ? (
+              <>
+                <ExpenseCategoryDonut categories={categories} />
+                <ExpenseComparePanel comparison={expenseComparison} />
+              </>
+            ) : (
+              <div className="mt-4">
+                <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />
+              </div>
+            )}
+          </section>
+        </>
+      ) : (
+        <SavingsInsightPanel insight={savingsInsight} />
+      )}
     </div>
   );
 }
@@ -3199,6 +3207,172 @@ function ExpenseCompareCard({
   );
 }
 
+type SavingsInsight = {
+  income: number;
+  expense: number;
+  savings: number;
+  savingsRate: number;
+  targetSavings: number;
+  targetPercent: number;
+  projectedSavings: number;
+  daysPassed: number;
+  daysInMonth: number;
+  topExpenseCategory: string;
+  topExpenseAmount: number;
+  summary: string;
+  riskTone: "good" | "warning" | "danger";
+  actions: string[];
+};
+
+function buildSavingsInsight(transactions: Transaction[]): SavingsInsight {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const daysPassed = Math.max(1, now.getDate());
+  const categoryTotals: Record<string, number> = {};
+  let income = 0;
+  let expense = 0;
+
+  for (const transaction of transactions) {
+    const parsed = parseLocalDate(transaction.date);
+    if (!parsed || parsed < monthStart || parsed >= nextMonthStart) continue;
+    if (transaction.type === "income") {
+      income += transaction.amount;
+      continue;
+    }
+    expense += transaction.amount;
+    const category = displayCategory(transaction.category, "expense");
+    categoryTotals[category] = (categoryTotals[category] ?? 0) + transaction.amount;
+  }
+
+  const savings = income - expense;
+  const savingsRate = income > 0 ? (savings / income) * 100 : 0;
+  const targetSavings = income * 0.2;
+  const targetPercent = targetSavings > 0 ? Math.min(100, Math.max(0, (Math.max(0, savings) / targetSavings) * 100)) : 0;
+  const projectedSavings = (savings / daysPassed) * daysInMonth;
+  const [topExpenseCategory = "-", topExpenseAmount = 0] = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0] ?? [];
+
+  let riskTone: SavingsInsight["riskTone"] = "good";
+  let summary = "เดือนนี้เงินออมอยู่ในเกณฑ์ดี รักษาจังหวะรายจ่ายแบบนี้ต่อได้";
+  if (savings < 0) {
+    riskTone = "danger";
+    summary = "เดือนนี้ยังไม่เหลือออม เพราะรายจ่ายสูงกว่ารายรับ ควรชะลอรายจ่ายที่ไม่จำเป็นก่อน";
+  } else if (savingsRate < 10) {
+    riskTone = "danger";
+    summary = "อัตราออมยังต่ำกว่า 10% ควรตั้งเป้าลดรายจ่ายบางหมวดเพื่อให้มีเงินเหลือจริง";
+  } else if (savingsRate < 20) {
+    riskTone = "warning";
+    summary = "เริ่มมีเงินออมแล้ว แต่ยังต่ำกว่าเป้าหมาย 20% ลองเพิ่มช่องว่างระหว่างรายรับกับรายจ่ายอีกเล็กน้อย";
+  }
+
+  const actions = [
+    topExpenseAmount > 0
+      ? `ถ้าลดหมวด ${topExpenseCategory} ลง 10% จะออมเพิ่มได้ประมาณ ${formatBaht(topExpenseAmount * 0.1)}`
+      : "เริ่มจดรายจ่ายให้ครบก่อน ระบบจะหาโอกาสออมให้แม่นขึ้น",
+    targetSavings > savings
+      ? `ยังขาดจากเป้าออมประมาณ ${formatBaht(Math.max(0, targetSavings - Math.max(0, savings)))}`
+      : "เดือนนี้แตะเป้าออม 20% แล้ว ลองกันเงินส่วนนี้ไว้ก่อนใช้จ่ายเพิ่ม",
+  ];
+
+  return {
+    income,
+    expense,
+    savings,
+    savingsRate,
+    targetSavings,
+    targetPercent,
+    projectedSavings,
+    daysPassed,
+    daysInMonth,
+    topExpenseCategory,
+    topExpenseAmount,
+    summary,
+    riskTone,
+    actions,
+  };
+}
+
+function SavingsInsightPanel({ insight }: { insight: SavingsInsight }) {
+  const donutColor = insight.riskTone === "good" ? "#6dc5ad" : insight.riskTone === "warning" ? "#f59e0b" : "#DC143C";
+  const savingsPositive = insight.savings >= 0;
+  const projectedPositive = insight.projectedSavings >= 0;
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold text-[#8a928e]">Savings Insight</p>
+            <h2 className="mt-1 text-xl font-black">วิเคราะห์เงินออม</h2>
+          </div>
+          <span className="rounded-md bg-[#eaf8f4] px-2 py-1 text-xs font-black text-[#0d4a2b]">เป้า 20%</span>
+        </div>
+
+        <div className="mt-5 grid gap-5 sm:grid-cols-[180px_1fr] sm:items-center">
+          <div className="mx-auto grid h-44 w-44 place-items-center rounded-full" style={{ background: `conic-gradient(${donutColor} ${insight.targetPercent}%, #edf0ef 0)` }}>
+            <div className="grid h-28 w-28 place-items-center rounded-full bg-white text-center shadow-inner">
+              <div>
+                <p className="text-3xl font-black" style={{ color: donutColor }}>{Math.round(insight.targetPercent)}%</p>
+                <p className="mt-1 text-xs font-bold text-[#8a928e]">ของเป้าออม</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <SavingsMetric label="ออมเดือนนี้" value={formatBaht(insight.savings)} tone={savingsPositive ? "good" : "danger"} />
+            <SavingsMetric label="เป้าหมายออม" value={formatBaht(insight.targetSavings)} tone="muted" />
+            <SavingsMetric label="อัตราออม" value={`${Math.round(insight.savingsRate)}%`} tone={insight.savingsRate >= 20 ? "good" : insight.savingsRate >= 10 ? "warning" : "danger"} />
+            <SavingsMetric label="คาดการณ์สิ้นเดือน" value={formatBaht(insight.projectedSavings)} tone={projectedPositive ? "good" : "danger"} />
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <h3 className="text-base font-black">สรุปเงินออม</h3>
+        <p className="mt-3 rounded-md bg-[#f7f8f7] p-3 text-sm font-semibold leading-6 text-[#4f5b56]">{insight.summary}</p>
+        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded-md border border-black/10 p-3">
+            <p className="text-xs font-bold text-[#8a928e]">รายรับเดือนนี้</p>
+            <p className="mt-1 font-black text-[#0d4a2b]">{formatBaht(insight.income)}</p>
+          </div>
+          <div className="rounded-md border border-black/10 p-3">
+            <p className="text-xs font-bold text-[#8a928e]">รายจ่ายเดือนนี้</p>
+            <p className="mt-1 font-black text-[#DC143C]">{formatBaht(insight.expense)}</p>
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <h3 className="text-base font-black">โอกาสเพิ่มเงินออม</h3>
+        <div className="mt-3 space-y-2">
+          {insight.actions.map((action) => (
+            <div key={action} className="rounded-md border border-[#d9eee8] bg-[#f6fcfa] p-3 text-sm font-semibold leading-6 text-[#315c51]">
+              {action}
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs font-semibold text-[#8a928e]">คำนวณจากข้อมูลเดือนนี้ {insight.daysPassed}/{insight.daysInMonth} วัน</p>
+      </section>
+    </div>
+  );
+}
+
+function SavingsMetric({ label, value, tone }: { label: string; value: string; tone: "good" | "warning" | "danger" | "muted" }) {
+  const toneClass = {
+    good: "border-[#c9eee5] bg-[#EAF8F4] text-[#0d4a2b]",
+    warning: "border-[#fde6b5] bg-[#fff8e8] text-[#a16207]",
+    danger: "border-[#f5c6d0] bg-[#FCECEF] text-[#DC143C]",
+    muted: "border-black/10 bg-white text-[#151b18]",
+  }[tone];
+  return (
+    <div className={`min-h-20 rounded-md border p-3 shadow-sm ${toneClass}`}>
+      <p className="text-[11px] font-bold text-[#6b756f]">{label}</p>
+      <p className="mt-2 truncate text-lg font-black">{value}</p>
+    </div>
+  );
+}
+
 function TransactionList({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (transaction: Transaction) => void }) {
   return (
     <div className="overflow-hidden rounded-md border border-black/10 bg-white shadow-sm">
@@ -3521,13 +3695,13 @@ function SectionTitle({ title, action, actionHref }: { title: string; action: st
   );
 }
 
-function Segmented({ first, second, active }: { first: string; second: string; active: "first" | "second" }) {
+function Segmented({ first, second, active, onFirst, onSecond }: { first: string; second: string; active: "first" | "second"; onFirst?: () => void; onSecond?: () => void }) {
   return (
     <div className="grid grid-cols-2 rounded-md bg-[#eef1ef] p-1">
-      <button type="button" className={`h-10 rounded-md text-sm font-black ${active === "first" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" onClick={onFirst} className={`h-10 rounded-md text-sm font-black ${active === "first" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
         {first}
       </button>
-      <button type="button" className={`h-10 rounded-md text-sm font-black ${active === "second" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" onClick={onSecond} className={`h-10 rounded-md text-sm font-black ${active === "second" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
         {second}
       </button>
     </div>
