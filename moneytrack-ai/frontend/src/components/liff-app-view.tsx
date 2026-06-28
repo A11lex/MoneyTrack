@@ -27,6 +27,20 @@ type LiffTab = "summary" | "insights" | "categories" | "transactions" | "setting
 type UserPlan = "free" | "pro";
 type BudgetMode = "category" | "total";
 type BudgetCycle = "daily" | "weekly" | "monthly";
+type RecurringInterval = "daily" | "weekly" | "monthly" | "yearly";
+type RecurringItem = {
+  id: string;
+  type: "expense" | "income";
+  amount: number;
+  category: string;
+  description: string;
+  mode: "personal" | "business";
+  interval: RecurringInterval;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  month?: number;
+  notifyTime: string;
+};
 type LineProfile = {
   line_user_id: string;
   display_name: string;
@@ -1123,6 +1137,8 @@ function TransactionsScreen({
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState("");
+  const [showRecurringScreen, setShowRecurringScreen] = useState(false);
+  const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(() => loadStoredRecurringItems(lineUserId));
   const typeButtons: { value: "all" | "expense" | "income"; label: string }[] = [
     { value: "all", label: "ทั้งหมด" },
     { value: "expense", label: "รายจ่าย" },
@@ -1159,6 +1175,11 @@ function TransactionsScreen({
     [filteredTransactions, selectedIdSet],
   );
   const allVisibleSelected = filteredTransactions.length > 0 && filteredTransactions.every((transaction) => selectedIdSet.has(transaction.id));
+
+  function saveRecurringItems(nextItems: RecurringItem[]) {
+    setRecurringItems(nextItems);
+    saveStoredRecurringItems(lineUserId, nextItems);
+  }
 
   function selectType(value: "all" | "expense" | "income") {
     setTypeFilter(value);
@@ -1269,6 +1290,16 @@ function TransactionsScreen({
     }
   }
 
+  if (showRecurringScreen) {
+    return (
+      <RecurringTransactionsScreen
+        items={recurringItems}
+        onBack={() => setShowRecurringScreen(false)}
+        onChange={saveRecurringItems}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
       {multiSelectMode && (
@@ -1328,7 +1359,7 @@ function TransactionsScreen({
         <button type="button" onClick={enterMultiSelectMode} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
           เลือกหลายรายการ
         </button>
-        <button type="button" className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
+        <button type="button" onClick={() => setShowRecurringScreen(true)} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
           ตั้งรายการจดประจำ
         </button>
       </div>
@@ -1401,6 +1432,294 @@ function TransactionsScreen({
           startDate={startDate}
         />
       )}
+    </div>
+  );
+}
+
+function RecurringTransactionsScreen({
+  items,
+  onBack,
+  onChange,
+}: {
+  items: RecurringItem[];
+  onBack: () => void;
+  onChange: (items: RecurringItem[]) => void;
+}) {
+  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [notifyTime, setNotifyTime] = useState(() => items[0]?.notifyTime ?? "10:00");
+  const [viewMonth, setViewMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
+  const monthlyExpense = items.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const monthlyIncome = items.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
+  const calendarDays = calendarGridDays(viewMonth);
+
+  function addItem(item: RecurringItem) {
+    onChange([item, ...items]);
+    setNotifyTime(item.notifyTime);
+    setShowCreateModal(false);
+  }
+
+  function removeItem(id: string) {
+    onChange(items.filter((item) => item.id !== id));
+  }
+
+  return (
+    <div className="space-y-5 pb-8">
+      <div className="flex items-start gap-3">
+        <button type="button" onClick={onBack} aria-label="กลับหน้ารายการ" className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-md border border-black/10 bg-white shadow-sm">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <div className="flex-1 text-center">
+          <h1 className="text-2xl font-black text-[#1f2a44]">รายการจดประจำ</h1>
+          <p className="mt-1 text-sm font-black leading-snug text-[#151b18]">ตั้งรายการที่จะเกิดขึ้นเป็นประจำ<br />ให้ระบบจดให้อัตโนมัติเมื่อถึงวัน</p>
+        </div>
+        <span className="h-9 w-9 shrink-0" />
+      </div>
+
+      <section className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 rounded-md border border-black/10 bg-white p-3 shadow-sm">
+        <RecurringStat label="รายจ่ายเฉลี่ยต่อเดือน" amount={monthlyExpense} count={items.filter((item) => item.type === "expense").length} tone="expense" />
+        <RecurringStat label="รายรับเฉลี่ยต่อเดือน" amount={monthlyIncome} count={items.filter((item) => item.type === "income").length} tone="income" />
+        <div className="text-right">
+          <button type="button" onClick={() => setShowCreateModal(true)} className="h-11 rounded-md bg-[#DC143C] px-4 text-sm font-black text-white shadow-sm">
+            เพิ่มรายการ
+          </button>
+          <p className="mt-2 text-xs font-semibold text-[#8a928e]">เหลืออีก {Math.max(0, 20 - items.length)} รายการ</p>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-black text-[#1f2a44]">เวลาจด</h2>
+            <p className="mt-2 text-xs font-semibold leading-relaxed text-[#4b5563]">เมื่อถึงเวลาที่ตั้ง ระบบจะจดรายการที่ถูกกำหนดไว้สำหรับวันนั้นและส่งข้อความให้ในแชท</p>
+          </div>
+          <select value={notifyTime} onChange={(event) => setNotifyTime(event.target.value)} className="h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-black shadow-sm">
+            {["06:00", "08:00", "10:00", "12:00", "18:00", "20:00", "22:00"].map((time) => (
+              <option key={time} value={time}>{formatNotifyTime(time)}</option>
+            ))}
+          </select>
+        </div>
+      </section>
+
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-black text-[#151b18]">{viewMode === "calendar" ? "กดวันที่บนปฏิทินเพื่อดูรายการที่กำหนดไว้" : items.length > 0 ? "รายการจดประจำทั้งหมด" : ""}</p>
+        <button type="button" onClick={() => setViewMode(viewMode === "calendar" ? "list" : "calendar")} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#1f2a44] shadow-sm">
+          ดูเป็น{viewMode === "calendar" ? " List" : "ปฏิทิน"} ↩
+        </button>
+      </div>
+
+      {viewMode === "calendar" ? (
+        <section className="space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="เดือนก่อนหน้า" className="grid h-9 w-9 place-items-center rounded-md">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <p className="text-base font-black text-[#1f2a44]">{viewMonth.toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</p>
+            <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="เดือนถัดไป" className="grid h-9 w-9 place-items-center rounded-md">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-2 text-center text-xs font-black text-[#64748b]">
+            {["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"].map((day) => <span key={day}>{day}</span>)}
+          </div>
+          <div className="grid grid-cols-7 gap-2">
+            {calendarDays.map((day) => {
+              const dateValue = inputDateValue(day.date);
+              const dayItems = items.filter((item) => recurringItemOccursOn(item, day.date));
+              const isCurrentMonth = day.date.getMonth() === viewMonth.getMonth();
+              const isToday = dateValue === todayInputValue();
+              return (
+                <div key={dateValue} className={`min-h-16 rounded-md p-1.5 text-xs font-bold ${isCurrentMonth ? "bg-[#eef3f8] text-[#111827]" : "bg-[#f7f8f7] text-[#9aa1a0]"} ${isToday ? "border border-[#DC143C] bg-[#FCECEF]" : ""}`}>
+                  <span>{day.date.getDate()}</span>
+                  <div className="mt-1 space-y-1">
+                    {dayItems.slice(0, 2).map((item) => (
+                      <span key={item.id} className={`block truncate rounded px-1 py-0.5 text-[10px] ${item.type === "income" ? "bg-[#eaf8f4] text-[#0d4a2b]" : "bg-[#FCECEF] text-[#DC143C]"}`}>
+                        {item.description}
+                      </span>
+                    ))}
+                    {dayItems.length > 2 && <span className="block text-[10px] text-[#64748b]">+{dayItems.length - 2}</span>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : items.length > 0 ? (
+        <RecurringList items={items} onDelete={removeItem} />
+      ) : (
+        <div className="py-16 text-center text-sm font-semibold text-[#6b7280]">ยังไม่มีรายการจดประจำ</div>
+      )}
+
+      {showCreateModal && (
+        <RecurringItemModal
+          defaultNotifyTime={notifyTime}
+          onClose={() => setShowCreateModal(false)}
+          onSave={addItem}
+        />
+      )}
+    </div>
+  );
+}
+
+function RecurringStat({ amount, count, label, tone }: { amount: number; count: number; label: string; tone: "expense" | "income" }) {
+  return (
+    <div className="min-w-0">
+      <p className="truncate text-[11px] font-semibold text-[#6b7280]">▣ {label}</p>
+      <p className={`mt-1 text-xl font-black ${tone === "income" ? "text-[#6dc5ad]" : "text-[#DC143C]"}`}>{formatBaht(amount)}</p>
+      <p className={`text-xs font-semibold ${tone === "income" ? "text-[#6dc5ad]" : "text-[#DC143C]"}`}>({count} รายการ)</p>
+    </div>
+  );
+}
+
+function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: (id: string) => void }) {
+  return (
+    <div className="space-y-3">
+      {items.map((item) => (
+        <div key={item.id} className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate text-base font-black text-[#151b18]">{item.description}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-3 py-1 text-xs font-black text-white ${item.type === "income" ? "bg-[#6dc5ad]" : "bg-[#DC143C]"}`}>{item.type === "income" ? "รายรับ" : "รายจ่าย"}</span>
+                <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#64748b]">{displayCategory(item.category, item.type)}</span>
+                <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#64748b]">{recurringLabel(item)}</span>
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className={`text-base font-black ${item.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>{formatBaht(item.amount)}</p>
+              <button type="button" onClick={() => onDelete(item.id)} className="mt-2 text-xs font-black text-[#8a928e]">ลบ</button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function RecurringItemModal({
+  defaultNotifyTime,
+  onClose,
+  onSave,
+}: {
+  defaultNotifyTime: string;
+  onClose: () => void;
+  onSave: (item: RecurringItem) => void;
+}) {
+  const [type, setType] = useState<"expense" | "income">("expense");
+  const [category, setCategory] = useState(() => transactionCategories("expense")[0] ?? "อื่นๆ");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [interval, setInterval] = useState<RecurringInterval>("monthly");
+  const [dayOfWeek, setDayOfWeek] = useState(1);
+  const [dayOfMonth, setDayOfMonth] = useState(new Date().getDate());
+  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [notifyTime, setNotifyTime] = useState(defaultNotifyTime);
+  const categories = transactionCategories(type);
+  const canSave = description.trim() && Number(amount) > 0 && category;
+
+  function changeType(nextType: "expense" | "income") {
+    setType(nextType);
+    setCategory(transactionCategories(nextType)[0] ?? "อื่นๆ");
+  }
+
+  function save() {
+    if (!canSave) return;
+    onSave({
+      id: crypto.randomUUID(),
+      type,
+      amount: Number(amount),
+      category,
+      description: description.trim(),
+      mode: "personal",
+      interval,
+      dayOfWeek: interval === "weekly" ? dayOfWeek : undefined,
+      dayOfMonth: interval === "monthly" || interval === "yearly" ? dayOfMonth : undefined,
+      month: interval === "yearly" ? month : undefined,
+      notifyTime,
+    });
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/35 px-3 pb-3 pt-12">
+      <div role="dialog" aria-modal="true" className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-2xl">
+        <div className="mx-auto mb-5 h-1.5 w-16 rounded-full bg-[#f0f2f1]" />
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-black">เพิ่มรายการจดประจำ</h2>
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-10 w-10 place-items-center rounded-md">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <form className="mt-5 space-y-5" onSubmit={(event) => { event.preventDefault(); save(); }}>
+          <section>
+            <p className="text-base font-black">ประเภทรายการ</p>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => changeType("expense")} className={`h-12 rounded-md border text-sm font-black ${type === "expense" ? "border-[#DC143C] bg-[#FCECEF] text-[#DC143C]" : "border-[#F5C6D0] bg-white text-[#DC143C]"}`}>รายจ่าย</button>
+              <button type="button" onClick={() => changeType("income")} className={`h-12 rounded-md border text-sm font-black ${type === "income" ? "border-[#6dc5ad] bg-[#eaf8f4] text-[#0d4a2b]" : "border-[#d8eee8] bg-white text-[#0d4a2b]"}`}>รายรับ</button>
+            </div>
+          </section>
+          <label className="block">
+            <span className="text-base font-black">ชื่อรายการ</span>
+            <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="เช่น Netflix, เงินเดือน" className="mt-2 h-11 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-base font-black">จำนวนเงิน</span>
+              <input type="number" min="1" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0" className="mt-2 h-11 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
+            </label>
+            <label className="block">
+              <span className="text-base font-black">หมวด</span>
+              <select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+                {categories.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-base font-black">รอบจดประจำ</span>
+            <select value={interval} onChange={(event) => setInterval(event.target.value as RecurringInterval)} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+              <option value="daily">ทุกวัน</option>
+              <option value="weekly">ทุกสัปดาห์</option>
+              <option value="monthly">ทุกเดือน</option>
+              <option value="yearly">ทุกปี</option>
+            </select>
+          </label>
+          {interval === "weekly" && (
+            <label className="block">
+              <span className="text-base font-black">วันของสัปดาห์</span>
+              <select value={dayOfWeek} onChange={(event) => setDayOfWeek(Number(event.target.value))} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+                {["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"].map((day, index) => <option key={day} value={index}>{day}</option>)}
+              </select>
+            </label>
+          )}
+          {(interval === "monthly" || interval === "yearly") && (
+            <div className="grid grid-cols-2 gap-3">
+              {interval === "yearly" && (
+                <label className="block">
+                  <span className="text-base font-black">เดือน</span>
+                  <select value={month} onChange={(event) => setMonth(Number(event.target.value))} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{new Date(2026, value - 1, 1).toLocaleDateString("th-TH", { month: "long" })}</option>)}
+                  </select>
+                </label>
+              )}
+              <label className="block">
+                <span className="text-base font-black">วันที่</span>
+                <select value={dayOfMonth} onChange={(event) => setDayOfMonth(Number(event.target.value))} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+                  {Array.from({ length: 31 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+          <label className="block">
+            <span className="text-base font-black">เวลาจด</span>
+            <select value={notifyTime} onChange={(event) => setNotifyTime(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
+              {["06:00", "08:00", "10:00", "12:00", "18:00", "20:00", "22:00"].map((time) => <option key={time} value={time}>{formatNotifyTime(time)}</option>)}
+            </select>
+          </label>
+          <button type="submit" disabled={!canSave} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:opacity-50">บันทึก</button>
+        </form>
+      </div>
     </div>
   );
 }
@@ -2637,6 +2956,61 @@ function BottomNav({ active }: { active: LiffTab }) {
       })}
     </nav>
   );
+}
+
+function recurringStorageKey(lineUserId?: string) {
+  return lineUserId ? `moneytrack_recurring_items_${lineUserId}` : "moneytrack_recurring_items";
+}
+
+function loadStoredRecurringItems(lineUserId?: string): RecurringItem[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const value = JSON.parse(window.localStorage.getItem(recurringStorageKey(lineUserId)) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is RecurringItem => {
+      return (
+        item &&
+        typeof item.id === "string" &&
+        (item.type === "income" || item.type === "expense") &&
+        typeof item.amount === "number" &&
+        typeof item.category === "string" &&
+        typeof item.description === "string" &&
+        (item.interval === "daily" || item.interval === "weekly" || item.interval === "monthly" || item.interval === "yearly") &&
+        typeof item.notifyTime === "string"
+      );
+    });
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredRecurringItems(lineUserId: string | undefined, value: RecurringItem[]) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(recurringStorageKey(lineUserId), JSON.stringify(value));
+  }
+}
+
+function recurringItemOccursOn(item: RecurringItem, date: Date) {
+  if (item.interval === "daily") return true;
+  if (item.interval === "weekly") return item.dayOfWeek === date.getDay();
+  if (item.interval === "monthly") return item.dayOfMonth === date.getDate();
+  return item.month === date.getMonth() + 1 && item.dayOfMonth === date.getDate();
+}
+
+function recurringLabel(item: RecurringItem) {
+  if (item.interval === "daily") return "ทุกวัน";
+  if (item.interval === "weekly") {
+    const day = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"][item.dayOfWeek ?? 0];
+    return `ทุกวัน${day}`;
+  }
+  if (item.interval === "monthly") return `ทุกเดือน วันที่ ${item.dayOfMonth ?? 1}`;
+  const monthLabel = new Date(2026, (item.month ?? 1) - 1, 1).toLocaleDateString("th-TH", { month: "short" });
+  return `ทุกปี ${item.dayOfMonth ?? 1} ${monthLabel}`;
+}
+
+function formatNotifyTime(value: string) {
+  const [hour = "00", minute = "00"] = value.split(":");
+  return `${Number(hour).toLocaleString("th-TH", { minimumIntegerDigits: 2 })}.${minute} น.`;
 }
 
 function loadStoredUserPlan(): UserPlan {
