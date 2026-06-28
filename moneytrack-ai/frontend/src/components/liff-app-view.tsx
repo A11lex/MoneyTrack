@@ -229,6 +229,7 @@ function SummaryScreen({
   transactions: Transaction[];
 }) {
   const [showMore, setShowMore] = useState(false);
+  const [summaryFocus, setSummaryFocus] = useState<"expense" | "income">("expense");
   const [budgetMode] = useState<BudgetMode>(() => loadStoredBudgetMode());
   const [budgetCycle] = useState<BudgetCycle>(() => loadStoredBudgetCycle());
   const [budgetStartDay] = useState(() => loadStoredBudgetStartDay());
@@ -240,17 +241,27 @@ function SummaryScreen({
   const expense = summary?.total_expense ?? 0;
   const isPositive = net >= 0;
   const periodExpenses = transactions.filter((transaction) => transaction.type === "expense" && isInBudgetPeriod(transaction.date, budgetCycle, budgetStartDay));
+  const periodIncomes = transactions.filter((transaction) => transaction.type === "income" && isInBudgetPeriod(transaction.date, budgetCycle, budgetStartDay));
   const spentByCategory = periodExpenses.reduce<Record<string, number>>((acc, transaction) => {
     const category = displayCategory(transaction.category, "expense");
     acc[category] = (acc[category] ?? 0) + transaction.amount;
     return acc;
   }, {});
+  const incomeByCategory = periodIncomes.reduce<Record<string, number>>((acc, transaction) => {
+    const category = displayCategory(transaction.category, "income");
+    acc[category] = (acc[category] ?? 0) + transaction.amount;
+    return acc;
+  }, {});
   const budgetLimit = budgetMode === "total" ? totalBudget : Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
   const spentInPeriod = periodExpenses.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const incomeInPeriod = periodIncomes.reduce((sum, transaction) => sum + transaction.amount, 0);
   const remainingBudget = budgetLimit > 0 ? Math.max(0, budgetLimit - spentInPeriod) : 0;
   const topCategory = Object.entries(spentByCategory).sort((a, b) => b[1] - a[1])[0];
+  const topIncomeCategory = Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1])[0];
   const categoryRows = summaryCategoryRows(spentByCategory, expenseBudgets);
+  const incomeRows = summaryIncomeRows(incomeByCategory);
   const donutPercent = spentInPeriod > 0 ? Math.max(8, Math.min(100, budgetLimit > 0 ? (spentInPeriod / budgetLimit) * 100 : 100)) : 0;
+  const incomeDonutPercent = incomeInPeriod > 0 ? 100 : 0;
   const streakDays = periodExpenses.length > 0 ? 2 : 0;
 
   return (
@@ -274,19 +285,20 @@ function SummaryScreen({
           <p className={`mt-2 text-3xl font-black leading-none ${isPositive ? "text-[#10b95f]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
         </div>
         <div className="mt-8 grid grid-cols-2 gap-3">
-          <MetricBox label="รายจ่าย" value={expense} tone="expense" />
-          <MetricBox label="รายรับ" value={income} tone="income" />
+          <MetricBox active={summaryFocus === "expense"} label="รายจ่าย" onClick={() => setSummaryFocus("expense")} value={expense} tone="expense" />
+          <MetricBox active={summaryFocus === "income"} label="รายรับ" onClick={() => setSummaryFocus("income")} value={income} tone="income" />
         </div>
         {showMore && (
           <SummaryExpandedChart
             budgetLimit={budgetLimit}
-            categoryRows={categoryRows}
+            categoryRows={summaryFocus === "expense" ? categoryRows : incomeRows}
+            focus={summaryFocus}
             remainingBudget={remainingBudget}
-            spentInPeriod={spentInPeriod}
+            spentInPeriod={summaryFocus === "expense" ? spentInPeriod : incomeInPeriod}
             streakDays={streakDays}
-            topCategory={topCategory}
-            transactionCount={periodExpenses.length}
-            usedPercent={donutPercent}
+            topCategory={summaryFocus === "expense" ? topCategory : topIncomeCategory}
+            transactionCount={summaryFocus === "expense" ? periodExpenses.length : periodIncomes.length}
+            usedPercent={summaryFocus === "expense" ? donutPercent : incomeDonutPercent}
           />
         )}
         <button type="button" onClick={() => setShowMore((value) => !value)} className="mx-auto mt-8 flex h-10 min-w-20 items-center justify-center gap-1 rounded-full border border-black/10 bg-white px-4 text-[0px] font-black text-transparent shadow-sm">
@@ -2479,19 +2491,33 @@ function SummaryProfileCard({ plan, profile }: { plan: UserPlan; profile: LinePr
   );
 }
 
-function MetricBox({ label, value, tone }: { label: string; value: number; tone: "expense" | "income" }) {
+function MetricBox({
+  active = false,
+  label,
+  onClick,
+  value,
+  tone,
+}: {
+  active?: boolean;
+  label: string;
+  onClick?: () => void;
+  value: number;
+  tone: "expense" | "income";
+}) {
   const classes = tone === "expense" ? "border-[#DC143C]/70 bg-[#fff3f5] text-[#DC143C]" : "border-[#6dc5ad]/80 bg-[#eef8f5] text-[#5fc8ba]";
+  const activeClass = active ? "ring-2 ring-offset-2 " + (tone === "expense" ? "ring-[#DC143C]/30" : "ring-[#6dc5ad]/35") : "";
   return (
-    <div className={`rounded-md border-2 p-3 shadow-sm ${classes}`}>
+    <button type="button" onClick={onClick} className={`rounded-md border-2 p-3 text-left shadow-sm transition active:scale-[0.99] ${classes} ${activeClass}`}>
       <p className="text-xs font-bold text-[#55605b]">{label}</p>
       <p className="mt-2 truncate text-xl font-black">{formatBaht(value)}</p>
-    </div>
+    </button>
   );
 }
 
 function SummaryExpandedChart({
   budgetLimit,
   categoryRows,
+  focus,
   remainingBudget,
   spentInPeriod,
   streakDays,
@@ -2501,6 +2527,7 @@ function SummaryExpandedChart({
 }: {
   budgetLimit: number;
   categoryRows: { budget: number; label: string; spent: number }[];
+  focus: "expense" | "income";
   remainingBudget: number;
   spentInPeriod: number;
   streakDays: number;
@@ -2508,8 +2535,11 @@ function SummaryExpandedChart({
   transactionCount: number;
   usedPercent: number;
 }) {
+  const isIncome = focus === "income";
+  const mainColor = isIncome ? "#6dc5ad" : "#d83286";
+  const paleColor = isIncome ? "#dff4ef" : "#f7d4e4";
   const donutStyle = {
-    background: `conic-gradient(#d83286 ${usedPercent * 3.6}deg, #f7d4e4 0deg)`,
+    background: `conic-gradient(${mainColor} ${usedPercent * 3.6}deg, ${paleColor} 0deg)`,
   };
 
   return (
@@ -2520,23 +2550,23 @@ function SummaryExpandedChart({
         </div>
         <dl className="space-y-3 text-xs">
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[#7a817d]">จดต่อเนื่องมา</dt>
-            <dd className="font-black text-[#151b18]">🔥 {streakDays} วัน</dd>
+            <dt className="text-[#7a817d]">{isIncome ? "รายรับในรอบนี้" : "จดต่อเนื่องมา"}</dt>
+            <dd className="font-black text-[#151b18]">{isIncome ? formatBaht(spentInPeriod) : `🔥 ${streakDays} วัน`}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[#7a817d]">จำนวนรายการ</dt>
             <dd className="font-black text-[#151b18]">{transactionCount}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[#7a817d]">งบที่ตั้งไว้</dt>
-            <dd className="font-black text-[#151b18]">{budgetLimit > 0 ? formatBaht(budgetLimit) : "-"}</dd>
+            <dt className="text-[#7a817d]">{isIncome ? "หมวดสูงสุด" : "งบที่ตั้งไว้"}</dt>
+            <dd className="font-black text-[#151b18]">{isIncome ? (topCategory?.[0] ?? "-") : budgetLimit > 0 ? formatBaht(budgetLimit) : "-"}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[#7a817d]">งบคงเหลือ</dt>
-            <dd className="font-black text-[#151b18]">{budgetLimit > 0 ? formatBaht(remainingBudget) : "-"}</dd>
+            <dt className="text-[#7a817d]">{isIncome ? "ยอดหมวดสูงสุด" : "งบคงเหลือ"}</dt>
+            <dd className="font-black text-[#151b18]">{isIncome ? formatBaht(topCategory?.[1] ?? 0) : budgetLimit > 0 ? formatBaht(remainingBudget) : "-"}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-[#7a817d]">ใช้ไปแล้ว</dt>
+            <dt className="text-[#7a817d]">{isIncome ? "รับแล้ว" : "ใช้ไปแล้ว"}</dt>
             <dd className="font-black text-[#151b18]">{formatBaht(spentInPeriod)}</dd>
           </div>
         </dl>
@@ -2550,21 +2580,21 @@ function SummaryExpandedChart({
             <div key={row.label}>
               <div className="flex items-center justify-between gap-3 text-sm font-black">
                 <span>{row.label}</span>
-                <span>{formatBudgetPair(row.spent, row.budget)}</span>
+                <span>{isIncome ? formatBaht(row.spent) : formatBudgetPair(row.spent, row.budget)}</span>
               </div>
-              <div className="mt-2 h-2 rounded-full bg-[#f7d4e4]">
-                <div className="h-2 rounded-full bg-[#d83286]" style={{ width: `${width}%` }} />
+              <div className="mt-2 h-2 rounded-full" style={{ backgroundColor: paleColor }}>
+                <div className="h-2 rounded-full" style={{ width: `${width}%`, backgroundColor: mainColor }} />
               </div>
             </div>
           );
         }) : (
-          <p className="rounded-md bg-[#f7f8f7] p-4 text-center text-sm font-semibold text-[#7a817d]">ยังไม่มีรายจ่ายในรอบงบนี้</p>
+          <p className="rounded-md bg-[#f7f8f7] p-4 text-center text-sm font-semibold text-[#7a817d]">{isIncome ? "ยังไม่มีรายรับในรอบงบนี้" : "ยังไม่มีรายจ่ายในรอบงบนี้"}</p>
         )}
       </div>
 
       {topCategory && (
         <p className="text-center text-xs font-semibold text-[#7a817d]">
-          หมวดที่ใช้เยอะสุดคือ <span className="font-black text-[#151b18]">{topCategory[0]}</span>
+          {isIncome ? "หมวดรายรับสูงสุดคือ" : "หมวดที่ใช้เยอะสุดคือ"} <span className="font-black text-[#151b18]">{topCategory[0]}</span>
         </p>
       )}
     </div>
@@ -2852,6 +2882,13 @@ function summaryCategoryRows(spentByCategory: Record<string, number>, budgets: R
     }))
     .filter((row) => row.spent > 0 || row.budget > 0)
     .sort((a, b) => (b.spent || b.budget) - (a.spent || a.budget))
+    .slice(0, 6);
+}
+
+function summaryIncomeRows(incomeByCategory: Record<string, number>) {
+  return Object.entries(incomeByCategory)
+    .map(([label, spent]) => ({ label, spent, budget: 0 }))
+    .sort((a, b) => b.spent - a.spent)
     .slice(0, 6);
 }
 
