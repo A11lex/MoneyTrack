@@ -62,12 +62,7 @@ def liff_url_from_id(liff_id: str) -> str:
 
 
 def resolve_main_app_base_url(default_liff_url: str) -> str:
-    return (
-        os.getenv("LIFF_MAIN_URL_BASE")
-        or os.getenv("LIFF_APP_BASE_URL")
-        or os.getenv("FRONTEND_ORIGIN")
-        or default_liff_url
-    ).rstrip("/")
+    return (os.getenv("LIFF_MAIN_URL_BASE") or default_liff_url).rstrip("/")
 
 
 class PreparedImage:

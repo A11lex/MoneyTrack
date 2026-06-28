@@ -1,11 +1,10 @@
 import type { Metadata } from "next";
-
-import { Dashboard } from "@/components/dashboard";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
-  title: "แดชบอร์ด",
+  title: "สรุป",
 };
 
 export default function Home() {
-  return <Dashboard />;
+  redirect("/liff/summary");
 }
