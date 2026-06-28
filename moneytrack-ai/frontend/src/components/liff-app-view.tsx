@@ -1607,6 +1607,7 @@ function RecurringTransactionsScreen({
   const [createInitialDate, setCreateInitialDate] = useState<string | undefined>(undefined);
   const [editingItem, setEditingItem] = useState<RecurringItem | null>(null);
   const [pendingDeleteItem, setPendingDeleteItem] = useState<RecurringItem | null>(null);
+  const [previewDateValue, setPreviewDateValue] = useState<string | null>(null);
   const [notifyTime, setNotifyTime] = useState(() => items[0]?.notifyTime ?? "10:00");
   const [viewMonth, setViewMonth] = useState(() => {
     const today = new Date();
@@ -1615,6 +1616,10 @@ function RecurringTransactionsScreen({
   const monthlyExpense = items.filter((item) => item.type === "expense").reduce((sum, item) => sum + item.amount, 0);
   const monthlyIncome = items.filter((item) => item.type === "income").reduce((sum, item) => sum + item.amount, 0);
   const calendarDays = calendarGridDays(viewMonth);
+  const previewDay = previewDateValue
+    ? calendarDays.find((day) => inputDateValue(day.date) === previewDateValue)
+    : null;
+  const previewItems = previewDay ? items.filter((item) => recurringItemOccursOn(item, previewDay.date)) : [];
 
   function addItem(item: RecurringItem) {
     onCreate(item);
@@ -1723,7 +1728,13 @@ function RecurringTransactionsScreen({
               const isCurrentMonth = day.date.getMonth() === viewMonth.getMonth();
               const isToday = dateValue === todayInputValue();
               return (
-                <button key={dateValue} type="button" onClick={() => openCreateModal(dateValue)} className={`min-h-16 rounded-md p-1.5 text-left text-xs font-bold ${isCurrentMonth ? "bg-[#eef3f8] text-[#111827]" : "bg-[#f7f8f7] text-[#9aa1a0]"} ${isToday ? "border border-[#DC143C] bg-[#FCECEF]" : ""}`}>
+                <button
+                  key={dateValue}
+                  type="button"
+                  onClick={() => setPreviewDateValue(dateValue)}
+                  title={dayItems.length > 0 ? dayItems.map((item) => `${item.description} ${formatBaht(item.amount)}`).join(", ") : "ไม่มีรายการจดประจำ"}
+                  className={`group relative min-h-16 rounded-md p-1.5 text-left text-xs font-bold ${isCurrentMonth ? "bg-[#eef3f8] text-[#111827]" : "bg-[#f7f8f7] text-[#9aa1a0]"} ${isToday ? "border border-[#DC143C] bg-[#FCECEF]" : ""} ${previewDateValue === dateValue ? "ring-2 ring-[#DC143C]/40" : ""}`}
+                >
                   <span>{day.date.getDate()}</span>
                   <div className="mt-1 space-y-1">
                     {dayItems.slice(0, 2).map((item) => (
@@ -1733,10 +1744,25 @@ function RecurringTransactionsScreen({
                     ))}
                     {dayItems.length > 2 && <span className="block text-[10px] text-[#64748b]">+{dayItems.length - 2}</span>}
                   </div>
+                  {dayItems.length > 0 && (
+                    <div className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 hidden w-48 -translate-x-1/2 rounded-md border border-black/10 bg-white p-2 text-left shadow-lg group-hover:block group-focus:block">
+                      <p className="text-[11px] font-black text-[#151b18]">{formatThaiShortDate(dateValue)}</p>
+                      <div className="mt-1 space-y-1">
+                        {dayItems.slice(0, 3).map((item) => (
+                          <p key={item.id} className="truncate text-[11px] font-semibold text-[#555f5b]">
+                            {item.description} · {formatBaht(item.amount)}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </button>
               );
             })}
           </div>
+          {previewDay && (
+            <RecurringCalendarPreview date={previewDay.date} items={previewItems} />
+          )}
         </section>
       ) : items.length > 0 ? (
         <RecurringList items={items} onDelete={(item) => setPendingDeleteItem(item)} onEdit={(item) => setEditingItem(item)} />
@@ -1783,6 +1809,40 @@ function RecurringStat({ amount, count, label, tone }: { amount: number; count: 
       <p className={`mt-1 text-xl font-black ${tone === "income" ? "text-[#6dc5ad]" : "text-[#DC143C]"}`}>{formatBaht(amount)}</p>
       <p className={`text-xs font-semibold ${tone === "income" ? "text-[#6dc5ad]" : "text-[#DC143C]"}`}>({count} รายการ)</p>
     </div>
+  );
+}
+
+function RecurringCalendarPreview({ date, items }: { date: Date; items: RecurringItem[] }) {
+  const dateValue = inputDateValue(date);
+
+  return (
+    <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-[#151b18]">{formatThaiLongDate(dateValue)}</p>
+          <p className="mt-1 text-xs font-semibold text-[#8a928e]">
+            {items.length > 0 ? `มีรายการจดประจำ ${items.length} รายการ` : "ยังไม่มีรายการจดประจำในวันนี้"}
+          </p>
+        </div>
+      </div>
+      {items.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="flex items-center justify-between gap-3 rounded-md bg-[#f7f8f7] px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-[#151b18]">{item.description}</p>
+                <p className="mt-1 text-xs font-semibold text-[#8a928e]">
+                  {displayCategory(item.category, item.type)} · {recurringLabel(item)}
+                </p>
+              </div>
+              <p className={`shrink-0 text-sm font-black ${item.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
+                {item.type === "income" ? "+" : "-"}{formatBaht(item.amount)}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
