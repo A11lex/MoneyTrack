@@ -17,11 +17,13 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  CreditCard,
   Download,
   GripVertical,
   Home,
   LayoutList,
   Loader2,
+  Plus,
   Settings,
   Tags,
   Trash2,
@@ -51,6 +53,10 @@ type UserPlan = "free" | "pro";
 type BudgetMode = "category" | "total";
 type BudgetCycle = "daily" | "weekly" | "monthly";
 type RecurringInterval = "daily" | "weekly" | "monthly" | "yearly";
+type PaymentChannelSettings = {
+  enabled: boolean;
+  channels: string[];
+};
 type RecurringItem = {
   id: number | string;
   type: "expense" | "income";
@@ -2592,7 +2598,9 @@ function DateRangePickerModal({
 function SettingsScreen({ profile }: { profile: LineProfile }) {
   const settings = ["เตือนจดประจำวัน", "จัดหมวดด้วยความจำ", "แยกช่องทางชำระเงิน", "รายการจดประจำ", "ประวัติการชำระเงิน", "ตั้งค่าหมวด", "การแจ้งเตือน Streak", "ตั้งค่าสกุลเงิน", "ปรับแต่งข้อความยืนยัน", "ตั้งค่าโซนเวลา", "ตั้งค่าภาษา"];
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [showPaymentScreen, setShowPaymentScreen] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<DailyReminderSettingsInput>(() => loadStoredDailyReminderSettings(profile.line_user_id));
+  const [paymentSettings, setPaymentSettings] = useState<PaymentChannelSettings>(() => loadStoredPaymentChannelSettings(profile.line_user_id));
   const [savingReminder, setSavingReminder] = useState(false);
   const [reminderError, setReminderError] = useState("");
 
@@ -2621,6 +2629,16 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     };
   }, [profile.line_user_id]);
 
+  useEffect(() => {
+    let mounted = true;
+    Promise.resolve(loadStoredPaymentChannelSettings(profile.line_user_id)).then((settings) => {
+      if (mounted) setPaymentSettings(settings);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [profile.line_user_id]);
+
   async function saveReminderSettings(nextSettings: DailyReminderSettingsInput) {
     setSavingReminder(true);
     setReminderError("");
@@ -2636,6 +2654,21 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     } finally {
       setSavingReminder(false);
     }
+  }
+
+  function savePaymentSettings(nextSettings: PaymentChannelSettings) {
+    setPaymentSettings(nextSettings);
+    saveStoredPaymentChannelSettings(profile.line_user_id, nextSettings);
+  }
+
+  if (showPaymentScreen) {
+    return (
+      <PaymentChannelsScreen
+        settings={paymentSettings}
+        onBack={() => setShowPaymentScreen(false)}
+        onChange={savePaymentSettings}
+      />
+    );
   }
 
   return (
@@ -2673,6 +2706,7 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
             type="button"
             onClick={() => {
               if (index === 0) setShowReminderModal(true);
+              if (index === 2) setShowPaymentScreen(true);
             }}
             className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm"
           >
@@ -2681,6 +2715,11 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
               {index === 0 && (
                 <span className={`rounded-full px-2 py-1 text-xs font-black ${reminderSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
                   {reminderSettings.enabled ? `${reminderSettings.reminder_time} น.` : "ปิดอยู่"}
+                </span>
+              )}
+              {index === 2 && (
+                <span className={`rounded-full px-2 py-1 text-xs font-black ${paymentSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
+                  {paymentSettings.enabled ? `${paymentSettings.channels.length}/10` : "ปิดอยู่"}
                 </span>
               )}
               <ChevronRight className="text-[#9aa1a0]" />
@@ -2811,6 +2850,253 @@ function ReminderHowItWorksStep({ body, step, title }: { body: string; step: str
           <p className="text-sm font-black text-[#151b18]">{title}</p>
           <p className="mt-1 text-sm leading-6 text-[#6b7280]">{body}</p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentChannelsScreen({
+  onBack,
+  onChange,
+  settings,
+}: {
+  onBack: () => void;
+  onChange: (settings: PaymentChannelSettings) => void;
+  settings: PaymentChannelSettings;
+}) {
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showSortModal, setShowSortModal] = useState(false);
+  const count = settings.channels.length;
+
+  function update(next: PaymentChannelSettings) {
+    onChange({ ...next, channels: next.channels.slice(0, 10) });
+  }
+
+  function addChannel(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed || settings.channels.some((channel) => channel.toLowerCase() === trimmed.toLowerCase()) || settings.channels.length >= 10) {
+      return;
+    }
+    update({ ...settings, channels: [...settings.channels, trimmed] });
+    setShowAddModal(false);
+  }
+
+  function removeChannel(name: string) {
+    update({ ...settings, channels: settings.channels.filter((channel) => channel !== name) });
+  }
+
+  return (
+    <div className="space-y-5 pb-8">
+      <div className="relative text-center">
+        <button type="button" onClick={onBack} aria-label="กลับ" className="absolute left-0 top-0 grid h-9 w-9 place-items-center rounded-md border border-black/10 bg-white shadow-sm">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        <h1 className="text-2xl font-black">ช่องทางชำระเงิน</h1>
+        <p className="mx-auto mt-2 max-w-xs text-sm font-semibold leading-6 text-[#8a928e]">จัดการช่องทางที่ใช้จ่าย แล้วเลือกได้เลยตอนจดรายจ่าย</p>
+        <button type="button" className="mx-auto mt-3 inline-flex h-8 items-center gap-1 rounded-full border border-black/10 bg-white px-3 text-xs font-black text-[#555f5b] shadow-sm">
+          <span className="text-[#DC143C]">✣</span>
+          ดูวิธีใช้
+        </button>
+      </div>
+
+      <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-base font-black">ติดตามช่องทางชำระเงิน</p>
+            <p className="mt-2 text-sm leading-6 text-[#6b7280]">เปิดเพื่อติดตามแต่ละรายจ่ายว่าจ่ายผ่านช่องทางไหน เช่น เงินสด บัตร หรือพร้อมเพย์</p>
+          </div>
+          <button
+            type="button"
+            aria-pressed={settings.enabled}
+            onClick={() => update({ ...settings, enabled: !settings.enabled })}
+            className={`mt-1 flex h-7 w-12 shrink-0 items-center rounded-full p-1 transition ${settings.enabled ? "justify-end bg-[#6DC5AD]" : "justify-start bg-[#dfe4e2]"}`}
+          >
+            <span className="h-5 w-5 rounded-full bg-white shadow-sm" />
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-md border border-[#e5e7eb] bg-[#fbfcfc] p-4">
+        <div className="flex gap-3">
+          <CreditCard className="mt-0.5 h-5 w-5 shrink-0 text-[#0D4A2B]" />
+          <div>
+            <p className="text-sm font-black text-[#1f2a44]">ไม่ว่าเงินสด บัตร หรือ e-wallet ก็รู้ที่มารายจ่ายของตัวเอง</p>
+            <p className="mt-2 text-xs font-semibold leading-5 text-[#6b7280]">ใช้เพื่อแยกช่องทางการชำระเงิน สำหรับคนที่ใช้ทั้งบัตร เงินสด และ e-wallet เป็นประจำ</p>
+          </div>
+        </div>
+      </section>
+
+      <PaymentPreviewCard channels={settings.channels} />
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-base font-black">ช่องทางชำระเงิน</h2>
+          <button type="button" onClick={() => setShowSortModal(true)} disabled={count < 2} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#151b18] shadow-sm disabled:opacity-50">
+            จัดลำดับ ☰
+          </button>
+        </div>
+        <div className="text-right text-xs font-black text-[#8a928e]">{count}/10</div>
+        {count > 0 ? (
+          <div className="space-y-2">
+            {settings.channels.map((channel) => (
+              <div key={channel} className="flex min-h-12 items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="h-4 w-4 text-[#0D4A2B]" />
+                  <span className="text-sm font-black">{channel}</span>
+                </div>
+                <button type="button" onClick={() => removeChannel(channel)} className="text-sm font-black text-[#DC143C]">
+                  ลบ
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-dashed border-[#d9dfdc] bg-white p-5 text-center text-sm font-semibold text-[#8a928e]">ยังไม่มีช่องทางชำระเงิน</div>
+        )}
+      </section>
+
+      <button type="button" onClick={() => setShowAddModal(true)} disabled={count >= 10} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:opacity-50">
+        <Plus className="mr-1 inline h-5 w-5" />
+        เพิ่มช่องทางชำระเงิน
+      </button>
+
+      {showAddModal && (
+        <PaymentChannelModal
+          onClose={() => setShowAddModal(false)}
+          onSave={addChannel}
+          existing={settings.channels}
+        />
+      )}
+      {showSortModal && (
+        <PaymentChannelSortModal
+          channels={settings.channels}
+          onClose={() => setShowSortModal(false)}
+          onSave={(channels) => {
+            update({ ...settings, channels });
+            setShowSortModal(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PaymentPreviewCard({ channels }: { channels: string[] }) {
+  const previewChannels = channels.length > 0 ? channels.slice(0, 3) : ["พร้อมเพย์", "บัตร", "TrueMoney"];
+  return (
+    <section className="mx-auto w-full max-w-[272px] rounded-xl border border-black/10 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-lg font-black">จดสำเร็จ ✅</h3>
+          <p className="mt-2 text-xs leading-5 text-[#6b7280]">อย่าลืมตรวจสอบรายการที่จดด้วยนะคะ</p>
+        </div>
+        <div className="h-12 w-16 overflow-hidden rounded-t-xl">
+          <Image src="/brand/moneytrack-pro.png" alt="" width={64} height={64} className="h-16 w-16 object-cover" />
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        <span className="rounded-full bg-[#DC143C] px-3 py-1 text-[11px] font-black text-white">รายจ่าย</span>
+        <p className="truncate text-base font-black">- อาหารและเครื่องดื่ม</p>
+      </div>
+      <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#6b7280]">
+        <span>5 มิ.ย. 2569 10:00</span>
+        <span className="rounded bg-[#fff8e4] px-1.5 py-0.5 text-[#8a6a00]">💳 เงินสด</span>
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        <p className="text-base font-black">ฟ้ามะลาเต้</p>
+        <p className="text-lg font-black text-[#DC143C]">฿180</p>
+      </div>
+      <div className="my-4 border-t border-[#e5e7eb]" />
+      <p className="text-xs font-black text-[#1f2a44]">แตะเพื่อเปลี่ยนช่องทางชำระ</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {previewChannels.map((channel) => (
+          <span key={channel} className="max-w-[92px] truncate rounded-full bg-[#f0f2f1] px-2 py-1 text-[11px] font-black text-[#4b5563]">
+            {channel}
+          </span>
+        ))}
+      </div>
+      <p className="mt-2 text-[11px] font-semibold text-[#9aa1a0]">อยากได้ช่องทางอื่น กดในแอปได้เลย</p>
+    </section>
+  );
+}
+
+function PaymentChannelModal({ existing, onClose, onSave }: { existing: string[]; onClose: () => void; onSave: (name: string) => void }) {
+  const suggestions = ["เงินสด", "พร้อมเพย์", "บัตรเครดิต", "บัตรเดบิต", "TrueMoney", "โอนเงิน", "Rabbit LINE Pay", "อื่นๆ"];
+  const [name, setName] = useState("");
+  const trimmed = name.trim();
+  const canSave = trimmed.length > 0 && !existing.some((channel) => channel.toLowerCase() === trimmed.toLowerCase());
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 sm:items-center">
+      <div className="w-full max-w-md rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl">
+        <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#edf0ef]" />
+        <div className="flex items-center justify-between">
+          <span className="h-9 w-9" />
+          <h2 className="text-xl font-black">เพิ่มช่องทางชำระเงิน</h2>
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-md">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <label className="mt-5 block text-sm font-black" htmlFor="payment-channel-name">ตั้งชื่อช่องทาง</label>
+        <input
+          id="payment-channel-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          className="mt-2 h-12 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
+          placeholder="เช่น เงินสด, พร้อมเพย์, บัตร"
+        />
+        <p className="mt-2 text-xs font-semibold text-[#8a928e]">พิมพ์ชื่อเอง หรือเลือกจากตัวอย่างด้านล่าง</p>
+        <div className="mt-5 grid grid-cols-2 gap-3">
+          {suggestions.map((item) => (
+            <button key={item} type="button" onClick={() => setName(item)} className="h-11 rounded-md border border-black/10 bg-white text-sm font-black shadow-sm">
+              {item}
+            </button>
+          ))}
+        </div>
+        <button type="button" disabled={!canSave} onClick={() => onSave(trimmed)} className="mt-6 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white disabled:opacity-50">
+          บันทึก
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PaymentChannelSortModal({ channels, onClose, onSave }: { channels: string[]; onClose: () => void; onSave: (channels: string[]) => void }) {
+  const [draft, setDraft] = useState(channels);
+
+  function move(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= draft.length) return;
+    const next = [...draft];
+    [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+    setDraft(next);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 sm:items-center">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl">
+        <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#edf0ef]" />
+        <div className="flex items-center justify-between">
+          <span className="h-9 w-9" />
+          <h2 className="text-xl font-black text-[#DC143C]">จัดลำดับช่องทางชำระเงิน</h2>
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-md">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mt-2 text-center text-sm font-semibold text-[#8a928e]">กดขึ้น/ลง เพื่อเรียงช่องทางที่ใช้บ่อยไว้ก่อน</p>
+        <div className="mt-5 space-y-2">
+          {draft.map((channel, index) => (
+            <div key={channel} className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-3 shadow-sm">
+              <GripVertical className="h-5 w-5 text-[#64748b]" />
+              <span className="min-w-0 flex-1 truncate text-sm font-black">{channel}</span>
+              <button type="button" onClick={() => move(index, -1)} disabled={index === 0} className="rounded-md border border-black/10 px-2 py-1 text-xs font-black disabled:opacity-40">ขึ้น</button>
+              <button type="button" onClick={() => move(index, 1)} disabled={index === draft.length - 1} className="rounded-md border border-black/10 px-2 py-1 text-xs font-black disabled:opacity-40">ลง</button>
+            </div>
+          ))}
+        </div>
+        <button type="button" onClick={() => onSave(draft)} className="mt-6 h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white">
+          บันทึก
+        </button>
       </div>
     </div>
   );
@@ -3955,6 +4241,38 @@ function loadStoredDailyReminderSettings(lineUserId?: string): DailyReminderSett
 function saveStoredDailyReminderSettings(lineUserId: string | undefined, value: DailyReminderSettingsInput) {
   if (typeof window !== "undefined") {
     window.localStorage.setItem(dailyReminderStorageKey(lineUserId), JSON.stringify(value));
+  }
+}
+
+function paymentChannelStorageKey(lineUserId?: string) {
+  return lineUserId ? `moneytrack_payment_channels_${lineUserId}` : "moneytrack_payment_channels";
+}
+
+function loadStoredPaymentChannelSettings(lineUserId?: string): PaymentChannelSettings {
+  const fallback: PaymentChannelSettings = { enabled: false, channels: [] };
+  if (typeof window === "undefined") return fallback;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(paymentChannelStorageKey(lineUserId)) ?? "null");
+    if (
+      value &&
+      typeof value.enabled === "boolean" &&
+      Array.isArray(value.channels) &&
+      value.channels.every((channel: unknown) => typeof channel === "string")
+    ) {
+      return {
+        enabled: value.enabled,
+        channels: value.channels.map((channel: string) => channel.trim()).filter(Boolean).slice(0, 10),
+      };
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function saveStoredPaymentChannelSettings(lineUserId: string | undefined, value: PaymentChannelSettings) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(paymentChannelStorageKey(lineUserId), JSON.stringify(value));
   }
 }
 
