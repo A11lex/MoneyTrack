@@ -67,7 +67,7 @@ type LineProfile = {
   picture_url: string | null;
 };
 
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
 
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
   { id: "summary", label: "สรุป", href: "/liff/summary", icon: Home },

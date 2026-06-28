@@ -43,7 +43,7 @@ const mockProfile: LineProfile = {
   picture_url: null,
 };
 
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
 
 type LiffProfile = {
   userId: string;

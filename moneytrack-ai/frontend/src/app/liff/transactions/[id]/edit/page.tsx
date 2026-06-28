@@ -9,7 +9,7 @@ import type { Transaction, TransactionInput } from "@/lib/types";
 
 const accent = "#DC143C";
 const green = "#6DC5AD";
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
 
 const expenseCategories = ["อาหาร", "เดินทาง", "ที่พัก", "ค่าโทรศัพท์", "ค่าเน็ต", "ค่าน้ำค่าไฟ", "ช้อปปิ้ง", "Subscription", "กาแฟ", "ผ่อนรถ", "อื่นๆ"];
 const incomeCategories = ["เงินเดือน", "ธุรกิจส่วนตัว", "งานพิเศษ", "ค่าคอมมิชชั่น", "ขายของ", "เงินปันผล", "อื่นๆ"];
@@ -48,7 +48,10 @@ export default function EditTransactionPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   useEffect(() => {
-    if (!Number.isFinite(transactionId)) return;
+    if (!Number.isFinite(transactionId)) {
+      router.replace("/liff/summary");
+      return;
+    }
     loadLineUserId()
       .catch(() => "")
       .then((loadedLineUserId) => {
@@ -59,8 +62,10 @@ export default function EditTransactionPage() {
         return getTransaction(transactionId, loadedLineUserId);
       })
       .then((item) => setTransaction({ ...item, category: displayCategory(item.category, item.type) }))
-      .catch(() => setError("โหลดรายการไม่สำเร็จ"));
-  }, [transactionId]);
+      .catch(() => {
+        router.replace("/liff/summary");
+      });
+  }, [router, transactionId]);
 
   const categories = useMemo(
     () => ensureCategoryOption(transactionCategories(transaction?.type ?? "expense"), transaction?.category ?? ""),
