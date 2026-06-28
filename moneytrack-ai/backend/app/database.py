@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Iterator
 
 from .models import (
+    DailyReminderSettings,
+    DailyReminderSettingsUpdate,
     LineUserUpsert,
     OnboardingPayload,
     RecurringTransaction,
@@ -114,6 +116,20 @@ def init_db(db_path: str | None = None) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS daily_reminder_settings (
+                line_user_id TEXT PRIMARY KEY,
+                enabled INTEGER NOT NULL DEFAULT 0,
+                reminder_time TEXT NOT NULL DEFAULT '18:00',
+                reminder_mode TEXT NOT NULL DEFAULT 'missing_only'
+                    CHECK(reminder_mode IN ('missing_only', 'daily')),
+                last_sent_date TEXT,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id)
+            )
+            """
+        )
 
 
 def row_to_transaction(row: sqlite3.Row) -> Transaction:
@@ -143,6 +159,16 @@ def row_to_recurring_transaction(row: sqlite3.Row) -> RecurringTransaction:
         month=row["month"],
         notify_time=row["notify_time"],
         last_run_date=date.fromisoformat(row["last_run_date"]) if row["last_run_date"] else None,
+    )
+
+
+def row_to_daily_reminder_settings(row: sqlite3.Row) -> DailyReminderSettings:
+    return DailyReminderSettings(
+        line_user_id=row["line_user_id"],
+        enabled=bool(row["enabled"]),
+        reminder_time=row["reminder_time"],
+        reminder_mode=row["reminder_mode"],
+        last_sent_date=date.fromisoformat(row["last_sent_date"]) if row["last_sent_date"] else None,
     )
 
 
@@ -402,6 +428,62 @@ def mark_recurring_transaction_run(
             WHERE id = ? AND line_user_id = ?
             """,
             (run_date.isoformat(), recurring_id, line_user_id),
+        )
+
+
+def get_daily_reminder_settings(line_user_id: str, db_path: str | None = None) -> DailyReminderSettings | None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM daily_reminder_settings WHERE line_user_id = ?",
+            (line_user_id,),
+        ).fetchone()
+        return row_to_daily_reminder_settings(row) if row else None
+
+
+def list_daily_reminder_settings(db_path: str | None = None) -> list[DailyReminderSettings]:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        rows = conn.execute("SELECT * FROM daily_reminder_settings ORDER BY updated_at DESC").fetchall()
+        return [row_to_daily_reminder_settings(row) for row in rows]
+
+
+def save_daily_reminder_settings(
+    line_user_id: str,
+    payload: DailyReminderSettingsUpdate,
+    db_path: str | None = None,
+) -> DailyReminderSettings:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO daily_reminder_settings (line_user_id, enabled, reminder_time, reminder_mode)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(line_user_id) DO UPDATE SET
+                enabled = excluded.enabled,
+                reminder_time = excluded.reminder_time,
+                reminder_mode = excluded.reminder_mode,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (line_user_id, int(payload.enabled), payload.reminder_time, payload.reminder_mode),
+        )
+        row = conn.execute(
+            "SELECT * FROM daily_reminder_settings WHERE line_user_id = ?",
+            (line_user_id,),
+        ).fetchone()
+        return row_to_daily_reminder_settings(row)
+
+
+def mark_daily_reminder_sent(line_user_id: str, sent_date: date, db_path: str | None = None) -> None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE daily_reminder_settings
+            SET last_sent_date = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE line_user_id = ?
+            """,
+            (sent_date.isoformat(), line_user_id),
         )
 
 

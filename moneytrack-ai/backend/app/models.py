@@ -78,6 +78,21 @@ class RecurringTransaction(RecurringTransactionBase):
     last_run_date: date | None = None
 
 
+class DailyReminderSettingsBase(BaseModel):
+    enabled: bool = False
+    reminder_time: str = Field(default="18:00", pattern=r"^\d{2}:\d{2}$")
+    reminder_mode: Literal["missing_only", "daily"] = "missing_only"
+
+
+class DailyReminderSettingsUpdate(DailyReminderSettingsBase):
+    pass
+
+
+class DailyReminderSettings(DailyReminderSettingsBase):
+    line_user_id: str
+    last_sent_date: date | None = None
+
+
 class LineUserUpsert(BaseModel):
     line_user_id: str = Field(min_length=1, max_length=120)
     display_name: str = Field(default="", max_length=120)

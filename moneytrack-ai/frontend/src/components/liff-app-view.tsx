@@ -34,15 +34,17 @@ import {
   createTransaction,
   deleteRecurringTransaction,
   deleteTransaction,
+  getDailyReminderSettings,
   getDashboard,
   getRecurringTransactions,
   getTransactions,
+  saveDailyReminderSettings,
   saveLineUserOnboarding,
   updateRecurringTransaction,
   updateTransaction,
   upsertLineUser,
 } from "@/lib/api";
-import type { DashboardData, RecurringTransactionInput, Transaction, TransactionInput } from "@/lib/types";
+import type { DailyReminderSettingsInput, DashboardData, RecurringTransactionInput, Transaction, TransactionInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 type UserPlan = "free" | "pro";
@@ -187,7 +189,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
                   }}
                 />
               )}
-              {tab === "settings" && <SettingsScreen />}
+              {tab === "settings" && <SettingsScreen profile={profile} />}
             </>
           )}
         </section>
@@ -2587,8 +2589,54 @@ function DateRangePickerModal({
   );
 }
 
-function SettingsScreen() {
+function SettingsScreen({ profile }: { profile: LineProfile }) {
   const settings = ["เตือนจดประจำวัน", "จัดหมวดด้วยความจำ", "แยกช่องทางชำระเงิน", "รายการจดประจำ", "ประวัติการชำระเงิน", "ตั้งค่าหมวด", "การแจ้งเตือน Streak", "ตั้งค่าสกุลเงิน", "ปรับแต่งข้อความยืนยัน", "ตั้งค่าโซนเวลา", "ตั้งค่าภาษา"];
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderSettings, setReminderSettings] = useState<DailyReminderSettingsInput>(() => loadStoredDailyReminderSettings(profile.line_user_id));
+  const [savingReminder, setSavingReminder] = useState(false);
+  const [reminderError, setReminderError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    Promise.resolve(loadStoredDailyReminderSettings(profile.line_user_id))
+      .then((localSettings) => {
+        if (!mounted) return null;
+        setReminderSettings(localSettings);
+        if (!profile.line_user_id) return null;
+        return getDailyReminderSettings(profile.line_user_id);
+      })
+      .then((settings) => {
+        if (!mounted || !settings) return;
+        const nextSettings = {
+          enabled: settings.enabled,
+          reminder_time: settings.reminder_time,
+          reminder_mode: settings.reminder_mode,
+        };
+        setReminderSettings(nextSettings);
+        saveStoredDailyReminderSettings(profile.line_user_id, nextSettings);
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [profile.line_user_id]);
+
+  async function saveReminderSettings(nextSettings: DailyReminderSettingsInput) {
+    setSavingReminder(true);
+    setReminderError("");
+    setReminderSettings(nextSettings);
+    saveStoredDailyReminderSettings(profile.line_user_id, nextSettings);
+    try {
+      if (profile.line_user_id) {
+        await saveDailyReminderSettings(profile.line_user_id, nextSettings);
+      }
+      setShowReminderModal(false);
+    } catch {
+      setReminderError("บันทึกการเตือนไม่สำเร็จ ลองใหม่อีกครั้ง");
+    } finally {
+      setSavingReminder(false);
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -2620,15 +2668,149 @@ function SettingsScreen() {
       </button>
       <div className="space-y-3">
         {settings.map((item, index) => (
-          <button key={item} type="button" className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm">
+          <button
+            key={item}
+            type="button"
+            onClick={() => {
+              if (index === 0) setShowReminderModal(true);
+            }}
+            className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm"
+          >
             <span className={index === settings.length - 1 ? "text-[#0d4a2b]" : ""}>{item}</span>
-            <ChevronRight className="text-[#9aa1a0]" />
+            <span className="flex items-center gap-2">
+              {index === 0 && (
+                <span className={`rounded-full px-2 py-1 text-xs font-black ${reminderSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
+                  {reminderSettings.enabled ? `${reminderSettings.reminder_time} น.` : "ปิดอยู่"}
+                </span>
+              )}
+              <ChevronRight className="text-[#9aa1a0]" />
+            </span>
           </button>
         ))}
         <button type="button" className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold text-[#DC143C] shadow-sm">
           <span>ลบรายการทั้งหมด</span>
           <Trash2 />
         </button>
+      </div>
+      {showReminderModal && (
+        <DailyReminderSettingsModal
+          error={reminderError}
+          initialValue={reminderSettings}
+          onClose={() => setShowReminderModal(false)}
+          onSave={(nextSettings) => void saveReminderSettings(nextSettings)}
+          saving={savingReminder}
+        />
+      )}
+    </div>
+  );
+}
+
+function DailyReminderSettingsModal({
+  error,
+  initialValue,
+  onClose,
+  onSave,
+  saving,
+}: {
+  error: string;
+  initialValue: DailyReminderSettingsInput;
+  onClose: () => void;
+  onSave: (value: DailyReminderSettingsInput) => void;
+  saving: boolean;
+}) {
+  const [draft, setDraft] = useState<DailyReminderSettingsInput>(initialValue);
+  const modeOptions: { value: DailyReminderSettingsInput["reminder_mode"]; label: string; description: string }[] = [
+    { value: "missing_only", label: "เตือนวันที่ยังไม่ได้จด", description: "เตือนเฉพาะวันที่ยังไม่มีรายการ" },
+    { value: "daily", label: "เตือนทุกวัน", description: "ส่งเตือนทุกวันตามเวลาที่ตั้งไว้" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/45 px-3 sm:items-center">
+      <div className="max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:rounded-2xl">
+        <div className="mx-auto mb-5 h-1.5 w-24 rounded-full bg-[#edf0ef]" />
+        <div className="flex items-center justify-between">
+          <span className="h-9 w-9" />
+          <h2 className="text-center text-2xl font-black">เตือนจดประจำวัน</h2>
+          <button type="button" onClick={onClose} aria-label="ปิด" className="grid h-9 w-9 place-items-center rounded-md text-[#4b5563]">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {error && <p className="mt-4 rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
+
+        <section className="mt-6 rounded-md border border-black/10 bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-base font-black">เปิดใช้งาน</p>
+              <p className="mt-2 text-sm leading-6 text-[#6b7280]">เงินไปไหนจะส่งข้อความเตือนทุกวัน ตามเวลาที่คุณตั้ง</p>
+            </div>
+            <button
+              type="button"
+              aria-pressed={draft.enabled}
+              onClick={() => setDraft((current) => ({ ...current, enabled: !current.enabled }))}
+              className={`mt-1 flex h-7 w-12 items-center rounded-full p-1 transition ${draft.enabled ? "justify-end bg-[#6DC5AD]" : "justify-start bg-[#dfe4e2]"}`}
+            >
+              <span className="h-5 w-5 rounded-full bg-white shadow-sm" />
+            </button>
+          </div>
+
+          <div className="mt-4 border-t border-[#e5e7eb] pt-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-black text-[#8a928e]">เวลาเตือน</p>
+                <p className="mt-1 text-xs font-semibold text-[#8a928e]">เลือกเวลาที่ต้องการให้เตือน</p>
+              </div>
+              <RecurringTimePicker compact value={draft.reminder_time} onChange={(value) => setDraft((current) => ({ ...current, reminder_time: value }))} />
+            </div>
+          </div>
+
+          <div className="mt-4 border-t border-[#e5e7eb] pt-4">
+            <p className="text-sm font-black text-[#8a928e]">รูปแบบการเตือน</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {modeOptions.map((option) => {
+                const isActive = draft.reminder_mode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setDraft((current) => ({ ...current, reminder_mode: option.value }))}
+                    className={`min-h-12 rounded-md border px-3 text-sm font-black ${isActive ? "border-[#6DC5AD] bg-[#EAF8F4] text-[#0D4A2B]" : "border-black/10 bg-white text-[#8a928e]"}`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs font-semibold text-[#6b7280]">{modeOptions.find((option) => option.value === draft.reminder_mode)?.description}</p>
+          </div>
+        </section>
+
+        <section className="mt-6 space-y-3">
+          <h3 className="text-base font-black">วิธีการทำงาน</h3>
+          <ReminderHowItWorksStep step="1." title="ถึงเวลาที่ตั้งไว้" body="ระบบจะตรวจตามเวลาที่เลือกไว้ เช่น 18:00 น." />
+          <ReminderHowItWorksStep step="2." title="เงินไปไหนส่ง Flex message" body="กดปุ่ม จดเลย เพื่อเปิดแป้นพิมพ์ในแชทแล้วจดรายการได้ทันที" />
+          <ReminderHowItWorksStep step="3." title="เลือกได้ว่าจะเตือนแบบไหน" body="เตือนเฉพาะวันที่ยังไม่ได้จด หรือเตือนทุกวันตามเวลาที่ตั้ง" />
+        </section>
+
+        <div className="sticky bottom-0 -mx-5 mt-6 bg-white px-5 pb-1 pt-4">
+          <button type="button" disabled={saving} onClick={() => onSave(draft)} className="h-12 w-full rounded-md bg-[#6DC5AD] text-base font-black text-[#082f24] disabled:opacity-60">
+            {saving ? "กำลังบันทึก..." : "บันทึก"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReminderHowItWorksStep({ body, step, title }: { body: string; step: string; title: string }) {
+  return (
+    <div className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+      <div className="flex gap-3">
+        <p className="text-lg font-black text-[#151b18]">{step}</p>
+        <div>
+          <p className="text-sm font-black text-[#151b18]">{title}</p>
+          <p className="mt-1 text-sm leading-6 text-[#6b7280]">{body}</p>
+        </div>
       </div>
     </div>
   );
@@ -3744,6 +3926,36 @@ function BottomNav({ active }: { active: LiffTab }) {
       })}
     </nav>
   );
+}
+
+function dailyReminderStorageKey(lineUserId?: string) {
+  return lineUserId ? `moneytrack_daily_reminder_${lineUserId}` : "moneytrack_daily_reminder";
+}
+
+function loadStoredDailyReminderSettings(lineUserId?: string): DailyReminderSettingsInput {
+  const fallback: DailyReminderSettingsInput = { enabled: false, reminder_time: "18:00", reminder_mode: "missing_only" };
+  if (typeof window === "undefined") return fallback;
+  try {
+    const value = JSON.parse(window.localStorage.getItem(dailyReminderStorageKey(lineUserId)) ?? "null");
+    if (
+      value &&
+      typeof value.enabled === "boolean" &&
+      typeof value.reminder_time === "string" &&
+      /^\d{2}:\d{2}$/.test(value.reminder_time) &&
+      (value.reminder_mode === "missing_only" || value.reminder_mode === "daily")
+    ) {
+      return value;
+    }
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function saveStoredDailyReminderSettings(lineUserId: string | undefined, value: DailyReminderSettingsInput) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(dailyReminderStorageKey(lineUserId), JSON.stringify(value));
+  }
 }
 
 function recurringStorageKey(lineUserId?: string) {

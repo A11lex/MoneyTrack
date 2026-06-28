@@ -12,17 +12,20 @@ from .database import (
     create_transaction,
     delete_recurring_transaction,
     delete_transaction,
+    get_daily_reminder_settings,
     get_recurring_transaction,
     get_transaction,
     get_user_setup,
     list_recurring_transactions,
     list_transactions,
+    save_daily_reminder_settings,
     save_user_onboarding,
     seed_demo_data,
     update_recurring_transaction,
     update_transaction,
     upsert_line_user,
 )
+from .daily_reminder_service import run_due_daily_reminders
 from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
 from .line_adapter import handle_line_events
 from .line_client import link_user_rich_menu, send_line_push, send_line_reply
@@ -31,6 +34,8 @@ from .line_service import LineWebhookPayload, LineWebhookResponse, handle_line_m
 from .models import (
     EXPENSE_CATEGORIES,
     INCOME_CATEGORIES,
+    DailyReminderSettings,
+    DailyReminderSettingsUpdate,
     LineUserUpsert,
     OnboardingPayload,
     RecurringTransaction,
@@ -89,9 +94,12 @@ async def _recurring_worker_loop() -> None:
     interval_seconds = int(os.getenv("RECURRING_WORKER_INTERVAL_SECONDS", "60"))
     while True:
         try:
-            result = _run_due_recurring_and_push()
-            if result["processed_count"]:
-                logger.info("Recurring worker processed %s item(s)", result["processed_count"])
+            recurring_result = _run_due_recurring_and_push()
+            reminder_result = _run_due_daily_reminders_and_push()
+            if recurring_result["processed_count"]:
+                logger.info("Recurring worker processed %s item(s)", recurring_result["processed_count"])
+            if reminder_result["processed_count"]:
+                logger.info("Daily reminder worker pushed %s reminder(s)", reminder_result["processed_count"])
         except Exception:
             logger.exception("Recurring worker failed")
         await asyncio.sleep(max(interval_seconds, 10))
@@ -107,6 +115,18 @@ def _run_due_recurring_and_push() -> dict[str, Any]:
             logger.warning("Recurring item processed without LINE_CHANNEL_ACCESS_TOKEN; flex was not pushed")
 
     return run_due_recurring_transactions(push_message=push_message)
+
+
+def _run_due_daily_reminders_and_push() -> dict[str, Any]:
+    access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+
+    def push_message(line_user_id: str, line_message: dict[str, Any]) -> None:
+        if access_token:
+            send_line_push(line_user_id, line_message, access_token)
+        else:
+            logger.warning("Daily reminder processed without LINE_CHANNEL_ACCESS_TOKEN; flex was not pushed")
+
+    return run_due_daily_reminders(push_message=push_message)
 
 
 @app.get("/health")
@@ -198,6 +218,30 @@ def post_run_due_recurring_transactions(request: Request) -> dict[str, Any]:
             raise HTTPException(status_code=401, detail="Invalid cron secret")
 
     return _run_due_recurring_and_push()
+
+
+@app.get("/daily-reminder-settings", response_model=DailyReminderSettings)
+def get_daily_reminder_settings_endpoint(line_user_id: str) -> DailyReminderSettings:
+    settings = get_daily_reminder_settings(line_user_id)
+    if settings is not None:
+        return settings
+    return DailyReminderSettings(line_user_id=line_user_id, enabled=False, reminder_time="18:00", reminder_mode="missing_only")
+
+
+@app.put("/daily-reminder-settings", response_model=DailyReminderSettings)
+def put_daily_reminder_settings(line_user_id: str, payload: DailyReminderSettingsUpdate) -> DailyReminderSettings:
+    return save_daily_reminder_settings(line_user_id, payload)
+
+
+@app.post("/daily-reminders/run-due")
+def post_run_due_daily_reminders(request: Request) -> dict[str, Any]:
+    cron_secret = os.getenv("CRON_SECRET")
+    if cron_secret:
+        authorization = request.headers.get("Authorization", "")
+        if authorization != f"Bearer {cron_secret}":
+            raise HTTPException(status_code=401, detail="Invalid cron secret")
+
+    return _run_due_daily_reminders_and_push()
 
 
 @app.get("/dashboard")

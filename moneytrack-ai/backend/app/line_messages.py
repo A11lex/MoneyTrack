@@ -90,6 +90,58 @@ def build_category_budget_flex() -> dict[str, Any]:
     }
 
 
+def build_daily_record_reminder_flex() -> dict[str, Any]:
+    return {
+        "type": "flex",
+        "altText": "อย่าลืมนะ! ถึงเวลาจดรายรับรายจ่ายแล้ว",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "paddingAll": "18px",
+                "backgroundColor": BRAND["surface"],
+                "contents": [
+                    {
+                        "type": "box",
+                        "layout": "horizontal",
+                        "spacing": "md",
+                        "contents": [
+                            {
+                                "type": "image",
+                                "url": _frontend_url("/brand/moneytrack-pro.png"),
+                                "size": "lg",
+                                "aspectMode": "cover",
+                                "aspectRatio": "1:1",
+                                "flex": 0,
+                            },
+                            {
+                                "type": "box",
+                                "layout": "vertical",
+                                "spacing": "sm",
+                                "contents": [
+                                    _plain_text("อย่าลืมนะ!", "xl", BRAND["black"], weight="bold"),
+                                    _plain_text(
+                                        "หลานที่จดรายจ่ายทุกวัน มักจะควบคุมเงินได้ดีกว่าคนที่ไม่จดนะคะ",
+                                        "sm",
+                                        BRAND["muted"],
+                                        wrap=True,
+                                    ),
+                                ],
+                                "flex": 1,
+                            },
+                        ],
+                    }
+                ],
+            },
+            "footer": _single_keyboard_footer("จดเลย", BRAND["pink"]),
+        },
+    }
+
+
 def build_transaction_success_flex(
     transaction_id: int,
     transaction_type: str,

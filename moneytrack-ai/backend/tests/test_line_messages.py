@@ -4,6 +4,7 @@ from typing import Any
 from app.line_messages import (
     build_budget_alert_flex,
     build_category_budget_flex,
+    build_daily_record_reminder_flex,
     build_daily_summary_flex,
     build_monthly_summary_flex,
     build_quick_start_flex,
@@ -12,6 +13,22 @@ from app.line_messages import (
     build_transaction_success_flex,
     build_transaction_success_with_budget_flex,
 )
+
+
+def test_build_daily_record_reminder_flex_opens_keyboard() -> None:
+    message = build_daily_record_reminder_flex()
+
+    buttons = _buttons(message)
+    assert message["type"] == "flex"
+    assert message["altText"] == "อย่าลืมนะ! ถึงเวลาจดรายรับรายจ่ายแล้ว"
+    assert _find_text(message, "อย่าลืมนะ!") is True
+    assert _find_text(message, "ควบคุมเงินได้ดีกว่า") is True
+    assert buttons[0]["action"] == {
+        "type": "postback",
+        "label": "จดเลย",
+        "data": "open_record_keyboard",
+        "inputOption": "openKeyboard",
+    }
 
 
 def test_build_transaction_success_flex_matches_moneytrack_ci_and_links_to_frontend(monkeypatch) -> None:

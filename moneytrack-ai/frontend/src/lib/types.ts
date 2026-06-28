@@ -33,6 +33,18 @@ export type RecurringTransaction = {
 
 export type RecurringTransactionInput = Omit<RecurringTransaction, "id" | "line_user_id" | "last_run_date">;
 
+export type DailyReminderMode = "missing_only" | "daily";
+
+export type DailyReminderSettings = {
+  line_user_id: string;
+  enabled: boolean;
+  reminder_time: string;
+  reminder_mode: DailyReminderMode;
+  last_sent_date?: string | null;
+};
+
+export type DailyReminderSettingsInput = Pick<DailyReminderSettings, "enabled" | "reminder_time" | "reminder_mode">;
+
 export type Summary = {
   total_income: number;
   total_expense: number;

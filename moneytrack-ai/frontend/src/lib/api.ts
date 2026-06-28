@@ -1,5 +1,7 @@
 import type {
   DashboardData,
+  DailyReminderSettings,
+  DailyReminderSettingsInput,
   LineUserInput,
   LineUserSetup,
   OnboardingInput,
@@ -86,6 +88,17 @@ export function updateRecurringTransaction(id: number, payload: RecurringTransac
 
 export function deleteRecurringTransaction(id: number, lineUserId: string): Promise<void> {
   return request<void>(withLineUser(`/recurring-transactions/${id}`, lineUserId), { method: "DELETE" });
+}
+
+export function getDailyReminderSettings(lineUserId: string): Promise<DailyReminderSettings> {
+  return request<DailyReminderSettings>(withLineUser("/daily-reminder-settings", lineUserId));
+}
+
+export function saveDailyReminderSettings(lineUserId: string, payload: DailyReminderSettingsInput): Promise<DailyReminderSettings> {
+  return request<DailyReminderSettings>(withLineUser("/daily-reminder-settings", lineUserId), {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 export function runWhatIf(payload: WhatIfScenario, lineUserId?: string): Promise<WhatIfResult> {
