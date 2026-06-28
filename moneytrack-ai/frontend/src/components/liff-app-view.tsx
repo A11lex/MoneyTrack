@@ -67,6 +67,8 @@ type LineProfile = {
   picture_url: string | null;
 };
 
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
   { id: "summary", label: "สรุป", href: "/liff/summary", icon: Home },
   { id: "insights", label: "วิเคราะห์", href: "/liff/insights", icon: BarChart3 },
@@ -3727,7 +3729,7 @@ function dateWithClampedDay(year: number, monthIndex: number, day: number) {
 }
 
 async function loadLineProfile(): Promise<LineProfile> {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
   if (!liffId || typeof window === "undefined") {
     return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
   }

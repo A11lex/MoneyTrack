@@ -43,6 +43,8 @@ const mockProfile: LineProfile = {
   picture_url: null,
 };
 
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+
 type LiffProfile = {
   userId: string;
   displayName: string;
@@ -463,7 +465,7 @@ function customValues(options: { label: string }[], selected: string[]) {
 }
 
 async function loadLineProfile(): Promise<LineProfile> {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
   if (!liffId || typeof window === "undefined") {
     return mockProfile;
   }
