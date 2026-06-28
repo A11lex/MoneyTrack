@@ -4,6 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
+
+import {
   BarChart3,
   CalendarDays,
   Check,
@@ -297,8 +305,8 @@ function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData 
   const [expenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
   const [totalBudget] = useState(() => loadStoredTotalBudget());
   const categories = dashboard?.charts.expense_by_category ?? [];
-  const maxCategory = Math.max(1, ...categories.map((category) => category.amount));
   const expenseBudgetLimit = budgetMode === "total" ? totalBudget : Object.values(expenseBudgets).reduce((sum, value) => sum + value, 0);
+  const expenseComparison = useMemo(() => buildExpenseComparison(transactions), [transactions]);
 
   return (
     <div className="space-y-4">
@@ -325,11 +333,18 @@ function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData 
             <p className="text-xs font-bold text-[#8a928e]">จุดที่ใช้เงินเยอะ</p>
             <h2 className="mt-1 text-xl font-black">รายจ่ายตามหมวด</h2>
           </div>
-          {categories.length > 0 && <span className="text-xs font-bold text-[#8a928e]">Top 5</span>}
+          {categories.length > 0 && <span className="rounded-md bg-[#f4f7f5] px-2 py-1 text-xs font-bold text-[#6b756f]">สะสม</span>}
         </div>
-        <div className="mt-4 space-y-4">
-          {categories.length > 0 ? categories.slice(0, 5).map((item) => <CategoryBar key={item.category} label={displayCategory(item.category, "expense")} amount={item.amount} max={maxCategory} />) : <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />}
-        </div>
+        {categories.length > 0 ? (
+          <>
+            <ExpenseCategoryDonut categories={categories} />
+            <ExpenseComparePanel comparison={expenseComparison} />
+          </>
+        ) : (
+          <div className="mt-4">
+            <EmptyState title="ยังไม่มีรายจ่าย" body="เมื่อเริ่มจด ระบบจะแสดงหมวดที่ใช้เงินเยอะให้ทันที" />
+          </div>
+        )}
       </section>
     </div>
   );
@@ -2794,20 +2809,143 @@ function thaiMonthName(monthIndex: number) {
   return ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."][monthIndex] ?? "ม.ค.";
 }
 
-function CategoryBar({ label, amount, max }: { label: string; amount: number; max: number }) {
-  const percent = Math.round((amount / max) * 100);
+const expensePieColors = ["#DC143C", "#F06292", "#7B1E3A", "#6DC5AD", "#FFD335", "#344055", "#9AA1A0"];
+
+function ExpenseCategoryDonut({ categories }: { categories: { category: string; amount: number }[] }) {
+  const total = categories.reduce((sum, item) => sum + item.amount, 0);
+  const slices = categories.slice(0, 7).map((item, index) => ({
+    name: displayCategory(item.category, "expense"),
+    value: item.amount,
+    color: expensePieColors[index % expensePieColors.length],
+  }));
+  const top = slices[0];
+
   return (
-    <div>
-      <div className="flex justify-between gap-3 text-sm font-black">
-        <span>{label}</span>
-        <span className="text-[#DC143C]">{formatBaht(amount)}</span>
-      </div>
-      <div className="mt-2 flex items-center gap-3">
-        <div className="h-2 flex-1 rounded-full bg-[#edf4f2]">
-          <div className="h-2 rounded-full bg-[#6dc5ad]" style={{ width: `${Math.max(8, percent)}%` }} />
+    <div className="mt-5 grid gap-4 sm:grid-cols-[190px_1fr] sm:items-center">
+      <div className="relative mx-auto h-52 w-full max-w-64">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={slices} dataKey="value" nameKey="name" innerRadius="48%" outerRadius="82%" paddingAngle={2} stroke="#FFFFFF" strokeWidth={3}>
+              {slices.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip
+              formatter={(value, name) => [`${formatBaht(Number(value))} (${total > 0 ? Math.round((Number(value) / total) * 100) : 0}%)`, name]}
+              contentStyle={{ borderRadius: 8, border: "1px solid #E5E7EB", boxShadow: "0 10px 25px rgba(15, 23, 42, 0.12)", fontSize: 12 }}
+            />
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+          <div>
+            <p className="text-[11px] font-bold text-[#8a928e]">รวมรายจ่าย</p>
+            <p className="text-lg font-black text-[#151b18]">{formatBaht(total)}</p>
+          </div>
         </div>
-        <span className="w-9 text-right text-xs font-bold text-[#8a928e]">{percent}%</span>
       </div>
+      <div className="space-y-2">
+        {top && (
+          <div className="rounded-md border border-[#F5C6D0] bg-[#FCECEF] p-3">
+            <p className="text-xs font-bold text-[#8a5260]">หมวดที่ใช้เยอะสุด</p>
+            <div className="mt-1 flex items-end justify-between gap-3">
+              <p className="text-base font-black text-[#151b18]">{top.name}</p>
+              <p className="text-lg font-black text-[#DC143C]">{formatBaht(top.value)}</p>
+            </div>
+          </div>
+        )}
+        <div className="grid grid-cols-2 gap-2">
+          {slices.slice(0, 6).map((item) => (
+            <div key={item.name} className="flex min-w-0 items-center gap-2 rounded-md bg-[#f7f8f7] px-2 py-2">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} />
+              <span className="min-w-0 flex-1 truncate text-xs font-bold text-[#555f5b]">{item.name}</span>
+              <span className="text-xs font-black text-[#151b18]">{total > 0 ? Math.round((item.value / total) * 100) : 0}%</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type ExpenseComparison = {
+  currentExpense: number;
+  previousExpense: number;
+  change: number;
+  changePercent: number;
+  transactionCount: number;
+  averagePerTransaction: number;
+};
+
+function buildExpenseComparison(transactions: Transaction[]): ExpenseComparison {
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const previousMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const currentExpenses = transactions.filter((transaction) => {
+    const parsed = parseLocalDate(transaction.date);
+    return transaction.type === "expense" && parsed !== null && parsed >= currentMonthStart && parsed < nextMonthStart;
+  });
+  const previousExpenses = transactions.filter((transaction) => {
+    const parsed = parseLocalDate(transaction.date);
+    return transaction.type === "expense" && parsed !== null && parsed >= previousMonthStart && parsed < currentMonthStart;
+  });
+
+  const currentExpense = currentExpenses.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const previousExpense = previousExpenses.reduce((sum, transaction) => sum + transaction.amount, 0);
+  const change = currentExpense - previousExpense;
+
+  return {
+    currentExpense,
+    previousExpense,
+    change,
+    changePercent: previousExpense > 0 ? (change / previousExpense) * 100 : 0,
+    transactionCount: currentExpenses.length,
+    averagePerTransaction: currentExpenses.length > 0 ? currentExpense / currentExpenses.length : 0,
+  };
+}
+
+function ExpenseComparePanel({ comparison }: { comparison: ExpenseComparison }) {
+  const isHigher = comparison.change > 0;
+  const changeLabel = comparison.previousExpense > 0 ? `${isHigher ? "+" : ""}${comparison.changePercent.toFixed(1)}%` : "เดือนแรก";
+
+  return (
+    <div className="mt-5">
+      <h3 className="text-base font-black text-[#151b18]">เทียบรายจ่าย</h3>
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <ExpenseCompareCard label="เดือนนี้" value={comparison.currentExpense} helper={`${comparison.transactionCount} รายการ`} tone="primary" />
+        <ExpenseCompareCard label="เดือนก่อน" value={comparison.previousExpense} helper={comparison.previousExpense > 0 ? `ต่าง ${formatBaht(Math.abs(comparison.change))}` : "ยังไม่มีข้อมูล"} tone="muted" />
+        <ExpenseCompareCard label="การเปลี่ยนแปลง" textValue={changeLabel} helper={isHigher ? "ใช้มากขึ้น" : comparison.change < 0 ? "ใช้ลดลง" : "ใกล้เคียงเดิม"} tone={isHigher ? "danger" : "good"} />
+        <ExpenseCompareCard label="เฉลี่ยต่อรายการ" value={comparison.averagePerTransaction} helper="ดูความหนักของแต่ละจ่าย" tone="muted" />
+      </div>
+    </div>
+  );
+}
+
+function ExpenseCompareCard({
+  helper,
+  label,
+  textValue,
+  tone,
+  value,
+}: {
+  helper: string;
+  label: string;
+  textValue?: string;
+  tone: "primary" | "muted" | "danger" | "good";
+  value?: number;
+}) {
+  const toneClass = {
+    primary: "border-[#F5C6D0] bg-[#FCECEF] text-[#DC143C]",
+    muted: "border-black/10 bg-white text-[#151b18]",
+    danger: "border-[#F5C6D0] bg-[#FCECEF] text-[#DC143C]",
+    good: "border-[#c9eee5] bg-[#EAF8F4] text-[#0d4a2b]",
+  }[tone];
+  return (
+    <div className={`rounded-md border p-3 shadow-sm ${toneClass}`}>
+      <p className="text-[11px] font-bold text-[#6b756f]">{label}</p>
+      <p className="mt-1 truncate text-lg font-black">{textValue ?? formatBaht(value ?? 0)}</p>
+      <p className="mt-1 min-h-8 text-[11px] font-semibold leading-snug text-[#7a817d]">{helper}</p>
     </div>
   );
 }
