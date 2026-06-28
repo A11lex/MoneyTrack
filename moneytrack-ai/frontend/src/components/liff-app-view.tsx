@@ -1447,6 +1447,8 @@ function RecurringTransactionsScreen({
 }) {
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createInitialDate, setCreateInitialDate] = useState<string | undefined>(undefined);
+  const [pendingDeleteItem, setPendingDeleteItem] = useState<RecurringItem | null>(null);
   const [notifyTime, setNotifyTime] = useState(() => items[0]?.notifyTime ?? "10:00");
   const [viewMonth, setViewMonth] = useState(() => {
     const today = new Date();
@@ -1460,11 +1462,32 @@ function RecurringTransactionsScreen({
     onChange([item, ...items]);
     setNotifyTime(item.notifyTime);
     setShowCreateModal(false);
+    setCreateInitialDate(undefined);
   }
 
   function removeItem(id: string) {
     onChange(items.filter((item) => item.id !== id));
+    setPendingDeleteItem(null);
   }
+
+  function openCreateModal(date?: string) {
+    setCreateInitialDate(date);
+    setShowCreateModal(true);
+  }
+
+  function closeCreateModal() {
+    setCreateInitialDate(undefined);
+    setShowCreateModal(false);
+  }
+
+  function changeNotifyTime(nextTime: string) {
+    setNotifyTime(nextTime);
+    if (items.length > 0) {
+      onChange(items.map((item) => ({ ...item, notifyTime: nextTime })));
+    }
+  }
+
+  const isCurrentMonthView = viewMonth.getFullYear() === new Date().getFullYear() && viewMonth.getMonth() === new Date().getMonth();
 
   return (
     <div className="space-y-5 pb-8">
@@ -1483,7 +1506,7 @@ function RecurringTransactionsScreen({
         <RecurringStat label="รายจ่ายเฉลี่ยต่อเดือน" amount={monthlyExpense} count={items.filter((item) => item.type === "expense").length} tone="expense" />
         <RecurringStat label="รายรับเฉลี่ยต่อเดือน" amount={monthlyIncome} count={items.filter((item) => item.type === "income").length} tone="income" />
         <div className="text-right">
-          <button type="button" onClick={() => setShowCreateModal(true)} className="h-11 rounded-md bg-[#DC143C] px-4 text-sm font-black text-white shadow-sm">
+          <button type="button" onClick={() => openCreateModal()} className="h-11 rounded-md bg-[#DC143C] px-4 text-sm font-black text-white shadow-sm">
             เพิ่มรายการ
           </button>
           <p className="mt-2 text-xs font-semibold text-[#8a928e]">เหลืออีก {Math.max(0, 20 - items.length)} รายการ</p>
@@ -1496,11 +1519,7 @@ function RecurringTransactionsScreen({
             <h2 className="text-lg font-black text-[#1f2a44]">เวลาจด</h2>
             <p className="mt-2 text-xs font-semibold leading-relaxed text-[#4b5563]">เมื่อถึงเวลาที่ตั้ง ระบบจะจดรายการที่ถูกกำหนดไว้สำหรับวันนั้นและส่งข้อความให้ในแชท</p>
           </div>
-          <select value={notifyTime} onChange={(event) => setNotifyTime(event.target.value)} className="h-11 rounded-md border border-black/10 bg-white px-3 text-sm font-black shadow-sm">
-            {["06:00", "08:00", "10:00", "12:00", "18:00", "20:00", "22:00"].map((time) => (
-              <option key={time} value={time}>{formatNotifyTime(time)}</option>
-            ))}
-          </select>
+          <RecurringTimePicker value={notifyTime} onChange={changeNotifyTime} compact />
         </div>
       </section>
 
@@ -1517,7 +1536,14 @@ function RecurringTransactionsScreen({
             <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))} aria-label="เดือนก่อนหน้า" className="grid h-9 w-9 place-items-center rounded-md">
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <p className="text-base font-black text-[#1f2a44]">{viewMonth.toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</p>
+            <div className="text-center">
+              <p className="text-base font-black text-[#1f2a44]">{viewMonth.toLocaleDateString("th-TH", { month: "long", year: "numeric" })}</p>
+              {!isCurrentMonthView && (
+                <button type="button" onClick={() => setViewMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))} className="mt-1 text-xs font-black text-[#DC143C]">
+                  กลับเดือนปัจจุบัน
+                </button>
+              )}
+            </div>
             <button type="button" onClick={() => setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))} aria-label="เดือนถัดไป" className="grid h-9 w-9 place-items-center rounded-md">
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -1532,7 +1558,7 @@ function RecurringTransactionsScreen({
               const isCurrentMonth = day.date.getMonth() === viewMonth.getMonth();
               const isToday = dateValue === todayInputValue();
               return (
-                <div key={dateValue} className={`min-h-16 rounded-md p-1.5 text-xs font-bold ${isCurrentMonth ? "bg-[#eef3f8] text-[#111827]" : "bg-[#f7f8f7] text-[#9aa1a0]"} ${isToday ? "border border-[#DC143C] bg-[#FCECEF]" : ""}`}>
+                <button key={dateValue} type="button" onClick={() => openCreateModal(dateValue)} className={`min-h-16 rounded-md p-1.5 text-left text-xs font-bold ${isCurrentMonth ? "bg-[#eef3f8] text-[#111827]" : "bg-[#f7f8f7] text-[#9aa1a0]"} ${isToday ? "border border-[#DC143C] bg-[#FCECEF]" : ""}`}>
                   <span>{day.date.getDate()}</span>
                   <div className="mt-1 space-y-1">
                     {dayItems.slice(0, 2).map((item) => (
@@ -1542,13 +1568,13 @@ function RecurringTransactionsScreen({
                     ))}
                     {dayItems.length > 2 && <span className="block text-[10px] text-[#64748b]">+{dayItems.length - 2}</span>}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
         </section>
       ) : items.length > 0 ? (
-        <RecurringList items={items} onDelete={removeItem} />
+        <RecurringList items={items} onDelete={(item) => setPendingDeleteItem(item)} />
       ) : (
         <div className="py-16 text-center text-sm font-semibold text-[#6b7280]">ยังไม่มีรายการจดประจำ</div>
       )}
@@ -1556,8 +1582,18 @@ function RecurringTransactionsScreen({
       {showCreateModal && (
         <RecurringItemModal
           defaultNotifyTime={notifyTime}
-          onClose={() => setShowCreateModal(false)}
+          initialDate={createInitialDate}
+          onClose={closeCreateModal}
           onSave={addItem}
+        />
+      )}
+      {pendingDeleteItem && (
+        <ConfirmDeleteDialog
+          title="ยืนยันการลบรายการจดประจำ"
+          body={`คุณต้องการลบ "${pendingDeleteItem.description}" ใช่หรือไม่?`}
+          confirmLabel="ลบรายการ"
+          onCancel={() => setPendingDeleteItem(null)}
+          onConfirm={() => removeItem(pendingDeleteItem.id)}
         />
       )}
     </div>
@@ -1574,7 +1610,32 @@ function RecurringStat({ amount, count, label, tone }: { amount: number; count: 
   );
 }
 
-function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: (id: string) => void }) {
+function RecurringTimePicker({ compact = false, onChange, value }: { compact?: boolean; onChange: (value: string) => void; value: string }) {
+  const [hour = "00", minute = "00"] = value.split(":");
+
+  function update(nextHour: string, nextMinute: string) {
+    onChange(`${nextHour.padStart(2, "0")}:${nextMinute.padStart(2, "0")}`);
+  }
+
+  return (
+    <div className={`flex items-center gap-2 ${compact ? "shrink-0" : "mt-2"}`}>
+      <select value={hour.padStart(2, "0")} onChange={(event) => update(event.target.value, minute)} className={`${compact ? "h-11 w-20 text-sm" : "h-11 flex-1 text-base"} rounded-md border border-black/10 bg-white px-3 font-black shadow-sm outline-none focus:border-[#6DC5AD]`}>
+        {Array.from({ length: 24 }, (_, index) => String(index).padStart(2, "0")).map((item) => (
+          <option key={item} value={item}>{item}</option>
+        ))}
+      </select>
+      <span className="text-sm font-black text-[#8a928e]">:</span>
+      <select value={minute.padStart(2, "0")} onChange={(event) => update(hour, event.target.value)} className={`${compact ? "h-11 w-20 text-sm" : "h-11 flex-1 text-base"} rounded-md border border-black/10 bg-white px-3 font-black shadow-sm outline-none focus:border-[#6DC5AD]`}>
+        {Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0")).map((item) => (
+          <option key={item} value={item}>{item}</option>
+        ))}
+      </select>
+      <span className="text-sm font-black text-[#8a928e]">น.</span>
+    </div>
+  );
+}
+
+function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: (item: RecurringItem) => void }) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
@@ -1590,7 +1651,7 @@ function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: 
             </div>
             <div className="shrink-0 text-right">
               <p className={`text-base font-black ${item.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>{formatBaht(item.amount)}</p>
-              <button type="button" onClick={() => onDelete(item.id)} className="mt-2 text-xs font-black text-[#8a928e]">ลบ</button>
+              <button type="button" onClick={() => onDelete(item)} className="mt-2 text-xs font-black text-[#8a928e]">ลบ</button>
             </div>
           </div>
         </div>
@@ -1601,21 +1662,24 @@ function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: 
 
 function RecurringItemModal({
   defaultNotifyTime,
+  initialDate,
   onClose,
   onSave,
 }: {
   defaultNotifyTime: string;
+  initialDate?: string;
   onClose: () => void;
   onSave: (item: RecurringItem) => void;
 }) {
+  const initial = parseLocalDate(initialDate ?? "") ?? new Date();
   const [type, setType] = useState<"expense" | "income">("expense");
   const [category, setCategory] = useState(() => transactionCategories("expense")[0] ?? "อื่นๆ");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [interval, setInterval] = useState<RecurringInterval>("monthly");
-  const [dayOfWeek, setDayOfWeek] = useState(1);
-  const [dayOfMonth, setDayOfMonth] = useState(new Date().getDate());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [dayOfWeek, setDayOfWeek] = useState(initial.getDay());
+  const [dayOfMonth, setDayOfMonth] = useState(initial.getDate());
+  const [month, setMonth] = useState(initial.getMonth() + 1);
   const [notifyTime, setNotifyTime] = useState(defaultNotifyTime);
   const categories = transactionCategories(type);
   const canSave = description.trim() && Number(amount) > 0 && category;
@@ -1713,9 +1777,7 @@ function RecurringItemModal({
           )}
           <label className="block">
             <span className="text-base font-black">เวลาจด</span>
-            <select value={notifyTime} onChange={(event) => setNotifyTime(event.target.value)} className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]">
-              {["06:00", "08:00", "10:00", "12:00", "18:00", "20:00", "22:00"].map((time) => <option key={time} value={time}>{formatNotifyTime(time)}</option>)}
-            </select>
+            <RecurringTimePicker value={notifyTime} onChange={setNotifyTime} />
           </label>
           <button type="submit" disabled={!canSave} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:opacity-50">บันทึก</button>
         </form>
@@ -3006,11 +3068,6 @@ function recurringLabel(item: RecurringItem) {
   if (item.interval === "monthly") return `ทุกเดือน วันที่ ${item.dayOfMonth ?? 1}`;
   const monthLabel = new Date(2026, (item.month ?? 1) - 1, 1).toLocaleDateString("th-TH", { month: "short" });
   return `ทุกปี ${item.dayOfMonth ?? 1} ${monthLabel}`;
-}
-
-function formatNotifyTime(value: string) {
-  const [hour = "00", minute = "00"] = value.split(":");
-  return `${Number(hour).toLocaleString("th-TH", { minimumIntegerDigits: 2 })}.${minute} น.`;
 }
 
 function loadStoredUserPlan(): UserPlan {
