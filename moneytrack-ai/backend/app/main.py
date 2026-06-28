@@ -1,5 +1,7 @@
-import os
 import logging
+import asyncio
+import os
+from contextlib import suppress
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -68,8 +70,43 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
     seed_demo_data()
+    if os.getenv("ENABLE_RECURRING_WORKER", "1") != "0":
+        app.state.recurring_worker_task = asyncio.create_task(_recurring_worker_loop())
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    task = getattr(app.state, "recurring_worker_task", None)
+    if task is not None:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
+
+async def _recurring_worker_loop() -> None:
+    interval_seconds = int(os.getenv("RECURRING_WORKER_INTERVAL_SECONDS", "60"))
+    while True:
+        try:
+            result = _run_due_recurring_and_push()
+            if result["processed_count"]:
+                logger.info("Recurring worker processed %s item(s)", result["processed_count"])
+        except Exception:
+            logger.exception("Recurring worker failed")
+        await asyncio.sleep(max(interval_seconds, 10))
+
+
+def _run_due_recurring_and_push() -> dict[str, Any]:
+    access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+
+    def push_message(line_user_id: str, line_message: dict[str, Any]) -> None:
+        if access_token:
+            send_line_push(line_user_id, line_message, access_token)
+        else:
+            logger.warning("Recurring item processed without LINE_CHANNEL_ACCESS_TOKEN; flex was not pushed")
+
+    return run_due_recurring_transactions(push_message=push_message)
 
 
 @app.get("/health")
@@ -160,13 +197,7 @@ def post_run_due_recurring_transactions(request: Request) -> dict[str, Any]:
         if authorization != f"Bearer {cron_secret}":
             raise HTTPException(status_code=401, detail="Invalid cron secret")
 
-    access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
-
-    def push_message(line_user_id: str, line_message: dict[str, Any]) -> None:
-        if access_token:
-            send_line_push(line_user_id, line_message, access_token)
-
-    return run_due_recurring_transactions(push_message=push_message)
+    return _run_due_recurring_and_push()
 
 
 @app.get("/dashboard")
