@@ -12,12 +12,15 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "assets" / "rich-menu"
 OUTPUT_DIR = ROOT / ".generated" / "rich-menu"
 MAX_IMAGE_BYTES = 1_000_000
+DEFAULT_LIFF_ID = "2010521304-BrGvBhsP"
+OLD_LOWERCASE_LIFF_ID = "2010521304-BrGvBhsp"
 
 
 def main() -> None:
     access_token = required_env("LINE_CHANNEL_ACCESS_TOKEN")
-    liff_url = os.getenv("LIFF_ONBOARDING_URL") or liff_url_from_id(required_env("NEXT_PUBLIC_LIFF_ID"))
-    main_liff_url = os.getenv("LIFF_MAIN_URL_BASE") or liff_url
+    liff_id = normalized_liff_id(os.getenv("NEXT_PUBLIC_LIFF_ID", DEFAULT_LIFF_ID))
+    liff_url = os.getenv("LIFF_ONBOARDING_URL") or liff_url_from_id(liff_id)
+    main_liff_url = resolve_main_app_base_url(liff_url)
 
     start_image = prepare_image(ASSET_DIR / "ListMenuStart.png")
     main_image = prepare_image(ASSET_DIR / "ListMenuMain.png")
@@ -48,8 +51,23 @@ def required_env(name: str) -> str:
     return value
 
 
+def normalized_liff_id(value: str) -> str:
+    if value == OLD_LOWERCASE_LIFF_ID:
+        return DEFAULT_LIFF_ID
+    return value
+
+
 def liff_url_from_id(liff_id: str) -> str:
     return f"https://liff.line.me/{liff_id}"
+
+
+def resolve_main_app_base_url(default_liff_url: str) -> str:
+    return (
+        os.getenv("LIFF_MAIN_URL_BASE")
+        or os.getenv("LIFF_APP_BASE_URL")
+        or os.getenv("FRONTEND_ORIGIN")
+        or default_liff_url
+    ).rstrip("/")
 
 
 class PreparedImage:
