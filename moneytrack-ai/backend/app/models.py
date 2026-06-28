@@ -51,6 +51,33 @@ class Transaction(TransactionBase):
     id: int
 
 
+class RecurringTransactionBase(BaseModel):
+    type: TransactionType
+    amount: float = Field(gt=0)
+    category: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=240)
+    mode: TransactionMode
+    interval: Literal["daily", "weekly", "monthly", "yearly"] = "monthly"
+    day_of_week: int | None = Field(default=None, ge=0, le=6)
+    day_of_month: int | None = Field(default=None, ge=1, le=31)
+    month: int | None = Field(default=None, ge=1, le=12)
+    notify_time: str = Field(pattern=r"^\d{2}:\d{2}$")
+
+
+class RecurringTransactionCreate(RecurringTransactionBase):
+    pass
+
+
+class RecurringTransactionUpdate(RecurringTransactionBase):
+    pass
+
+
+class RecurringTransaction(RecurringTransactionBase):
+    id: int
+    line_user_id: str
+    last_run_date: date | None = None
+
+
 class LineUserUpsert(BaseModel):
     line_user_id: str = Field(min_length=1, max_length=120)
     display_name: str = Field(default="", max_length=120)

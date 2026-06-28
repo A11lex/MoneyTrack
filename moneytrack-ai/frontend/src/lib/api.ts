@@ -3,6 +3,8 @@ import type {
   LineUserInput,
   LineUserSetup,
   OnboardingInput,
+  RecurringTransaction,
+  RecurringTransactionInput,
   Transaction,
   TransactionInput,
   WhatIfResult,
@@ -62,6 +64,28 @@ export function updateTransaction(id: number, payload: TransactionInput, lineUse
 
 export function deleteTransaction(id: number, lineUserId?: string): Promise<void> {
   return request<void>(withLineUser(`/transactions/${id}`, lineUserId), { method: "DELETE" });
+}
+
+export function getRecurringTransactions(lineUserId: string): Promise<RecurringTransaction[]> {
+  return request<RecurringTransaction[]>(withLineUser("/recurring-transactions", lineUserId));
+}
+
+export function createRecurringTransaction(payload: RecurringTransactionInput, lineUserId: string): Promise<RecurringTransaction> {
+  return request<RecurringTransaction>(withLineUser("/recurring-transactions", lineUserId), {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateRecurringTransaction(id: number, payload: RecurringTransactionInput, lineUserId: string): Promise<RecurringTransaction> {
+  return request<RecurringTransaction>(withLineUser(`/recurring-transactions/${id}`, lineUserId), {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteRecurringTransaction(id: number, lineUserId: string): Promise<void> {
+  return request<void>(withLineUser(`/recurring-transactions/${id}`, lineUserId), { method: "DELETE" });
 }
 
 export function runWhatIf(payload: WhatIfScenario, lineUserId?: string): Promise<WhatIfResult> {

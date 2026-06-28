@@ -20,8 +20,20 @@ import {
   X,
 } from "lucide-react";
 
-import { createTransaction, deleteTransaction, getDashboard, getTransactions, saveLineUserOnboarding, updateTransaction, upsertLineUser } from "@/lib/api";
-import type { DashboardData, Transaction, TransactionInput } from "@/lib/types";
+import {
+  createRecurringTransaction,
+  createTransaction,
+  deleteRecurringTransaction,
+  deleteTransaction,
+  getDashboard,
+  getRecurringTransactions,
+  getTransactions,
+  saveLineUserOnboarding,
+  updateRecurringTransaction,
+  updateTransaction,
+  upsertLineUser,
+} from "@/lib/api";
+import type { DashboardData, RecurringTransactionInput, Transaction, TransactionInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 type UserPlan = "free" | "pro";
@@ -29,7 +41,7 @@ type BudgetMode = "category" | "total";
 type BudgetCycle = "daily" | "weekly" | "monthly";
 type RecurringInterval = "daily" | "weekly" | "monthly" | "yearly";
 type RecurringItem = {
-  id: string;
+  id: number | string;
   type: "expense" | "income";
   amount: number;
   category: string;
@@ -1139,6 +1151,8 @@ function TransactionsScreen({
   const [bulkError, setBulkError] = useState("");
   const [showRecurringScreen, setShowRecurringScreen] = useState(false);
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(() => loadStoredRecurringItems(lineUserId));
+  const [recurringSaving, setRecurringSaving] = useState(false);
+  const [recurringError, setRecurringError] = useState("");
   const typeButtons: { value: "all" | "expense" | "income"; label: string }[] = [
     { value: "all", label: "ทั้งหมด" },
     { value: "expense", label: "รายจ่าย" },
@@ -1176,9 +1190,92 @@ function TransactionsScreen({
   );
   const allVisibleSelected = filteredTransactions.length > 0 && filteredTransactions.every((transaction) => selectedIdSet.has(transaction.id));
 
-  function saveRecurringItems(nextItems: RecurringItem[]) {
+  useEffect(() => {
+    if (!lineUserId) return;
+    let mounted = true;
+    getRecurringTransactions(lineUserId)
+      .then((items) => {
+        if (!mounted) return;
+        const mapped = items.map(apiRecurringToItem);
+        setRecurringItems(mapped);
+        saveStoredRecurringItems(lineUserId, mapped);
+      })
+      .catch(() => {
+        if (mounted) setRecurringError("โหลดรายการจดประจำไม่สำเร็จ");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [lineUserId]);
+
+  function persistRecurringItems(nextItems: RecurringItem[]) {
     setRecurringItems(nextItems);
     saveStoredRecurringItems(lineUserId, nextItems);
+  }
+
+  async function createRecurringItem(item: RecurringItem) {
+    if (!lineUserId) return;
+    setRecurringSaving(true);
+    setRecurringError("");
+    try {
+      const created = await createRecurringTransaction(itemToApiRecurringInput(item), lineUserId);
+      persistRecurringItems([apiRecurringToItem(created), ...recurringItems]);
+    } catch {
+      setRecurringError("บันทึกรายการจดประจำไม่สำเร็จ");
+    } finally {
+      setRecurringSaving(false);
+    }
+  }
+
+  async function updateRecurringItem(item: RecurringItem) {
+    if (!lineUserId || typeof item.id !== "number") return;
+    setRecurringSaving(true);
+    setRecurringError("");
+    try {
+      const updated = await updateRecurringTransaction(item.id, itemToApiRecurringInput(item), lineUserId);
+      persistRecurringItems(recurringItems.map((current) => (current.id === item.id ? apiRecurringToItem(updated) : current)));
+    } catch {
+      setRecurringError("แก้ไขรายการจดประจำไม่สำเร็จ");
+    } finally {
+      setRecurringSaving(false);
+    }
+  }
+
+  async function removeRecurringItem(item: RecurringItem) {
+    if (!lineUserId || typeof item.id !== "number") {
+      persistRecurringItems(recurringItems.filter((current) => current.id !== item.id));
+      return;
+    }
+    setRecurringSaving(true);
+    setRecurringError("");
+    try {
+      await deleteRecurringTransaction(item.id, lineUserId);
+      persistRecurringItems(recurringItems.filter((current) => current.id !== item.id));
+    } catch {
+      setRecurringError("ลบรายการจดประจำไม่สำเร็จ");
+    } finally {
+      setRecurringSaving(false);
+    }
+  }
+
+  async function updateRecurringItems(nextItems: RecurringItem[]) {
+    if (!lineUserId) return;
+    setRecurringSaving(true);
+    setRecurringError("");
+    try {
+      const updated = await Promise.all(
+        nextItems.map((item) =>
+          typeof item.id === "number"
+            ? updateRecurringTransaction(item.id, itemToApiRecurringInput(item), lineUserId).then(apiRecurringToItem)
+            : Promise.resolve(item),
+        ),
+      );
+      persistRecurringItems(updated);
+    } catch {
+      setRecurringError("อัปเดตรายการจดประจำไม่สำเร็จ");
+    } finally {
+      setRecurringSaving(false);
+    }
   }
 
   function selectType(value: "all" | "expense" | "income") {
@@ -1295,7 +1392,12 @@ function TransactionsScreen({
       <RecurringTransactionsScreen
         items={recurringItems}
         onBack={() => setShowRecurringScreen(false)}
-        onChange={saveRecurringItems}
+        error={recurringError}
+        saving={recurringSaving}
+        onCreate={(item) => void createRecurringItem(item)}
+        onDelete={(item) => void removeRecurringItem(item)}
+        onUpdate={(item) => void updateRecurringItem(item)}
+        onUpdateMany={(items) => void updateRecurringItems(items)}
       />
     );
   }
@@ -1437,17 +1539,28 @@ function TransactionsScreen({
 }
 
 function RecurringTransactionsScreen({
+  error,
   items,
   onBack,
-  onChange,
+  onCreate,
+  onDelete,
+  onUpdate,
+  onUpdateMany,
+  saving,
 }: {
+  error: string;
   items: RecurringItem[];
   onBack: () => void;
-  onChange: (items: RecurringItem[]) => void;
+  onCreate: (item: RecurringItem) => void;
+  onDelete: (item: RecurringItem) => void;
+  onUpdate: (item: RecurringItem) => void;
+  onUpdateMany: (items: RecurringItem[]) => void;
+  saving: boolean;
 }) {
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createInitialDate, setCreateInitialDate] = useState<string | undefined>(undefined);
+  const [editingItem, setEditingItem] = useState<RecurringItem | null>(null);
   const [pendingDeleteItem, setPendingDeleteItem] = useState<RecurringItem | null>(null);
   const [notifyTime, setNotifyTime] = useState(() => items[0]?.notifyTime ?? "10:00");
   const [viewMonth, setViewMonth] = useState(() => {
@@ -1459,14 +1572,20 @@ function RecurringTransactionsScreen({
   const calendarDays = calendarGridDays(viewMonth);
 
   function addItem(item: RecurringItem) {
-    onChange([item, ...items]);
+    onCreate(item);
     setNotifyTime(item.notifyTime);
     setShowCreateModal(false);
     setCreateInitialDate(undefined);
   }
 
-  function removeItem(id: string) {
-    onChange(items.filter((item) => item.id !== id));
+  function editItem(item: RecurringItem) {
+    onUpdate(item);
+    setNotifyTime(item.notifyTime);
+    setEditingItem(null);
+  }
+
+  function removeItem(item: RecurringItem) {
+    onDelete(item);
     setPendingDeleteItem(null);
   }
 
@@ -1483,7 +1602,7 @@ function RecurringTransactionsScreen({
   function changeNotifyTime(nextTime: string) {
     setNotifyTime(nextTime);
     if (items.length > 0) {
-      onChange(items.map((item) => ({ ...item, notifyTime: nextTime })));
+      onUpdateMany(items.map((item) => ({ ...item, notifyTime: nextTime })));
     }
   }
 
@@ -1501,6 +1620,7 @@ function RecurringTransactionsScreen({
         </div>
         <span className="h-9 w-9 shrink-0" />
       </div>
+      {error && <p className="rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
 
       <section className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 rounded-md border border-black/10 bg-white p-3 shadow-sm">
         <RecurringStat label="รายจ่ายเฉลี่ยต่อเดือน" amount={monthlyExpense} count={items.filter((item) => item.type === "expense").length} tone="expense" />
@@ -1574,7 +1694,7 @@ function RecurringTransactionsScreen({
           </div>
         </section>
       ) : items.length > 0 ? (
-        <RecurringList items={items} onDelete={(item) => setPendingDeleteItem(item)} />
+        <RecurringList items={items} onDelete={(item) => setPendingDeleteItem(item)} onEdit={(item) => setEditingItem(item)} />
       ) : (
         <div className="py-16 text-center text-sm font-semibold text-[#6b7280]">ยังไม่มีรายการจดประจำ</div>
       )}
@@ -1585,6 +1705,16 @@ function RecurringTransactionsScreen({
           initialDate={createInitialDate}
           onClose={closeCreateModal}
           onSave={addItem}
+          saving={saving}
+        />
+      )}
+      {editingItem && (
+        <RecurringItemModal
+          defaultNotifyTime={notifyTime}
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={editItem}
+          saving={saving}
         />
       )}
       {pendingDeleteItem && (
@@ -1593,7 +1723,8 @@ function RecurringTransactionsScreen({
           body={`คุณต้องการลบ "${pendingDeleteItem.description}" ใช่หรือไม่?`}
           confirmLabel="ลบรายการ"
           onCancel={() => setPendingDeleteItem(null)}
-          onConfirm={() => removeItem(pendingDeleteItem.id)}
+          confirming={saving}
+          onConfirm={() => removeItem(pendingDeleteItem)}
         />
       )}
     </div>
@@ -1635,11 +1766,11 @@ function RecurringTimePicker({ compact = false, onChange, value }: { compact?: b
   );
 }
 
-function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: (item: RecurringItem) => void }) {
+function RecurringList({ items, onDelete, onEdit }: { items: RecurringItem[]; onDelete: (item: RecurringItem) => void; onEdit: (item: RecurringItem) => void }) {
   return (
     <div className="space-y-3">
       {items.map((item) => (
-        <div key={item.id} className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
+        <div key={item.id} role="button" tabIndex={0} onClick={() => onEdit(item)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onEdit(item); }} className="rounded-md border border-black/10 bg-white p-3 shadow-sm transition hover:border-[#6DC5AD]">
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-base font-black text-[#151b18]">{item.description}</p>
@@ -1651,7 +1782,7 @@ function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: 
             </div>
             <div className="shrink-0 text-right">
               <p className={`text-base font-black ${item.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>{formatBaht(item.amount)}</p>
-              <button type="button" onClick={() => onDelete(item)} className="mt-2 text-xs font-black text-[#8a928e]">ลบ</button>
+              <button type="button" onClick={(event) => { event.stopPropagation(); onDelete(item); }} className="mt-2 text-xs font-black text-[#8a928e]">ลบ</button>
             </div>
           </div>
         </div>
@@ -1663,24 +1794,28 @@ function RecurringList({ items, onDelete }: { items: RecurringItem[]; onDelete: 
 function RecurringItemModal({
   defaultNotifyTime,
   initialDate,
+  item,
   onClose,
   onSave,
+  saving = false,
 }: {
   defaultNotifyTime: string;
   initialDate?: string;
+  item?: RecurringItem;
   onClose: () => void;
   onSave: (item: RecurringItem) => void;
+  saving?: boolean;
 }) {
   const initial = parseLocalDate(initialDate ?? "") ?? new Date();
-  const [type, setType] = useState<"expense" | "income">("expense");
-  const [category, setCategory] = useState(() => transactionCategories("expense")[0] ?? "อื่นๆ");
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [interval, setInterval] = useState<RecurringInterval>("monthly");
-  const [dayOfWeek, setDayOfWeek] = useState(initial.getDay());
-  const [dayOfMonth, setDayOfMonth] = useState(initial.getDate());
-  const [month, setMonth] = useState(initial.getMonth() + 1);
-  const [notifyTime, setNotifyTime] = useState(defaultNotifyTime);
+  const [type, setType] = useState<"expense" | "income">(item?.type ?? "expense");
+  const [category, setCategory] = useState(() => item?.category ?? transactionCategories("expense")[0] ?? "อื่นๆ");
+  const [description, setDescription] = useState(item?.description ?? "");
+  const [amount, setAmount] = useState(item ? String(item.amount) : "");
+  const [interval, setInterval] = useState<RecurringInterval>(item?.interval ?? "monthly");
+  const [dayOfWeek, setDayOfWeek] = useState(item?.dayOfWeek ?? initial.getDay());
+  const [dayOfMonth, setDayOfMonth] = useState(item?.dayOfMonth ?? initial.getDate());
+  const [month, setMonth] = useState(item?.month ?? initial.getMonth() + 1);
+  const [notifyTime, setNotifyTime] = useState(item?.notifyTime ?? defaultNotifyTime);
   const categories = transactionCategories(type);
   const canSave = description.trim() && Number(amount) > 0 && category;
 
@@ -1692,7 +1827,7 @@ function RecurringItemModal({
   function save() {
     if (!canSave) return;
     onSave({
-      id: crypto.randomUUID(),
+      id: item?.id ?? crypto.randomUUID(),
       type,
       amount: Number(amount),
       category,
@@ -1779,7 +1914,7 @@ function RecurringItemModal({
             <span className="text-base font-black">เวลาจด</span>
             <RecurringTimePicker value={notifyTime} onChange={setNotifyTime} />
           </label>
-          <button type="submit" disabled={!canSave} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:opacity-50">บันทึก</button>
+          <button type="submit" disabled={!canSave || saving} className="h-12 w-full rounded-md bg-[#DC143C] text-base font-black text-white shadow-sm disabled:opacity-50">{saving ? "กำลังบันทึก..." : "บันทึก"}</button>
         </form>
       </div>
     </div>
@@ -3032,7 +3167,7 @@ function loadStoredRecurringItems(lineUserId?: string): RecurringItem[] {
     return value.filter((item): item is RecurringItem => {
       return (
         item &&
-        typeof item.id === "string" &&
+        (typeof item.id === "string" || typeof item.id === "number") &&
         (item.type === "income" || item.type === "expense") &&
         typeof item.amount === "number" &&
         typeof item.category === "string" &&
@@ -3050,6 +3185,49 @@ function saveStoredRecurringItems(lineUserId: string | undefined, value: Recurri
   if (typeof window !== "undefined") {
     window.localStorage.setItem(recurringStorageKey(lineUserId), JSON.stringify(value));
   }
+}
+
+function apiRecurringToItem(item: {
+  id: number;
+  type: "expense" | "income";
+  amount: number;
+  category: string;
+  description: string;
+  mode: "personal" | "business";
+  interval: RecurringInterval;
+  day_of_week?: number | null;
+  day_of_month?: number | null;
+  month?: number | null;
+  notify_time: string;
+}): RecurringItem {
+  return {
+    id: item.id,
+    type: item.type,
+    amount: item.amount,
+    category: item.category,
+    description: item.description,
+    mode: item.mode,
+    interval: item.interval,
+    dayOfWeek: item.day_of_week ?? undefined,
+    dayOfMonth: item.day_of_month ?? undefined,
+    month: item.month ?? undefined,
+    notifyTime: item.notify_time,
+  };
+}
+
+function itemToApiRecurringInput(item: RecurringItem): RecurringTransactionInput {
+  return {
+    type: item.type,
+    amount: item.amount,
+    category: item.category,
+    description: item.description,
+    mode: item.mode,
+    interval: item.interval,
+    day_of_week: item.interval === "weekly" ? item.dayOfWeek ?? 0 : null,
+    day_of_month: item.interval === "monthly" || item.interval === "yearly" ? item.dayOfMonth ?? 1 : null,
+    month: item.interval === "yearly" ? item.month ?? 1 : null,
+    notify_time: item.notifyTime,
+  };
 }
 
 function recurringItemOccursOn(item: RecurringItem, date: Date) {

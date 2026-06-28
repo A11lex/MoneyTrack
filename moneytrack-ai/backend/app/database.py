@@ -5,7 +5,17 @@ from datetime import date
 from pathlib import Path
 from typing import Iterator
 
-from .models import LineUserUpsert, OnboardingPayload, Transaction, TransactionCreate, TransactionUpdate, UserSetup
+from .models import (
+    LineUserUpsert,
+    OnboardingPayload,
+    RecurringTransaction,
+    RecurringTransactionCreate,
+    RecurringTransactionUpdate,
+    Transaction,
+    TransactionCreate,
+    TransactionUpdate,
+    UserSetup,
+)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE_URL = os.getenv("DATABASE_URL", str(BASE_DIR / "moneytrack.db"))
@@ -82,6 +92,28 @@ def init_db(db_path: str | None = None) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recurring_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                line_user_id TEXT NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+                amount REAL NOT NULL CHECK(amount > 0),
+                category TEXT NOT NULL,
+                description TEXT NOT NULL DEFAULT '',
+                mode TEXT NOT NULL CHECK(mode IN ('personal', 'business')),
+                interval TEXT NOT NULL CHECK(interval IN ('daily', 'weekly', 'monthly', 'yearly')),
+                day_of_week INTEGER,
+                day_of_month INTEGER,
+                month INTEGER,
+                notify_time TEXT NOT NULL,
+                last_run_date TEXT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id)
+            )
+            """
+        )
 
 
 def row_to_transaction(row: sqlite3.Row) -> Transaction:
@@ -93,6 +125,24 @@ def row_to_transaction(row: sqlite3.Row) -> Transaction:
         category=row["category"],
         description=row["description"],
         mode=row["mode"],
+    )
+
+
+def row_to_recurring_transaction(row: sqlite3.Row) -> RecurringTransaction:
+    return RecurringTransaction(
+        id=row["id"],
+        line_user_id=row["line_user_id"],
+        type=row["type"],
+        amount=row["amount"],
+        category=row["category"],
+        description=row["description"],
+        mode=row["mode"],
+        interval=row["interval"],
+        day_of_week=row["day_of_week"],
+        day_of_month=row["day_of_month"],
+        month=row["month"],
+        notify_time=row["notify_time"],
+        last_run_date=date.fromisoformat(row["last_run_date"]) if row["last_run_date"] else None,
     )
 
 
@@ -210,6 +260,149 @@ def delete_transaction(transaction_id: int, db_path: str | None = None, line_use
         else:
             cursor = conn.execute("DELETE FROM transactions WHERE id = ?", (transaction_id,))
         return cursor.rowcount > 0
+
+
+def list_recurring_transactions(db_path: str | None = None, line_user_id: str | None = None) -> list[RecurringTransaction]:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        if line_user_id:
+            rows = conn.execute(
+                "SELECT * FROM recurring_transactions WHERE line_user_id = ? ORDER BY id DESC",
+                (line_user_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute("SELECT * FROM recurring_transactions ORDER BY id DESC").fetchall()
+        return [row_to_recurring_transaction(row) for row in rows]
+
+
+def get_recurring_transaction(
+    recurring_id: int,
+    db_path: str | None = None,
+    line_user_id: str | None = None,
+) -> RecurringTransaction | None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        if line_user_id:
+            row = conn.execute(
+                "SELECT * FROM recurring_transactions WHERE id = ? AND line_user_id = ?",
+                (recurring_id, line_user_id),
+            ).fetchone()
+        else:
+            row = conn.execute("SELECT * FROM recurring_transactions WHERE id = ?", (recurring_id,)).fetchone()
+        return row_to_recurring_transaction(row) if row else None
+
+
+def create_recurring_transaction(
+    payload: RecurringTransactionCreate,
+    line_user_id: str,
+    db_path: str | None = None,
+) -> RecurringTransaction:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO recurring_transactions (
+                line_user_id, type, amount, category, description, mode, interval,
+                day_of_week, day_of_month, month, notify_time
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                line_user_id,
+                payload.type.value,
+                payload.amount,
+                payload.category,
+                payload.description,
+                payload.mode.value,
+                payload.interval,
+                payload.day_of_week,
+                payload.day_of_month,
+                payload.month,
+                payload.notify_time,
+            ),
+        )
+        row = conn.execute("SELECT * FROM recurring_transactions WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        return row_to_recurring_transaction(row)
+
+
+def update_recurring_transaction(
+    recurring_id: int,
+    payload: RecurringTransactionUpdate,
+    line_user_id: str,
+    db_path: str | None = None,
+) -> RecurringTransaction | None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        existing = conn.execute(
+            "SELECT id FROM recurring_transactions WHERE id = ? AND line_user_id = ?",
+            (recurring_id, line_user_id),
+        ).fetchone()
+        if existing is None:
+            return None
+        conn.execute(
+            """
+            UPDATE recurring_transactions
+            SET type = ?,
+                amount = ?,
+                category = ?,
+                description = ?,
+                mode = ?,
+                interval = ?,
+                day_of_week = ?,
+                day_of_month = ?,
+                month = ?,
+                notify_time = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND line_user_id = ?
+            """,
+            (
+                payload.type.value,
+                payload.amount,
+                payload.category,
+                payload.description,
+                payload.mode.value,
+                payload.interval,
+                payload.day_of_week,
+                payload.day_of_month,
+                payload.month,
+                payload.notify_time,
+                recurring_id,
+                line_user_id,
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM recurring_transactions WHERE id = ? AND line_user_id = ?",
+            (recurring_id, line_user_id),
+        ).fetchone()
+        return row_to_recurring_transaction(row)
+
+
+def delete_recurring_transaction(recurring_id: int, line_user_id: str, db_path: str | None = None) -> bool:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            "DELETE FROM recurring_transactions WHERE id = ? AND line_user_id = ?",
+            (recurring_id, line_user_id),
+        )
+        return cursor.rowcount > 0
+
+
+def mark_recurring_transaction_run(
+    recurring_id: int,
+    line_user_id: str,
+    run_date: date,
+    db_path: str | None = None,
+) -> None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE recurring_transactions
+            SET last_run_date = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND line_user_id = ?
+            """,
+            (run_date.isoformat(), recurring_id, line_user_id),
+        )
 
 
 def upsert_line_user(payload: LineUserUpsert, db_path: str | None = None) -> UserSetup:

@@ -6,19 +6,24 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import (
+    create_recurring_transaction,
     create_transaction,
+    delete_recurring_transaction,
     delete_transaction,
+    get_recurring_transaction,
     get_transaction,
     get_user_setup,
+    list_recurring_transactions,
     list_transactions,
     save_user_onboarding,
     seed_demo_data,
+    update_recurring_transaction,
     update_transaction,
     upsert_line_user,
 )
 from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
 from .line_adapter import handle_line_events
-from .line_client import link_user_rich_menu, send_line_reply
+from .line_client import link_user_rich_menu, send_line_push, send_line_reply
 from .line_security import verify_line_signature
 from .line_service import LineWebhookPayload, LineWebhookResponse, handle_line_message
 from .models import (
@@ -26,12 +31,16 @@ from .models import (
     INCOME_CATEGORIES,
     LineUserUpsert,
     OnboardingPayload,
+    RecurringTransaction,
+    RecurringTransactionCreate,
+    RecurringTransactionUpdate,
     Transaction,
     TransactionCreate,
     TransactionUpdate,
     UserSetup,
     WhatIfScenario,
 )
+from .recurring_service import run_due_recurring_transactions
 
 app = FastAPI(title="MoneyTrack AI API", version="0.1.0")
 logger = logging.getLogger(__name__)
@@ -104,6 +113,60 @@ def remove_transaction(transaction_id: int, line_user_id: str | None = None) -> 
     deleted = delete_transaction(transaction_id, line_user_id=line_user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Transaction not found")
+
+
+@app.get("/recurring-transactions", response_model=list[RecurringTransaction])
+def get_recurring_transactions(line_user_id: str) -> list[RecurringTransaction]:
+    return list_recurring_transactions(line_user_id=line_user_id)
+
+
+@app.get("/recurring-transactions/{recurring_id}", response_model=RecurringTransaction)
+def get_recurring_transaction_by_id(recurring_id: int, line_user_id: str) -> RecurringTransaction:
+    item = get_recurring_transaction(recurring_id, line_user_id=line_user_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+    return item
+
+
+@app.post("/recurring-transactions", response_model=RecurringTransaction, status_code=201)
+def post_recurring_transaction(payload: RecurringTransactionCreate, line_user_id: str) -> RecurringTransaction:
+    return create_recurring_transaction(payload, line_user_id=line_user_id)
+
+
+@app.put("/recurring-transactions/{recurring_id}", response_model=RecurringTransaction)
+def put_recurring_transaction(
+    recurring_id: int,
+    payload: RecurringTransactionUpdate,
+    line_user_id: str,
+) -> RecurringTransaction:
+    item = update_recurring_transaction(recurring_id, payload, line_user_id=line_user_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+    return item
+
+
+@app.delete("/recurring-transactions/{recurring_id}", status_code=204)
+def remove_recurring_transaction(recurring_id: int, line_user_id: str) -> None:
+    deleted = delete_recurring_transaction(recurring_id, line_user_id=line_user_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Recurring transaction not found")
+
+
+@app.post("/recurring-transactions/run-due")
+def post_run_due_recurring_transactions(request: Request) -> dict[str, Any]:
+    cron_secret = os.getenv("CRON_SECRET")
+    if cron_secret:
+        authorization = request.headers.get("Authorization", "")
+        if authorization != f"Bearer {cron_secret}":
+            raise HTTPException(status_code=401, detail="Invalid cron secret")
+
+    access_token = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
+
+    def push_message(line_user_id: str, line_message: dict[str, Any]) -> None:
+        if access_token:
+            send_line_push(line_user_id, line_message, access_token)
+
+    return run_due_recurring_transactions(push_message=push_message)
 
 
 @app.get("/dashboard")

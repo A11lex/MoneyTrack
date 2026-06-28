@@ -13,6 +13,26 @@ export type Transaction = {
 
 export type TransactionInput = Omit<Transaction, "id">;
 
+export type RecurringInterval = "daily" | "weekly" | "monthly" | "yearly";
+
+export type RecurringTransaction = {
+  id: number;
+  line_user_id: string;
+  type: TransactionType;
+  amount: number;
+  category: string;
+  description: string;
+  mode: TransactionMode;
+  interval: RecurringInterval;
+  day_of_week?: number | null;
+  day_of_month?: number | null;
+  month?: number | null;
+  notify_time: string;
+  last_run_date?: string | null;
+};
+
+export type RecurringTransactionInput = Omit<RecurringTransaction, "id" | "line_user_id" | "last_run_date">;
+
 export type Summary = {
   total_income: number;
   total_expense: number;

@@ -5,6 +5,7 @@ from typing import Any
 import httpx
 
 LINE_REPLY_URL = "https://api.line.me/v2/bot/message/reply"
+LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 LINE_LINK_RICH_MENU_URL = "https://api.line.me/v2/bot/user/{user_id}/richmenu/{rich_menu_id}"
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,18 @@ def build_reply_payload(reply_token: str, reply_message: LineReplyMessage) -> di
     ]
     return {
         "replyToken": reply_token,
+        "messages": messages,
+    }
+
+
+def build_push_payload(line_user_id: str, reply_message: LineReplyMessage) -> dict[str, Any]:
+    reply_messages = reply_message if isinstance(reply_message, list) else [reply_message]
+    messages = [
+        {"type": "text", "text": item} if isinstance(item, str) else item
+        for item in reply_messages
+    ]
+    return {
+        "to": line_user_id,
         "messages": messages,
     }
 
@@ -43,6 +56,27 @@ def send_line_reply(
     status_code = getattr(response, "status_code", 200)
     if status_code >= 400:
         logger.error("LINE reply failed: status=%s body=%s", status_code, getattr(response, "text", ""))
+    response.raise_for_status()
+
+
+def send_line_push(
+    line_user_id: str,
+    reply_message: LineReplyMessage,
+    access_token: str,
+    post: Callable[..., Any] = httpx.post,
+) -> None:
+    response = post(
+        LINE_PUSH_URL,
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+        },
+        json=build_push_payload(line_user_id, reply_message),
+        timeout=10,
+    )
+    status_code = getattr(response, "status_code", 200)
+    if status_code >= 400:
+        logger.error("LINE push failed: status=%s body=%s", status_code, getattr(response, "text", ""))
     response.raise_for_status()
 
 
