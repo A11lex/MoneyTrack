@@ -93,6 +93,32 @@ class DailyReminderSettings(DailyReminderSettingsBase):
     last_sent_date: date | None = None
 
 
+class UserSettingsBase(BaseModel):
+    memory_categorization_enabled: bool = False
+    streak_notifications_enabled: bool = False
+    timezone: str = Field(default="Asia/Bangkok", min_length=1, max_length=80)
+    confirmation_show_details: bool = True
+    confirmation_show_budget: bool = True
+    confirmation_show_budget_warning: bool = True
+    confirmation_show_payment_options: bool = False
+
+
+class UserSettingsUpdate(UserSettingsBase):
+    pass
+
+
+class UserSettings(UserSettingsBase):
+    line_user_id: str
+
+
+class CategoryMemoryMapping(BaseModel):
+    id: int
+    line_user_id: str
+    keyword: str
+    category: str
+    type: TransactionType
+
+
 class LineUserUpsert(BaseModel):
     line_user_id: str = Field(min_length=1, max_length=120)
     display_name: str = Field(default="", max_length=120)

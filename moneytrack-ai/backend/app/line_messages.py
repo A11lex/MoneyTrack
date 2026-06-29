@@ -142,6 +142,29 @@ def build_daily_record_reminder_flex() -> dict[str, Any]:
     }
 
 
+def build_streak_flex(streak_days: int) -> dict[str, Any]:
+    day_label = f"จดต่อเนื่องมา {streak_days} วัน"
+    return {
+        "type": "flex",
+        "altText": day_label,
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "md",
+                "paddingAll": "18px",
+                "contents": [
+                    _brand_header("🔥 จดต่อเนื่อง", day_label),
+                    _plain_text("เก็บข้อมูลทุกวันจะช่วยให้เห็นภาพเงินชัดขึ้น", "sm", BRAND["muted"], wrap=True),
+                ],
+            },
+        },
+    }
+
+
 def build_transaction_success_flex(
     transaction_id: int,
     transaction_type: str,
@@ -150,6 +173,8 @@ def build_transaction_success_flex(
     description: str,
     mode: str,
     transaction_date: date,
+    show_details: bool = True,
+    show_payment_options: bool = False,
 ) -> dict[str, Any]:
     type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
     mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
@@ -157,6 +182,44 @@ def build_transaction_success_flex(
     accent_bg = BRAND["soft_green"] if transaction_type == "income" else BRAND["soft_pink"]
     amount_text = f"฿{amount:,.0f}"
     category_text = _category_label(category)
+
+    contents: list[dict[str, Any]] = [
+        _brand_header("จดสำเร็จ", "ตรวจสอบรายการที่จดไว้ ถ้าหมวดไม่ถูกให้แก้ในหน้าแอปได้เลย"),
+        _pill(f"{type_label} - {category_text}", amount_color, "#FFFFFF"),
+        _plain_text(_format_thai_datetime(transaction_date), "xs", BRAND["muted"]),
+        {
+            "type": "box",
+            "layout": "horizontal",
+            "spacing": "sm",
+            "contents": [
+                _plain_text(description or "-", "lg", BRAND["black"], weight="bold", wrap=True),
+                _plain_text(amount_text, "xl", amount_color, weight="bold", align="end"),
+                _icon_action("✎", "uri", _frontend_url(f"/liff/transactions/{transaction_id}/edit"), "#EFF4F8"),
+                _icon_action("×", "postback", f"delete_transaction={transaction_id}", "#EFF4F8", BRAND["pink"]),
+            ],
+        },
+    ]
+    if show_details:
+        contents.extend(
+            [
+                {"type": "separator", "color": BRAND["black"], "margin": "md"},
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "spacing": "sm",
+                    "backgroundColor": accent_bg,
+                    "cornerRadius": "md",
+                    "paddingAll": "14px",
+                    "contents": [
+                        _amount_row(category_text, amount, amount_color),
+                        _meta_row("โหมด", mode_label),
+                    ],
+                },
+            ]
+        )
+    if show_payment_options:
+        contents.append(_plain_text("เลือกช่องทางชำระเงินได้ในหน้าแก้ไขรายการ", "xs", BRAND["muted"]))
+    contents.append(_plain_text("กด ✎ เพื่อแก้ไข หรือ × เพื่อลบรายการนี้", "xs", BRAND["muted"]))
 
     return {
         "type": "flex",
@@ -170,36 +233,7 @@ def build_transaction_success_flex(
                 "layout": "vertical",
                 "spacing": "md",
                 "paddingAll": "20px",
-                "contents": [
-                    _brand_header("จดสำเร็จ", "ตรวจสอบรายการที่จดไว้ ถ้าหมวดไม่ถูกให้แก้ในหน้าแอปได้เลย"),
-                    _pill(f"{type_label} - {category_text}", amount_color, "#FFFFFF"),
-                    _plain_text(_format_thai_datetime(transaction_date), "xs", BRAND["muted"]),
-                    {
-                        "type": "box",
-                        "layout": "horizontal",
-                        "spacing": "sm",
-                        "contents": [
-                            _plain_text(description or "-", "lg", BRAND["black"], weight="bold", wrap=True),
-                            _plain_text(amount_text, "xl", amount_color, weight="bold", align="end"),
-                            _icon_action("✎", "uri", _frontend_url(f"/liff/transactions/{transaction_id}/edit"), "#EFF4F8"),
-                            _icon_action("×", "postback", f"delete_transaction={transaction_id}", "#EFF4F8", BRAND["pink"]),
-                        ],
-                    },
-                    {"type": "separator", "color": BRAND["black"], "margin": "md"},
-                    {
-                        "type": "box",
-                        "layout": "vertical",
-                        "spacing": "sm",
-                        "backgroundColor": accent_bg,
-                        "cornerRadius": "md",
-                        "paddingAll": "14px",
-                        "contents": [
-                            _amount_row(category_text, amount, amount_color),
-                            _meta_row("โหมด", mode_label),
-                        ],
-                    },
-                    _plain_text("กด ✎ เพื่อแก้ไข หรือ × เพื่อลบรายการนี้", "xs", BRAND["muted"]),
-                ],
+                "contents": contents,
             },
         },
     }
@@ -220,6 +254,9 @@ def build_transaction_success_with_budget_flex(
     spent: float,
     total_income: float,
     show_warning: bool = True,
+    show_details: bool = True,
+    show_payment_options: bool = False,
+    show_budget_warning: bool = True,
 ) -> dict[str, Any]:
     success_message = build_transaction_success_flex(
         transaction_id=transaction_id,
@@ -229,6 +266,8 @@ def build_transaction_success_with_budget_flex(
         description=description,
         mode=mode,
         transaction_date=transaction_date,
+        show_details=show_details,
+        show_payment_options=show_payment_options,
     )
     budget_category_text = _category_label(budget_category)
     budget_alt = f"{'แจ้งเตือนงบ' if show_warning else 'งบคงเหลือ'}: {budget_category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}"
@@ -243,7 +282,7 @@ def build_transaction_success_with_budget_flex(
             period_label=period_label,
             spent=spent,
             total_income=total_income,
-            show_warning=show_warning,
+            show_warning=show_warning and show_budget_warning,
         )
     )
     success_message["contents"].pop("footer", None)

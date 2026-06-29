@@ -16,10 +16,12 @@ from .database import (
     get_recurring_transaction,
     get_transaction,
     get_user_setup,
+    get_user_settings,
     list_recurring_transactions,
     list_transactions,
     save_daily_reminder_settings,
     save_user_onboarding,
+    save_user_settings,
     seed_demo_data,
     update_recurring_transaction,
     update_transaction,
@@ -45,6 +47,8 @@ from .models import (
     TransactionCreate,
     TransactionUpdate,
     UserSetup,
+    UserSettings,
+    UserSettingsUpdate,
     WhatIfScenario,
 )
 from .recurring_service import run_due_recurring_transactions
@@ -231,6 +235,16 @@ def get_daily_reminder_settings_endpoint(line_user_id: str) -> DailyReminderSett
 @app.put("/daily-reminder-settings", response_model=DailyReminderSettings)
 def put_daily_reminder_settings(line_user_id: str, payload: DailyReminderSettingsUpdate) -> DailyReminderSettings:
     return save_daily_reminder_settings(line_user_id, payload)
+
+
+@app.get("/user-settings", response_model=UserSettings)
+def get_user_settings_endpoint(line_user_id: str) -> UserSettings:
+    return get_user_settings(line_user_id)
+
+
+@app.put("/user-settings", response_model=UserSettings)
+def put_user_settings(line_user_id: str, payload: UserSettingsUpdate) -> UserSettings:
+    return save_user_settings(line_user_id, payload)
 
 
 @app.post("/daily-reminders/run-due")

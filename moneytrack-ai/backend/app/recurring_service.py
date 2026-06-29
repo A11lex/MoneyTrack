@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 
 from .database import (
     create_transaction,
+    get_user_settings,
     list_recurring_transactions,
     mark_recurring_transaction_run,
 )
@@ -20,12 +21,13 @@ def run_due_recurring_transactions(
     db_path: str | None = None,
     push_message: Any | None = None,
 ) -> dict[str, Any]:
-    current = (now or datetime.now(BANGKOK_TZ)).astimezone(BANGKOK_TZ)
-    current_date = current.date()
-    current_time = current.strftime("%H:%M")
+    base_now = now or datetime.now(BANGKOK_TZ)
     processed: list[dict[str, Any]] = []
 
     for item in list_recurring_transactions(db_path):
+        current = base_now.astimezone(_user_timezone(item.line_user_id, db_path))
+        current_date = current.date()
+        current_time = current.strftime("%H:%M")
         if not _is_due(item, current_date, current_time):
             continue
 
@@ -75,9 +77,17 @@ def _is_due(item: RecurringTransaction, current_date: date, current_time: str) -
     return item.month == current_date.month and item.day_of_month == current_date.day
 
 
+def _user_timezone(line_user_id: str, db_path: str | None) -> ZoneInfo:
+    try:
+        return ZoneInfo(get_user_settings(line_user_id, db_path).timezone)
+    except Exception:
+        return BANGKOK_TZ
+
+
 def _build_recurring_success_message(line_user_id: str, transaction: Any, db_path: str | None) -> dict[str, Any]:
+    settings = get_user_settings(line_user_id, db_path)
     budget_context = _budget_context_after_transaction(line_user_id, transaction, db_path)
-    if budget_context:
+    if budget_context and settings.confirmation_show_budget:
         return build_transaction_success_with_budget_flex(
             transaction_id=transaction.id,
             transaction_type=transaction.type.value,
@@ -86,6 +96,9 @@ def _build_recurring_success_message(line_user_id: str, transaction: Any, db_pat
             description=transaction.description,
             mode=transaction.mode.value,
             transaction_date=transaction.date,
+            show_details=settings.confirmation_show_details,
+            show_payment_options=settings.confirmation_show_payment_options,
+            show_budget_warning=settings.confirmation_show_budget_warning,
             **budget_context,
         )
     return build_transaction_success_flex(
@@ -96,4 +109,6 @@ def _build_recurring_success_message(line_user_id: str, transaction: Any, db_pat
         description=transaction.description,
         mode=transaction.mode.value,
         transaction_date=transaction.date,
+        show_details=settings.confirmation_show_details,
+        show_payment_options=settings.confirmation_show_payment_options,
     )

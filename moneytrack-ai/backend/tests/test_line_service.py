@@ -1,9 +1,9 @@
 from datetime import date
 from typing import Any
 
-from app.database import list_transactions, save_user_onboarding, upsert_line_user
+from app.database import list_transactions, save_user_onboarding, save_user_settings, update_transaction, upsert_line_user
 from app.line_service import handle_line_message, handle_line_message_detail
-from app.models import LineUserUpsert, OnboardingPayload
+from app.models import LineUserUpsert, OnboardingPayload, TransactionUpdate, UserSettingsUpdate
 
 
 def test_handle_line_message_saves_transaction_and_returns_reply(tmp_path) -> None:
@@ -234,6 +234,92 @@ def test_handle_line_message_detail_returns_budget_progress_at_half_without_warn
     assert _find_text(result.line_message, "จดสำเร็จ") is True
     assert _find_text(result.line_message, "งบคงเหลือ") is True
     assert _find_text(result.line_message, "ข้อความเตือนงบประมาณ") is False
+
+
+def test_memory_categorization_learns_from_edited_category(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_settings(
+        "test-user-001",
+        UserSettingsUpdate(memory_categorization_enabled=True),
+        db_path,
+    )
+
+    first = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="latte 50",
+        db_path=db_path,
+        today=date(2026, 6, 25),
+    )
+    first_transaction = list_transactions(db_path, line_user_id="test-user-001")[0]
+    assert first_transaction.category == "Other Expense"
+    update_transaction(
+        first_transaction.id,
+        TransactionUpdate(
+            date=first_transaction.date,
+            type=first_transaction.type,
+            amount=first_transaction.amount,
+            category="Food",
+            description=first_transaction.description,
+            mode=first_transaction.mode,
+        ),
+        db_path,
+        line_user_id="test-user-001",
+    )
+
+    second = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="latte iced 60",
+        db_path=db_path,
+        today=date(2026, 6, 26),
+    )
+    second_transaction = list_transactions(db_path, line_user_id="test-user-001")[0]
+
+    assert first.handled is True
+    assert second.handled is True
+    assert second_transaction.category == "Food"
+
+
+def test_streak_notification_adds_second_flex_when_enabled(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_settings(
+        "test-user-001",
+        UserSettingsUpdate(streak_notifications_enabled=True),
+        db_path,
+    )
+    handle_line_message_detail("test-user-001", "ข้าว 50", db_path=db_path, today=date(2026, 6, 25))
+
+    result = handle_line_message_detail("test-user-001", "ข้าว 60", db_path=db_path, today=date(2026, 6, 26))
+
+    assert isinstance(result.line_message, list)
+    assert len(result.line_message) == 2
+    assert result.line_message[1]["altText"] == "จดต่อเนื่องมา 2 วัน"
+
+
+def test_confirmation_config_can_hide_budget_block(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_onboarding(
+        "test-user-001",
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["อาหาร"],
+            income_categories=[],
+            monthly_budgets={"อาหาร": 200},
+        ),
+        db_path,
+    )
+    save_user_settings(
+        "test-user-001",
+        UserSettingsUpdate(confirmation_show_budget=False),
+        db_path,
+    )
+
+    result = handle_line_message_detail("test-user-001", "ข้าว 50", db_path=db_path, today=date(2026, 6, 25))
+
+    assert isinstance(result.line_message, dict)
+    assert _find_text(result.line_message, "งบคงเหลือ") is False
 
 
 def test_handle_line_message_detail_uses_custom_monthly_budget_start_day(tmp_path) -> None:

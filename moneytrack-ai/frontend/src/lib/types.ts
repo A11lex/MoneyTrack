@@ -45,6 +45,19 @@ export type DailyReminderSettings = {
 
 export type DailyReminderSettingsInput = Pick<DailyReminderSettings, "enabled" | "reminder_time" | "reminder_mode">;
 
+export type UserSettings = {
+  line_user_id: string;
+  memory_categorization_enabled: boolean;
+  streak_notifications_enabled: boolean;
+  timezone: string;
+  confirmation_show_details: boolean;
+  confirmation_show_budget: boolean;
+  confirmation_show_budget_warning: boolean;
+  confirmation_show_payment_options: boolean;
+};
+
+export type UserSettingsInput = Omit<UserSettings, "line_user_id">;
+
 export type Summary = {
   total_income: number;
   total_expense: number;

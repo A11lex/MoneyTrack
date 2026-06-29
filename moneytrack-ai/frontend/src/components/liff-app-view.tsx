@@ -40,13 +40,15 @@ import {
   getDashboard,
   getRecurringTransactions,
   getTransactions,
+  getUserSettings,
   saveDailyReminderSettings,
   saveLineUserOnboarding,
+  saveUserSettings,
   updateRecurringTransaction,
   updateTransaction,
   upsertLineUser,
 } from "@/lib/api";
-import type { DailyReminderSettingsInput, DashboardData, RecurringTransactionInput, Transaction, TransactionInput } from "@/lib/types";
+import type { DailyReminderSettingsInput, DashboardData, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 type UserPlan = "free" | "pro";
@@ -84,6 +86,11 @@ type TimezoneSetting = {
   offset: string;
   value: string;
 };
+type ConfirmationSettingKey =
+  | "confirmation_show_details"
+  | "confirmation_show_budget"
+  | "confirmation_show_budget_warning"
+  | "confirmation_show_payment_options";
 type RecurringItem = {
   id: number | string;
   type: "expense" | "income";
@@ -151,6 +158,16 @@ const timezoneOptions: TimezoneSetting[] = [
   { label: "New York", offset: "UTC-04:00", value: "America/New_York" },
   { label: "Los Angeles", offset: "UTC-07:00", value: "America/Los_Angeles" },
 ];
+
+const defaultUserSettings: UserSettingsInput = {
+  memory_categorization_enabled: false,
+  streak_notifications_enabled: false,
+  timezone: "Asia/Bangkok",
+  confirmation_show_details: true,
+  confirmation_show_budget: true,
+  confirmation_show_budget_warning: true,
+  confirmation_show_payment_options: false,
+};
 
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
   { id: "summary", label: "สรุป", href: "/liff/summary", icon: Home },
@@ -2675,9 +2692,11 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
   const [showPaymentScreen, setShowPaymentScreen] = useState(false);
   const [showCurrencyScreen, setShowCurrencyScreen] = useState(false);
   const [showTimezoneScreen, setShowTimezoneScreen] = useState(false);
+  const [showConfirmationScreen, setShowConfirmationScreen] = useState(false);
   const [showLanguageScreen, setShowLanguageScreen] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<DailyReminderSettingsInput>(() => loadStoredDailyReminderSettings(profile.line_user_id));
   const [paymentSettings, setPaymentSettings] = useState<PaymentChannelSettings>(() => loadStoredPaymentChannelSettings(profile.line_user_id));
+  const [userSettings, setUserSettings] = useState<UserSettingsInput>(defaultUserSettings);
   const [currencySetting, setCurrencySetting] = useState<CurrencySetting>(() => loadStoredCurrencySetting(profile.line_user_id));
   const [timezoneSetting, setTimezoneSetting] = useState<TimezoneSetting>(() => loadStoredTimezoneSetting(profile.line_user_id));
   const [languageSetting, setLanguageSetting] = useState<LanguageCode>(() => loadStoredLanguageSetting(profile.line_user_id));
@@ -2702,6 +2721,34 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
         };
         setReminderSettings(nextSettings);
         saveStoredDailyReminderSettings(profile.line_user_id, nextSettings);
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [profile.line_user_id]);
+
+  useEffect(() => {
+    let mounted = true;
+    if (!profile.line_user_id) return () => {
+      mounted = false;
+    };
+    getUserSettings(profile.line_user_id)
+      .then((settings) => {
+        if (!mounted) return;
+        const nextSettings: UserSettingsInput = {
+          memory_categorization_enabled: settings.memory_categorization_enabled,
+          streak_notifications_enabled: settings.streak_notifications_enabled,
+          timezone: settings.timezone,
+          confirmation_show_details: settings.confirmation_show_details,
+          confirmation_show_budget: settings.confirmation_show_budget,
+          confirmation_show_budget_warning: settings.confirmation_show_budget_warning,
+          confirmation_show_payment_options: settings.confirmation_show_payment_options,
+        };
+        setUserSettings(nextSettings);
+        const nextTimezone = findTimezone(nextSettings.timezone);
+        setTimezoneSetting(nextTimezone);
+        saveStoredTimezoneSetting(profile.line_user_id, nextTimezone);
       })
       .catch(() => undefined);
     return () => {
@@ -2773,6 +2820,25 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
   function saveTimezoneSetting(nextSetting: TimezoneSetting) {
     setTimezoneSetting(nextSetting);
     saveStoredTimezoneSetting(profile.line_user_id, nextSetting);
+    void saveRemoteUserSettings({ ...userSettings, timezone: nextSetting.value });
+  }
+
+  function saveRemoteUserSettings(nextSettings: UserSettingsInput) {
+    setUserSettings(nextSettings);
+    if (!profile.line_user_id) return Promise.resolve();
+    return saveUserSettings(profile.line_user_id, nextSettings)
+      .then((settings) => {
+        setUserSettings({
+          memory_categorization_enabled: settings.memory_categorization_enabled,
+          streak_notifications_enabled: settings.streak_notifications_enabled,
+          timezone: settings.timezone,
+          confirmation_show_details: settings.confirmation_show_details,
+          confirmation_show_budget: settings.confirmation_show_budget,
+          confirmation_show_budget_warning: settings.confirmation_show_budget_warning,
+          confirmation_show_payment_options: settings.confirmation_show_payment_options,
+        });
+      })
+      .catch(() => undefined);
   }
 
   if (showPaymentScreen) {
@@ -2801,6 +2867,16 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
         value={languageSetting}
         onBack={() => setShowLanguageScreen(false)}
         onChange={saveLanguageSetting}
+      />
+    );
+  }
+
+  if (showConfirmationScreen) {
+    return (
+      <ConfirmationMessageSettingsScreen
+        value={userSettings}
+        onBack={() => setShowConfirmationScreen(false)}
+        onChange={(nextSettings) => void saveRemoteUserSettings(nextSettings)}
       />
     );
   }
@@ -2852,6 +2928,7 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
               if (index === 0) setShowReminderModal(true);
               if (index === 2) setShowPaymentScreen(true);
               if (index === 7) setShowCurrencyScreen(true);
+              if (index === 8) setShowConfirmationScreen(true);
               if (index === 9) setShowTimezoneScreen(true);
               if (index === 10) setShowLanguageScreen(true);
             }}
@@ -2868,6 +2945,18 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
                 <span className={`rounded-full px-2 py-1 text-xs font-black ${paymentSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
                   {paymentSettings.enabled ? `${paymentSettings.channels.length}/10` : "ปิดอยู่"}
                 </span>
+              )}
+              {index === 1 && (
+                <SettingsToggle
+                  checked={userSettings.memory_categorization_enabled}
+                  onToggle={() => void saveRemoteUserSettings({ ...userSettings, memory_categorization_enabled: !userSettings.memory_categorization_enabled })}
+                />
+              )}
+              {index === 6 && (
+                <SettingsToggle
+                  checked={userSettings.streak_notifications_enabled}
+                  onToggle={() => void saveRemoteUserSettings({ ...userSettings, streak_notifications_enabled: !userSettings.streak_notifications_enabled })}
+                />
               )}
               {index === 7 && (
                 <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
@@ -3070,6 +3159,81 @@ function TimezoneSettingsScreen({
         )}
       </div>
     </div>
+  );
+}
+
+function ConfirmationMessageSettingsScreen({
+  onBack,
+  onChange,
+  value,
+}: {
+  onBack: () => void;
+  onChange: (value: UserSettingsInput) => void;
+  value: UserSettingsInput;
+}) {
+  const options: { key: ConfirmationSettingKey; title: string; description: string; locked?: boolean }[] = [
+    { key: "confirmation_show_details", title: "รายละเอียดรายการ", description: "แสดงกล่องหมวด ยอดเงิน และโหมดส่วนตัว/ธุรกิจ" },
+    { key: "confirmation_show_budget", title: "งบคงเหลือ", description: "แสดงยอดใช้ไป เทียบกับงบที่ตั้งไว้" },
+    { key: "confirmation_show_budget_warning", title: "ข้อความเตือนงบประมาณ", description: "เตือนเมื่อรายจ่ายเข้าใกล้หรือเกินงบ" },
+    { key: "confirmation_show_payment_options", title: "ตัวเลือกช่องทางชำระเงิน", description: "แสดงคำแนะนำช่องทางชำระเงินใน Flex message" },
+  ];
+
+  function toggle(key: ConfirmationSettingKey) {
+    onChange({ ...value, [key]: !value[key] });
+  }
+
+  return (
+    <div className="space-y-5 pb-8">
+      <div className="flex items-center justify-between">
+        <div className="w-10" />
+        <h2 className="text-center text-xl font-black text-[#151b18]">ปรับแต่งข้อความยืนยันรายการ</h2>
+        <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-full text-[#64706a] hover:bg-[#f3f5f4]" aria-label="ปิด">
+          <X size={22} />
+        </button>
+      </div>
+      <p className="text-center text-sm font-semibold leading-6 text-[#6b7280]">
+        เลือกว่า Flex message หลังจดรายการควรแสดงส่วนไหนบ้าง
+      </p>
+      <div className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
+        <div className="space-y-3">
+          {options.map((option) => (
+            <div key={option.key} className="flex items-start justify-between gap-4 rounded-md border border-black/10 bg-[#fbfcfc] p-3">
+              <div>
+                <p className="text-sm font-black text-[#151b18]">{option.title}</p>
+                <p className="mt-1 text-xs leading-5 text-[#6b7280]">{option.description}</p>
+              </div>
+              <SettingsToggle checked={value[option.key]} onToggle={() => toggle(option.key)} />
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded-md border border-[#F3C7D4] bg-[#FCECEF] p-3 text-xs font-semibold leading-5 text-[#6b2437]">
+          ค่าเหล่านี้จะถูกใช้ตอน LINE สร้าง Flex message จริง และบันทึกแยกตามผู้ใช้
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SettingsToggle({ checked, onToggle }: { checked: boolean; onToggle: () => void }) {
+  return (
+    <span
+      role="switch"
+      aria-checked={checked}
+      tabIndex={0}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        onToggle();
+      }}
+      className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full p-1 transition ${checked ? "bg-[#6DC5AD]" : "bg-[#dfe4e2]"}`}
+    >
+      <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${checked ? "translate-x-5" : "translate-x-0"}`} />
+    </span>
   );
 }
 

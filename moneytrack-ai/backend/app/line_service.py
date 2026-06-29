@@ -1,14 +1,24 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 
-from .database import create_transaction, delete_transaction, get_transaction, get_user_setup, list_transactions
+from .database import (
+    create_transaction,
+    delete_transaction,
+    get_transaction,
+    get_user_setup,
+    get_user_settings,
+    list_transactions,
+    match_category_memory_mapping,
+)
 from .line_messages import (
     build_category_budget_flex,
     build_daily_summary_flex,
     build_monthly_summary_flex,
     build_quick_start_flex,
+    build_streak_flex,
     build_transaction_deleted_flex,
     build_transaction_deleted_with_budget_flex,
     build_transaction_success_flex,
@@ -49,8 +59,9 @@ def handle_line_message_detail(
     db_path: str | None = None,
     today: date | None = None,
 ) -> LineMessageResult:
-    current_date = today or date.today()
     normalized = message.strip()
+    user_settings = get_user_settings(line_user_id, db_path)
+    current_date = today or datetime.now(_safe_timezone(user_settings.timezone)).date()
 
     if normalized in {"เริ่มต้น", "วิธีใช้", "help", "Help", "HELP", "เมนู"}:
         return LineMessageResult(
@@ -106,9 +117,19 @@ def handle_line_message_detail(
             line_message=build_quick_start_flex(),
         )
 
+    if user_settings.memory_categorization_enabled:
+        remembered = match_category_memory_mapping(
+            line_user_id,
+            transaction.description,
+            transaction.type.value,
+            db_path,
+        )
+        if remembered is not None:
+            transaction.category = remembered.category
+
     saved = create_transaction(transaction, db_path, line_user_id=line_user_id)
     budget_context = _budget_context_after_transaction(line_user_id, saved, db_path)
-    if budget_context:
+    if budget_context and user_settings.confirmation_show_budget:
         line_message = build_transaction_success_with_budget_flex(
             transaction_id=saved.id,
             transaction_type=saved.type.value,
@@ -117,6 +138,9 @@ def handle_line_message_detail(
             description=saved.description,
             mode=saved.mode.value,
             transaction_date=saved.date,
+            show_details=user_settings.confirmation_show_details,
+            show_payment_options=user_settings.confirmation_show_payment_options,
+            show_budget_warning=user_settings.confirmation_show_budget_warning,
             **budget_context,
         )
     else:
@@ -128,7 +152,12 @@ def handle_line_message_detail(
             description=saved.description,
             mode=saved.mode.value,
             transaction_date=saved.date,
+            show_details=user_settings.confirmation_show_details,
+            show_payment_options=user_settings.confirmation_show_payment_options,
         )
+    if user_settings.streak_notifications_enabled:
+        streak_days = _streak_days(line_user_id, saved.date, db_path)
+        line_message = [line_message, build_streak_flex(streak_days)]
     return LineMessageResult(
         reply=_transaction_reply(saved.type.value, saved.amount, saved.category, saved.mode.value),
         handled=True,
@@ -140,6 +169,23 @@ def _transaction_reply(transaction_type: str, amount: float, category: str, mode
     type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
     mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
     return f"บันทึกแล้ว: {type_label} {_format_baht(amount)}\nหมวด: {category}\nโหมด: {mode_label}"
+
+
+def _streak_days(line_user_id: str, reference_date: date, db_path: str | None) -> int:
+    transaction_dates = {transaction.date for transaction in list_transactions(db_path, line_user_id=line_user_id)}
+    streak = 0
+    current = reference_date
+    while current in transaction_dates:
+        streak += 1
+        current -= timedelta(days=1)
+    return streak
+
+
+def _safe_timezone(timezone: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(timezone)
+    except Exception:
+        return ZoneInfo("Asia/Bangkok")
 
 
 def _delete_transaction_from_line(line_user_id: str, message: str, db_path: str | None) -> LineMessageResult:

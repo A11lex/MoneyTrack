@@ -9,6 +9,8 @@ import type {
   RecurringTransactionInput,
   Transaction,
   TransactionInput,
+  UserSettings,
+  UserSettingsInput,
   WhatIfResult,
   WhatIfScenario,
 } from "./types";
@@ -96,6 +98,17 @@ export function getDailyReminderSettings(lineUserId: string): Promise<DailyRemin
 
 export function saveDailyReminderSettings(lineUserId: string, payload: DailyReminderSettingsInput): Promise<DailyReminderSettings> {
   return request<DailyReminderSettings>(withLineUser("/daily-reminder-settings", lineUserId), {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getUserSettings(lineUserId: string): Promise<UserSettings> {
+  return request<UserSettings>(withLineUser("/user-settings", lineUserId));
+}
+
+export function saveUserSettings(lineUserId: string, payload: UserSettingsInput): Promise<UserSettings> {
+  return request<UserSettings>(withLineUser("/user-settings", lineUserId), {
     method: "PUT",
     body: JSON.stringify(payload),
   });

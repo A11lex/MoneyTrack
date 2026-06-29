@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterator
 
 from .models import (
+    CategoryMemoryMapping,
     DailyReminderSettings,
     DailyReminderSettingsUpdate,
     LineUserUpsert,
@@ -17,6 +18,8 @@ from .models import (
     TransactionCreate,
     TransactionUpdate,
     UserSetup,
+    UserSettings,
+    UserSettingsUpdate,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -130,6 +133,36 @@ def init_db(db_path: str | None = None) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_settings (
+                line_user_id TEXT PRIMARY KEY,
+                memory_categorization_enabled INTEGER NOT NULL DEFAULT 0,
+                streak_notifications_enabled INTEGER NOT NULL DEFAULT 0,
+                timezone TEXT NOT NULL DEFAULT 'Asia/Bangkok',
+                confirmation_show_details INTEGER NOT NULL DEFAULT 1,
+                confirmation_show_budget INTEGER NOT NULL DEFAULT 1,
+                confirmation_show_budget_warning INTEGER NOT NULL DEFAULT 1,
+                confirmation_show_payment_options INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS category_memory_mappings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                line_user_id TEXT NOT NULL,
+                keyword TEXT NOT NULL,
+                category TEXT NOT NULL,
+                type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(line_user_id, keyword, type),
+                FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id)
+            )
+            """
+        )
 
 
 def row_to_transaction(row: sqlite3.Row) -> Transaction:
@@ -169,6 +202,29 @@ def row_to_daily_reminder_settings(row: sqlite3.Row) -> DailyReminderSettings:
         reminder_time=row["reminder_time"],
         reminder_mode=row["reminder_mode"],
         last_sent_date=date.fromisoformat(row["last_sent_date"]) if row["last_sent_date"] else None,
+    )
+
+
+def row_to_user_settings(row: sqlite3.Row) -> UserSettings:
+    return UserSettings(
+        line_user_id=row["line_user_id"],
+        memory_categorization_enabled=bool(row["memory_categorization_enabled"]),
+        streak_notifications_enabled=bool(row["streak_notifications_enabled"]),
+        timezone=row["timezone"],
+        confirmation_show_details=bool(row["confirmation_show_details"]),
+        confirmation_show_budget=bool(row["confirmation_show_budget"]),
+        confirmation_show_budget_warning=bool(row["confirmation_show_budget_warning"]),
+        confirmation_show_payment_options=bool(row["confirmation_show_payment_options"]),
+    )
+
+
+def row_to_category_memory_mapping(row: sqlite3.Row) -> CategoryMemoryMapping:
+    return CategoryMemoryMapping(
+        id=row["id"],
+        line_user_id=row["line_user_id"],
+        keyword=row["keyword"],
+        category=row["category"],
+        type=row["type"],
     )
 
 
@@ -231,11 +287,11 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
     with get_connection(db_path) as conn:
         if line_user_id:
             existing = conn.execute(
-                "SELECT id FROM transactions WHERE id = ? AND line_user_id = ?",
+                "SELECT id, category, description, type FROM transactions WHERE id = ? AND line_user_id = ?",
                 (transaction_id, line_user_id),
             ).fetchone()
         else:
-            existing = conn.execute("SELECT id FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+            existing = conn.execute("SELECT id, category, description, type FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         if existing is None:
             return None
         if line_user_id:
@@ -275,7 +331,12 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
                 ),
             )
             row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
-        return row_to_transaction(row)
+        transaction = row_to_transaction(row)
+    if line_user_id and existing["category"] != payload.category:
+        settings = get_user_settings(line_user_id, db_path)
+        if settings.memory_categorization_enabled:
+            save_category_memory_mapping(line_user_id, existing["description"] or payload.description, payload.category, payload.type.value, db_path)
+    return transaction
 
 
 def delete_transaction(transaction_id: int, db_path: str | None = None, line_user_id: str | None = None) -> bool:
@@ -485,6 +546,112 @@ def mark_daily_reminder_sent(line_user_id: str, sent_date: date, db_path: str | 
             """,
             (sent_date.isoformat(), line_user_id),
         )
+
+
+def get_user_settings(line_user_id: str, db_path: str | None = None) -> UserSettings:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM user_settings WHERE line_user_id = ?",
+            (line_user_id,),
+        ).fetchone()
+        if row:
+            return row_to_user_settings(row)
+    return UserSettings(line_user_id=line_user_id)
+
+
+def save_user_settings(line_user_id: str, payload: UserSettingsUpdate, db_path: str | None = None) -> UserSettings:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO user_settings (
+                line_user_id,
+                memory_categorization_enabled,
+                streak_notifications_enabled,
+                timezone,
+                confirmation_show_details,
+                confirmation_show_budget,
+                confirmation_show_budget_warning,
+                confirmation_show_payment_options
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(line_user_id) DO UPDATE SET
+                memory_categorization_enabled = excluded.memory_categorization_enabled,
+                streak_notifications_enabled = excluded.streak_notifications_enabled,
+                timezone = excluded.timezone,
+                confirmation_show_details = excluded.confirmation_show_details,
+                confirmation_show_budget = excluded.confirmation_show_budget,
+                confirmation_show_budget_warning = excluded.confirmation_show_budget_warning,
+                confirmation_show_payment_options = excluded.confirmation_show_payment_options,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (
+                line_user_id,
+                int(payload.memory_categorization_enabled),
+                int(payload.streak_notifications_enabled),
+                payload.timezone,
+                int(payload.confirmation_show_details),
+                int(payload.confirmation_show_budget),
+                int(payload.confirmation_show_budget_warning),
+                int(payload.confirmation_show_payment_options),
+            ),
+        )
+        row = conn.execute(
+            "SELECT * FROM user_settings WHERE line_user_id = ?",
+            (line_user_id,),
+        ).fetchone()
+        return row_to_user_settings(row)
+
+
+def save_category_memory_mapping(
+    line_user_id: str,
+    keyword: str,
+    category: str,
+    transaction_type: str,
+    db_path: str | None = None,
+) -> None:
+    normalized_keyword = " ".join(keyword.strip().lower().split())
+    if not normalized_keyword or not category:
+        return
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO category_memory_mappings (line_user_id, keyword, category, type)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(line_user_id, keyword, type) DO UPDATE SET
+                category = excluded.category,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            (line_user_id, normalized_keyword, category, transaction_type),
+        )
+
+
+def match_category_memory_mapping(
+    line_user_id: str,
+    text: str,
+    transaction_type: str,
+    db_path: str | None = None,
+) -> CategoryMemoryMapping | None:
+    normalized_text = " ".join(text.strip().lower().split())
+    if not normalized_text:
+        return None
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM category_memory_mappings
+            WHERE line_user_id = ? AND type = ?
+            ORDER BY LENGTH(keyword) DESC, updated_at DESC
+            """,
+            (line_user_id, transaction_type),
+        ).fetchall()
+        for row in rows:
+            keyword = row["keyword"]
+            if keyword and (keyword in normalized_text or normalized_text in keyword):
+                return row_to_category_memory_mapping(row)
+    return None
 
 
 def upsert_line_user(payload: LineUserUpsert, db_path: str | None = None) -> UserSetup:
