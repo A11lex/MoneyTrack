@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "assets" / "rich-menu"
 OUTPUT_DIR = ROOT / ".generated" / "rich-menu"
 MAX_IMAGE_BYTES = 1_000_000
-DEFAULT_LIFF_ID = "2010521304-BrGvBhsp"
+DEFAULT_LIFF_ID = "2010521304-BrGvBhsP"
 
 
 def main() -> None:

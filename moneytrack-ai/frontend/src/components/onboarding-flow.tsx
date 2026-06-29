@@ -43,13 +43,21 @@ const mockProfile: LineProfile = {
   picture_url: null,
 };
 
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
-const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsP";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
+const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsp";
 
 type LiffProfile = {
   userId: string;
   displayName: string;
   pictureUrl?: string;
+};
+type LiffDecodedIDToken = {
+  sub?: string;
+  name?: string;
+  picture?: string;
+};
+type LiffContext = {
+  userId?: string;
 };
 
 type LiffClient = {
@@ -57,6 +65,8 @@ type LiffClient = {
   isLoggedIn: () => boolean;
   login: (options?: { redirectUri?: string }) => void;
   getProfile: () => Promise<LiffProfile>;
+  getDecodedIDToken?: () => LiffDecodedIDToken | null;
+  getContext?: () => LiffContext | null;
   closeWindow?: () => void;
 };
 
@@ -482,12 +492,38 @@ async function loadLineProfile(): Promise<LineProfile> {
     return mockProfile;
   }
 
-  const liffProfile = await window.liff.getProfile();
-  return {
-    line_user_id: liffProfile.userId,
-    display_name: liffProfile.displayName,
-    picture_url: liffProfile.pictureUrl ?? null,
-  };
+  return readLineProfileFromLiff(window.liff);
+}
+
+async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
+  try {
+    const liffProfile = await liff.getProfile();
+    return {
+      line_user_id: liffProfile.userId,
+      display_name: liffProfile.displayName,
+      picture_url: liffProfile.pictureUrl ?? null,
+    };
+  } catch {
+    const token = liff.getDecodedIDToken?.();
+    if (token?.sub) {
+      return {
+        line_user_id: token.sub,
+        display_name: token.name || "LINE User",
+        picture_url: token.picture ?? null,
+      };
+    }
+
+    const context = liff.getContext?.();
+    if (context?.userId) {
+      return {
+        line_user_id: context.userId,
+        display_name: "LINE User",
+        picture_url: null,
+      };
+    }
+
+    throw new Error("LINE profile is unavailable");
+  }
 }
 
 function resolveLiffId() {

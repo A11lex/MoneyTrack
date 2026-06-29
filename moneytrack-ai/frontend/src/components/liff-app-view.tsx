@@ -110,8 +110,8 @@ type LineProfile = {
   picture_url: string | null;
 };
 
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
-const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsP";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
+const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsp";
 const LINE_PROFILE_CACHE_KEY = "moneytrack.lineProfile";
 
 const currencyOptions: CurrencySetting[] = [
@@ -5194,14 +5194,41 @@ async function loadLineProfile(): Promise<LineProfile> {
     return getCachedLineProfile();
   }
 
-  const liffProfile = await window.liff.getProfile();
-  const profile = {
-    line_user_id: liffProfile.userId,
-    display_name: liffProfile.displayName,
-    picture_url: liffProfile.pictureUrl ?? null,
-  };
+  const profile = await readLineProfileFromLiff(window.liff);
   cacheLineProfile(profile);
   return profile;
+}
+
+async function readLineProfileFromLiff(liff: NonNullable<Window["liff"]>): Promise<LineProfile> {
+  try {
+    const liffProfile = await liff.getProfile();
+    return {
+      line_user_id: liffProfile.userId,
+      display_name: liffProfile.displayName,
+      picture_url: liffProfile.pictureUrl ?? null,
+    };
+  } catch {
+    const token = liff.getDecodedIDToken?.();
+    if (token?.sub) {
+      return {
+        line_user_id: token.sub,
+        display_name: token.name || "ผู้ใช้งาน",
+        picture_url: token.picture ?? null,
+      };
+    }
+
+    const context = liff.getContext?.();
+    if (context?.userId) {
+      const cached = getCachedLineProfile();
+      return {
+        line_user_id: context.userId,
+        display_name: cached.line_user_id === context.userId ? cached.display_name : "ผู้ใช้งาน",
+        picture_url: cached.line_user_id === context.userId ? cached.picture_url : null,
+      };
+    }
+
+    throw new Error("LINE profile is unavailable");
+  }
 }
 
 function resolveLiffId() {
