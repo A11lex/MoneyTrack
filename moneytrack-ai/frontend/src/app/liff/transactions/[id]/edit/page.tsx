@@ -318,11 +318,12 @@ function resolveLiffId() {
 
 function resolveLiffRedirectUri(liffId: string) {
   const url = new URL(window.location.href);
+  const frontendOrigin = (process.env.NEXT_PUBLIC_FRONTEND_ORIGIN || DEFAULT_FRONTEND_ORIGIN).replace(/\/$/, "");
+
   if (url.hostname !== "liff.line.me") {
-    return url.href;
+    return `${frontendOrigin}${normalizeLiffAppPath(url.pathname)}`;
   }
 
-  const frontendOrigin = (process.env.NEXT_PUBLIC_FRONTEND_ORIGIN || DEFAULT_FRONTEND_ORIGIN).replace(/\/$/, "");
   const statePath = url.searchParams.get("liff.state");
   const decodedStatePath = statePath ? decodeURIComponent(statePath) : "";
   const pathFromLiffUrl = url.pathname.startsWith(`/${liffId}`) ? url.pathname.slice(liffId.length + 1) : "";
