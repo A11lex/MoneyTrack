@@ -22,28 +22,28 @@ def test_main_rich_menu_navigation_buttons_use_app_base_url() -> None:
     payload = module.build_main_menu_payload(
         width=1920,
         height=1200,
-        app_base_url="https://liff.line.me/2010521304-BrGvBhsP",
+        app_base_url="https://liff.line.me/2010521304-BrGvBhsp",
     )
 
     assert payload["areas"][1]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/summary",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsp/liff/summary",
     }
     assert payload["areas"][2]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/insights",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsp/liff/insights",
     }
     assert payload["areas"][3]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/categories",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsp/liff/categories",
     }
     assert payload["areas"][4]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/transactions",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsp/liff/transactions",
     }
     assert payload["areas"][6]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/settings",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsp/liff/settings",
     }
 
 
@@ -54,8 +54,8 @@ def test_main_app_base_url_defaults_to_liff_url_even_when_frontend_origin_exists
     monkeypatch.setenv("FRONTEND_ORIGIN", "https://money-track-sandy.vercel.app")
 
     assert (
-        module.resolve_main_app_base_url("https://liff.line.me/2010521304-BrGvBhsP")
-        == "https://liff.line.me/2010521304-BrGvBhsP"
+        module.resolve_main_app_base_url("https://liff.line.me/2010521304-BrGvBhsp")
+        == "https://liff.line.me/2010521304-BrGvBhsp"
     )
 
 
@@ -65,15 +65,16 @@ def test_main_app_base_url_allows_explicit_rich_menu_override(monkeypatch) -> No
     monkeypatch.setenv("LIFF_MAIN_URL_BASE", "https://example.com/custom/")
 
     assert (
-        module.resolve_main_app_base_url("https://liff.line.me/2010521304-BrGvBhsP")
+        module.resolve_main_app_base_url("https://liff.line.me/2010521304-BrGvBhsp")
         == "https://example.com/custom"
     )
 
 
-def test_normalized_liff_id_fixes_known_lowercase_typo() -> None:
+def test_default_liff_id_matches_configured_line_liff_id() -> None:
     module = _load_setup_module()
 
-    assert module.normalized_liff_id("2010521304-BrGvBhsp") == "2010521304-BrGvBhsP"
+    assert module.DEFAULT_LIFF_ID == "2010521304-BrGvBhsp"
+    assert module.liff_url_from_id(module.DEFAULT_LIFF_ID) == "https://liff.line.me/2010521304-BrGvBhsp"
 
 
 def _load_setup_module():

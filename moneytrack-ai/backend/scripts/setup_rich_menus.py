@@ -12,13 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 ASSET_DIR = ROOT / "assets" / "rich-menu"
 OUTPUT_DIR = ROOT / ".generated" / "rich-menu"
 MAX_IMAGE_BYTES = 1_000_000
-DEFAULT_LIFF_ID = "2010521304-BrGvBhsP"
-OLD_LOWERCASE_LIFF_ID = "2010521304-BrGvBhsp"
+DEFAULT_LIFF_ID = "2010521304-BrGvBhsp"
 
 
 def main() -> None:
     access_token = required_env("LINE_CHANNEL_ACCESS_TOKEN")
-    liff_id = normalized_liff_id(os.getenv("NEXT_PUBLIC_LIFF_ID", DEFAULT_LIFF_ID))
+    liff_id = os.getenv("NEXT_PUBLIC_LIFF_ID", DEFAULT_LIFF_ID)
     liff_url = os.getenv("LIFF_ONBOARDING_URL") or liff_url_from_id(liff_id)
     main_liff_url = resolve_main_app_base_url(liff_url)
 
@@ -48,12 +47,6 @@ def required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
-    return value
-
-
-def normalized_liff_id(value: str) -> str:
-    if value == OLD_LOWERCASE_LIFF_ID:
-        return DEFAULT_LIFF_ID
     return value
 
 

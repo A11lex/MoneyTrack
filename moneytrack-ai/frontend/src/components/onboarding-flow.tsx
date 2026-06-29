@@ -43,7 +43,7 @@ const mockProfile: LineProfile = {
   picture_url: null,
 };
 
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
 
 type LiffProfile = {
   userId: string;
@@ -54,7 +54,7 @@ type LiffProfile = {
 type LiffClient = {
   init: (options: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
-  login: () => void;
+  login: (options?: { redirectUri?: string }) => void;
   getProfile: () => Promise<LiffProfile>;
   closeWindow?: () => void;
 };
@@ -477,7 +477,7 @@ async function loadLineProfile(): Promise<LineProfile> {
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
-    window.liff.login();
+    window.liff.login({ redirectUri: window.location.href });
     return mockProfile;
   }
 

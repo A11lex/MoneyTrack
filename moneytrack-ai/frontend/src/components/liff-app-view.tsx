@@ -110,7 +110,7 @@ type LineProfile = {
   picture_url: string | null;
 };
 
-const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
+const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
 
 const currencyOptions: CurrencySetting[] = [
   { code: "THB", label: "Thai Baht", symbol: "฿" },
@@ -5188,7 +5188,7 @@ async function loadLineProfile(): Promise<LineProfile> {
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
-    window.liff.login();
+    window.liff.login({ redirectUri: window.location.href });
     return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
   }
 
