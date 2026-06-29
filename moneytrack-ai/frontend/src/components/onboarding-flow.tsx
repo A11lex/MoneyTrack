@@ -45,6 +45,7 @@ const mockProfile: LineProfile = {
 
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
 const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsp";
+const DEFAULT_FRONTEND_ORIGIN = "https://money-track-sandy.vercel.app";
 
 type LiffProfile = {
   userId: string;
@@ -488,7 +489,7 @@ async function loadLineProfile(): Promise<LineProfile> {
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
-    window.liff.login({ redirectUri: window.location.href });
+    window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
     return mockProfile;
   }
 
@@ -529,6 +530,25 @@ async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
 function resolveLiffId() {
   const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
   return liffId === KNOWN_WRONG_LIFF_ID ? DEFAULT_LIFF_ID : liffId;
+}
+
+function resolveLiffRedirectUri(liffId: string) {
+  const url = new URL(window.location.href);
+  if (url.hostname !== "liff.line.me") {
+    return url.href;
+  }
+
+  const frontendOrigin = (process.env.NEXT_PUBLIC_FRONTEND_ORIGIN || DEFAULT_FRONTEND_ORIGIN).replace(/\/$/, "");
+  const statePath = url.searchParams.get("liff.state");
+  const decodedStatePath = statePath ? decodeURIComponent(statePath) : "";
+  const pathFromLiffUrl = url.pathname.startsWith(`/${liffId}`) ? url.pathname.slice(liffId.length + 1) : "";
+  const path = normalizeLiffAppPath(decodedStatePath || pathFromLiffUrl || "/liff/onboarding");
+  return `${frontendOrigin}${path}`;
+}
+
+function normalizeLiffAppPath(value: string) {
+  const path = value.startsWith("/") ? value : `/${value}`;
+  return path.startsWith("/liff/") ? path : "/liff/onboarding";
 }
 
 function loadLiffSdk(): Promise<void> {
