@@ -513,23 +513,24 @@ async function loadLineProfile(): Promise<LineProfile> {
 
 async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
   try {
+    const context = liff.getContext?.();
     const liffProfile = await liff.getProfile();
     return {
-      line_user_id: liffProfile.userId,
+      line_user_id: context?.userId || liffProfile.userId,
       display_name: liffProfile.displayName,
       picture_url: liffProfile.pictureUrl ?? null,
     };
   } catch {
     const token = liff.getDecodedIDToken?.();
+    const context = liff.getContext?.();
     if (token?.sub) {
       return {
-        line_user_id: token.sub,
+        line_user_id: context?.userId || token.sub,
         display_name: token.name || "LINE User",
         picture_url: token.picture ?? null,
       };
     }
 
-    const context = liff.getContext?.();
     if (context?.userId) {
       return {
         line_user_id: context.userId,

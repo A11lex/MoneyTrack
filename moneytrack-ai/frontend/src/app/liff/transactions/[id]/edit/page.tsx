@@ -304,10 +304,11 @@ async function loadLineUserId(): Promise<string> {
   }
 
   try {
+    const contextUserId = lineWindow.liff.getContext?.()?.userId;
     const profile = await lineWindow.liff.getProfile();
-    return profile.userId;
+    return contextUserId || profile.userId;
   } catch {
-    return lineWindow.liff.getDecodedIDToken?.()?.sub || lineWindow.liff.getContext?.()?.userId || "";
+    return lineWindow.liff.getContext?.()?.userId || lineWindow.liff.getDecodedIDToken?.()?.sub || "";
   }
 }
 
