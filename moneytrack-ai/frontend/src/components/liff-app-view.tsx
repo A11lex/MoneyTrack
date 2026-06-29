@@ -79,6 +79,11 @@ type CurrencySetting = {
   symbol: string;
 };
 type LanguageCode = "th" | "en";
+type TimezoneSetting = {
+  label: string;
+  offset: string;
+  value: string;
+};
 type RecurringItem = {
   id: number | string;
   type: "expense" | "income";
@@ -121,6 +126,30 @@ const currencyOptions: CurrencySetting[] = [
 const languageOptions: { code: LanguageCode; label: string }[] = [
   { code: "th", label: "ไทย" },
   { code: "en", label: "English" },
+];
+
+const timezoneOptions: TimezoneSetting[] = [
+  { label: "Athens", offset: "UTC+03:00", value: "Europe/Athens" },
+  { label: "Moscow", offset: "UTC+03:00", value: "Europe/Moscow" },
+  { label: "Istanbul", offset: "UTC+03:00", value: "Europe/Istanbul" },
+  { label: "Riyadh", offset: "UTC+03:00", value: "Asia/Riyadh" },
+  { label: "Nairobi", offset: "UTC+03:00", value: "Africa/Nairobi" },
+  { label: "Tehran", offset: "UTC+03:30", value: "Asia/Tehran" },
+  { label: "Dubai", offset: "UTC+04:00", value: "Asia/Dubai" },
+  { label: "Kabul", offset: "UTC+04:30", value: "Asia/Kabul" },
+  { label: "Karachi", offset: "UTC+05:00", value: "Asia/Karachi" },
+  { label: "Kolkata", offset: "UTC+05:30", value: "Asia/Kolkata" },
+  { label: "Colombo", offset: "UTC+05:30", value: "Asia/Colombo" },
+  { label: "Kathmandu", offset: "UTC+05:45", value: "Asia/Kathmandu" },
+  { label: "Dhaka", offset: "UTC+06:00", value: "Asia/Dhaka" },
+  { label: "Yangon", offset: "UTC+06:30", value: "Asia/Yangon" },
+  { label: "Bangkok", offset: "UTC+07:00", value: "Asia/Bangkok" },
+  { label: "Singapore", offset: "UTC+08:00", value: "Asia/Singapore" },
+  { label: "Tokyo", offset: "UTC+09:00", value: "Asia/Tokyo" },
+  { label: "Sydney", offset: "UTC+10:00", value: "Australia/Sydney" },
+  { label: "London", offset: "UTC+01:00", value: "Europe/London" },
+  { label: "New York", offset: "UTC-04:00", value: "America/New_York" },
+  { label: "Los Angeles", offset: "UTC-07:00", value: "America/Los_Angeles" },
 ];
 
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
@@ -2645,10 +2674,12 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showPaymentScreen, setShowPaymentScreen] = useState(false);
   const [showCurrencyScreen, setShowCurrencyScreen] = useState(false);
+  const [showTimezoneScreen, setShowTimezoneScreen] = useState(false);
   const [showLanguageScreen, setShowLanguageScreen] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<DailyReminderSettingsInput>(() => loadStoredDailyReminderSettings(profile.line_user_id));
   const [paymentSettings, setPaymentSettings] = useState<PaymentChannelSettings>(() => loadStoredPaymentChannelSettings(profile.line_user_id));
   const [currencySetting, setCurrencySetting] = useState<CurrencySetting>(() => loadStoredCurrencySetting(profile.line_user_id));
+  const [timezoneSetting, setTimezoneSetting] = useState<TimezoneSetting>(() => loadStoredTimezoneSetting(profile.line_user_id));
   const [languageSetting, setLanguageSetting] = useState<LanguageCode>(() => loadStoredLanguageSetting(profile.line_user_id));
   const [savingReminder, setSavingReminder] = useState(false);
   const [reminderError, setReminderError] = useState("");
@@ -2692,12 +2723,15 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     let mounted = true;
     Promise.resolve({
       currency: loadStoredCurrencySetting(profile.line_user_id),
+      timezone: loadStoredTimezoneSetting(profile.line_user_id),
       language: loadStoredLanguageSetting(profile.line_user_id),
     }).then((settings) => {
       if (!mounted) return;
       setCurrencySetting(settings.currency);
+      setTimezoneSetting(settings.timezone);
       setLanguageSetting(settings.language);
       saveStoredCurrencySetting(profile.line_user_id, settings.currency);
+      saveStoredTimezoneSetting(profile.line_user_id, settings.timezone);
     });
     return () => {
       mounted = false;
@@ -2736,6 +2770,11 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     saveStoredLanguageSetting(profile.line_user_id, nextSetting);
   }
 
+  function saveTimezoneSetting(nextSetting: TimezoneSetting) {
+    setTimezoneSetting(nextSetting);
+    saveStoredTimezoneSetting(profile.line_user_id, nextSetting);
+  }
+
   if (showPaymentScreen) {
     return (
       <PaymentChannelsScreen
@@ -2762,6 +2801,16 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
         value={languageSetting}
         onBack={() => setShowLanguageScreen(false)}
         onChange={saveLanguageSetting}
+      />
+    );
+  }
+
+  if (showTimezoneScreen) {
+    return (
+      <TimezoneSettingsScreen
+        value={timezoneSetting}
+        onBack={() => setShowTimezoneScreen(false)}
+        onChange={saveTimezoneSetting}
       />
     );
   }
@@ -2803,6 +2852,7 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
               if (index === 0) setShowReminderModal(true);
               if (index === 2) setShowPaymentScreen(true);
               if (index === 7) setShowCurrencyScreen(true);
+              if (index === 9) setShowTimezoneScreen(true);
               if (index === 10) setShowLanguageScreen(true);
             }}
             className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm"
@@ -2822,6 +2872,11 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
               {index === 7 && (
                 <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
                   {currencySetting.symbol}
+                </span>
+              )}
+              {index === 9 && (
+                <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
+                  {timezoneSetting.label}
                 </span>
               )}
               {index === 10 && (
@@ -2948,6 +3003,71 @@ function LanguageSettingsScreen({
             </button>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function TimezoneSettingsScreen({
+  onBack,
+  onChange,
+  value,
+}: {
+  onBack: () => void;
+  onChange: (value: TimezoneSetting) => void;
+  value: TimezoneSetting;
+}) {
+  const [query, setQuery] = useState("");
+  const filteredTimezones = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return timezoneOptions;
+    return timezoneOptions.filter((timezone) => {
+      return (
+        timezone.label.toLowerCase().includes(normalized) ||
+        timezone.offset.toLowerCase().includes(normalized) ||
+        timezone.value.toLowerCase().includes(normalized)
+      );
+    });
+  }, [query]);
+
+  return (
+    <div className="space-y-5 pb-8">
+      <div className="flex items-center justify-between">
+        <div className="w-10" />
+        <h2 className="text-xl font-black text-[#151b18]">ตั้งค่าโซนเวลา</h2>
+        <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-full text-[#64706a] hover:bg-[#f3f5f4]" aria-label="ปิด">
+          <X size={22} />
+        </button>
+      </div>
+      <div className="rounded-md border border-black/10 bg-white px-4 py-3 shadow-sm">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="ค้นหาโซนเวลา"
+          className="h-10 w-full border-0 bg-transparent text-sm font-semibold outline-none placeholder:text-[#9aa1a0]"
+        />
+      </div>
+      <p className="px-1 text-sm font-black text-[#151b18]">เลือกโซนเวลาที่ระบบจะแสดงผล</p>
+      <div className="max-h-[68vh] overflow-y-auto rounded-md bg-white">
+        {filteredTimezones.map((timezone) => {
+          const selected = timezone.value === value.value;
+          return (
+            <button
+              key={timezone.value}
+              type="button"
+              onClick={() => onChange(timezone)}
+              className={`flex min-h-12 w-full items-center justify-between px-4 text-left text-sm font-bold ${selected ? "bg-[#FCECEF] text-[#151b18]" : "bg-white text-[#4d5652] hover:bg-[#f8faf9]"}`}
+            >
+              <span>
+                {timezone.label} ({timezone.offset})
+              </span>
+              {selected && <Check size={16} className="text-[#151b18]" />}
+            </button>
+          );
+        })}
+        {filteredTimezones.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm font-semibold text-[#8a928e]">ไม่พบโซนเวลาที่ค้นหา</p>
+        )}
       </div>
     </div>
   );
@@ -4524,6 +4644,31 @@ function saveStoredLanguageSetting(lineUserId: string | undefined, value: Langua
   }
 }
 
+function timezoneStorageKey(lineUserId?: string) {
+  return lineUserId ? `moneytrack_timezone_${lineUserId}` : "moneytrack_timezone";
+}
+
+function findTimezone(value: string | null): TimezoneSetting {
+  return timezoneOptions.find((timezone) => timezone.value === value) ?? timezoneOptions.find((timezone) => timezone.value === "Asia/Bangkok") ?? timezoneOptions[0];
+}
+
+function loadStoredTimezoneSetting(lineUserId?: string): TimezoneSetting {
+  if (typeof window === "undefined") return findTimezone("Asia/Bangkok");
+  return findTimezone(window.localStorage.getItem(timezoneStorageKey(lineUserId)));
+}
+
+function loadActiveTimezoneSetting(): TimezoneSetting {
+  if (typeof window === "undefined") return findTimezone("Asia/Bangkok");
+  return findTimezone(window.localStorage.getItem("moneytrack_active_timezone"));
+}
+
+function saveStoredTimezoneSetting(lineUserId: string | undefined, value: TimezoneSetting) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(timezoneStorageKey(lineUserId), value.value);
+    window.localStorage.setItem("moneytrack_active_timezone", value.value);
+  }
+}
+
 function recurringStorageKey(lineUserId?: string) {
   return lineUserId ? `moneytrack_recurring_items_${lineUserId}` : "moneytrack_recurring_items";
 }
@@ -4941,7 +5086,7 @@ function formatTimeFallback(value?: string) {
   if (!value || !value.includes("T")) return "วันนี้";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "วันนี้";
-  return date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", timeZone: loadActiveTimezoneSetting().value });
 }
 
 function formatBudgetAmount(value: number) {
