@@ -38,6 +38,7 @@ import {
   deleteTransaction,
   getDailyReminderSettings,
   getDashboard,
+  getLineUserSetup,
   getRecurringTransactions,
   getTransactions,
   getUserSettings,
@@ -209,17 +210,24 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
 
   useEffect(() => {
     let mounted = true;
-    loadLineProfile().then((loadedProfile) => {
+    loadLineProfile().then(async (loadedProfile) => {
       if (!mounted) return Promise.reject(new Error("unmounted"));
       setProfile(loadedProfile);
       if (!loadedProfile.line_user_id) {
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
-      void upsertLineUser({
+
+      const setup = await getLineUserSetup(loadedProfile.line_user_id);
+      if (!setup?.onboarding_completed) {
+        window.location.replace("/liff/onboarding");
+        return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
+      }
+
+      await upsertLineUser({
         line_user_id: loadedProfile.line_user_id,
         display_name: loadedProfile.display_name,
         picture_url: loadedProfile.picture_url,
-      }).catch(() => undefined);
+      });
       return Promise.all([getDashboard(loadedProfile.line_user_id), getTransactions(loadedProfile.line_user_id)]);
     }).catch(() => Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]))
       .then(([dashboardData, transactionData]) => {

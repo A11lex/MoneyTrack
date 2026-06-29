@@ -25,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 
-import { saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
+import { getLineUserSetup, saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
 
 type Step = "welcome" | "source" | "expense" | "income" | "done";
 
@@ -121,9 +121,24 @@ export function OnboardingFlow() {
   const progress = useMemo(() => ((stepIndex + 1) / steps.length) * 100, [stepIndex]);
 
   useEffect(() => {
+    let mounted = true;
     loadLineProfile()
-      .then(setProfile)
-      .catch(() => setProfile(mockProfile));
+      .then(async (loadedProfile) => {
+        if (!mounted) return;
+        setProfile(loadedProfile);
+        if (!loadedProfile.line_user_id) return;
+
+        const setup = await getLineUserSetup(loadedProfile.line_user_id);
+        if (setup?.onboarding_completed) {
+          window.location.replace("/liff/summary");
+        }
+      })
+      .catch(() => {
+        if (mounted) setProfile(mockProfile);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   async function finish() {

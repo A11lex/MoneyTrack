@@ -128,6 +128,21 @@ export function upsertLineUser(payload: LineUserInput): Promise<LineUserSetup> {
   });
 }
 
+export async function getLineUserSetup(lineUserId: string): Promise<LineUserSetup | null> {
+  const response = await fetch(`${API_BASE_URL}/users/line/${encodeURIComponent(lineUserId)}/setup`, {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+  if (response.status === 404) {
+    return null;
+  }
+  if (!response.ok) {
+    throw new Error(`API request failed: ${response.status}`);
+  }
+  return response.json() as Promise<LineUserSetup>;
+}
+
 export function saveLineUserOnboarding(lineUserId: string, payload: OnboardingInput): Promise<LineUserSetup> {
   return request<LineUserSetup>(`/users/line/${encodeURIComponent(lineUserId)}/onboarding`, {
     method: "POST",
