@@ -264,7 +264,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   }
 
   return (
-    <main className="min-h-screen bg-[#f8faf9] text-[#151b18]">
+    <main className="moneytrack-liff min-h-screen bg-[#f8faf9] text-[#151b18]">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
         <section className="flex-1 px-4 pb-24 pt-4">
           {loading ? (

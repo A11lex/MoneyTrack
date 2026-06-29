@@ -31,3 +31,138 @@ select,
 textarea {
   font: inherit;
 }
+
+.moneytrack-liff {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.moneytrack-liff *,
+.moneytrack-liff *::before,
+.moneytrack-liff *::after {
+  min-width: 0;
+}
+
+.moneytrack-liff p,
+.moneytrack-liff span,
+.moneytrack-liff h1,
+.moneytrack-liff h2,
+.moneytrack-liff h3,
+.moneytrack-liff button,
+.moneytrack-liff a,
+.moneytrack-liff dd,
+.moneytrack-liff dt {
+  overflow-wrap: anywhere;
+}
+
+.moneytrack-liff button,
+.moneytrack-liff a[href],
+.moneytrack-liff [role="button"],
+.moneytrack-liff [role="switch"] {
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    opacity 160ms ease;
+}
+
+.moneytrack-liff button:not(:disabled):active,
+.moneytrack-liff a[href]:active,
+.moneytrack-liff [role="button"]:active,
+.moneytrack-liff [role="switch"]:active {
+  transform: translateY(1px) scale(0.985);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .moneytrack-liff button:not(:disabled):hover,
+  .moneytrack-liff a[href]:hover,
+  .moneytrack-liff [role="button"]:hover {
+    transform: translateY(-1px);
+  }
+}
+
+.moneytrack-liff .fixed.inset-0 {
+  animation: moneytrackFadeIn 160ms ease-out both;
+}
+
+.moneytrack-liff .fixed.inset-0 > div {
+  animation: moneytrackModalIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.moneytrack-liff .recharts-wrapper text {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .moneytrack-liff {
+    font-size: 15px;
+  }
+
+  .moneytrack-liff .text-4xl {
+    font-size: 1.875rem;
+    line-height: 2.25rem;
+  }
+
+  .moneytrack-liff .text-3xl {
+    font-size: 1.5rem;
+    line-height: 2rem;
+  }
+
+  .moneytrack-liff .text-2xl {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+  }
+
+  .moneytrack-liff .text-xl {
+    font-size: 1.125rem;
+    line-height: 1.625rem;
+  }
+
+  .moneytrack-liff .text-lg {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .moneytrack-liff .font-black {
+    font-weight: 800;
+  }
+
+  .moneytrack-liff button,
+  .moneytrack-liff select,
+  .moneytrack-liff input,
+  .moneytrack-liff textarea {
+    letter-spacing: 0;
+  }
+}
+
+@keyframes moneytrackFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes moneytrackModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moneytrack-liff *,
+  .moneytrack-liff *::before,
+  .moneytrack-liff *::after {
+    animation-duration: 1ms !important;
+    scroll-behavior: auto !important;
+    transition-duration: 1ms !important;
+  }
+}
