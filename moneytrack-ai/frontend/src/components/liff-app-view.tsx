@@ -107,6 +107,7 @@ type RecurringItem = {
 };
 type LineProfile = {
   line_user_id: string;
+  alternate_line_user_id?: string | null;
   display_name: string;
   picture_url: string | null;
 };
@@ -217,12 +218,13 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
 
-      const setup = await getLineUserSetup(loadedProfile.line_user_id);
+      const setup = await resolveLineUserSetup(loadedProfile);
       if (!setup?.onboarding_completed) {
         window.location.replace("/liff/onboarding");
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
 
+      applyLineUserSetupToLocalStorage(setup);
       const resolvedProfile = mergeLineProfile(loadedProfile, setup);
       setProfile(resolvedProfile);
       await upsertLineUser({
@@ -5188,6 +5190,53 @@ function dateWithClampedDay(year: number, monthIndex: number, day: number) {
   return new Date(year, monthIndex, Math.min(day, lastDay));
 }
 
+async function resolveLineUserSetup(profile: LineProfile): Promise<LineUserSetup | null> {
+  const primarySetup = await getLineUserSetup(profile.line_user_id);
+  if (primarySetup?.onboarding_completed || !profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
+    return primarySetup;
+  }
+
+  const alternateSetup = await getLineUserSetup(profile.alternate_line_user_id);
+  if (!alternateSetup?.onboarding_completed) {
+    return primarySetup;
+  }
+
+  await upsertLineUser({
+    line_user_id: profile.line_user_id,
+    display_name: profile.display_name,
+    picture_url: profile.picture_url,
+  });
+  return saveLineUserOnboarding(profile.line_user_id, {
+    discovery_source: alternateSetup.discovery_source,
+    expense_categories: alternateSetup.expense_categories,
+    income_categories: alternateSetup.income_categories,
+    monthly_budgets: alternateSetup.monthly_budgets,
+    budget_cycle: alternateSetup.budget_cycle,
+    budget_start_day: alternateSetup.budget_start_day,
+  });
+}
+
+function applyLineUserSetupToLocalStorage(setup: LineUserSetup) {
+  if (typeof window === "undefined") return;
+  saveStoredExpenseCategories(setup.expense_categories.length > 0 ? setup.expense_categories : expenseCategories);
+  saveStoredIncomeCategories(setup.income_categories.length > 0 ? setup.income_categories : incomeCategories);
+  saveStoredBudgetCycle(setup.budget_cycle);
+  saveStoredBudgetStartDay(setup.budget_start_day);
+
+  const totalBudget = setup.monthly_budgets.__total__ ?? 0;
+  if (totalBudget > 0) {
+    saveStoredBudgetMode("total");
+    saveStoredTotalBudget(totalBudget);
+    saveStoredExpenseBudgets({});
+    return;
+  }
+
+  const categoryBudgets = Object.fromEntries(Object.entries(setup.monthly_budgets).filter(([category]) => category !== "__total__"));
+  saveStoredBudgetMode("category");
+  saveStoredTotalBudget(0);
+  saveStoredExpenseBudgets(categoryBudgets);
+}
+
 function mergeLineProfile(profile: LineProfile, setup: LineUserSetup): LineProfile {
   const setupName = setup.display_name?.trim();
   const profileName = profile.display_name?.trim();
@@ -5237,6 +5286,7 @@ async function readLineProfileFromLiff(liff: NonNullable<Window["liff"]>): Promi
     const liffProfile = await liff.getProfile();
     return {
       line_user_id: context?.userId || liffProfile.userId,
+      alternate_line_user_id: context?.userId && context.userId !== liffProfile.userId ? liffProfile.userId : null,
       display_name: liffProfile.displayName,
       picture_url: liffProfile.pictureUrl ?? null,
     };
@@ -5246,6 +5296,7 @@ async function readLineProfileFromLiff(liff: NonNullable<Window["liff"]>): Promi
     if (token?.sub) {
       return {
         line_user_id: context?.userId || token.sub,
+        alternate_line_user_id: context?.userId && context.userId !== token.sub ? token.sub : null,
         display_name: token.name || "ผู้ใช้งาน",
         picture_url: token.picture ?? null,
       };
@@ -5255,6 +5306,7 @@ async function readLineProfileFromLiff(liff: NonNullable<Window["liff"]>): Promi
       const cached = getCachedLineProfile();
       return {
         line_user_id: context.userId,
+        alternate_line_user_id: null,
         display_name: cached.line_user_id === context.userId ? cached.display_name : "ผู้ใช้งาน",
         picture_url: cached.line_user_id === context.userId ? cached.picture_url : null,
       };

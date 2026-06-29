@@ -12,6 +12,7 @@ from .database import (
     get_user_settings,
     list_transactions,
     match_category_memory_mapping,
+    upsert_line_user,
 )
 from .line_messages import (
     build_category_budget_flex,
@@ -25,6 +26,7 @@ from .line_messages import (
     build_transaction_success_with_budget_flex,
 )
 from .message_parser import ParseError, parse_transaction_message
+from .models import LineUserUpsert
 
 
 class LineWebhookPayload(BaseModel):
@@ -60,6 +62,7 @@ def handle_line_message_detail(
     today: date | None = None,
 ) -> LineMessageResult:
     normalized = message.strip()
+    upsert_line_user(LineUserUpsert(line_user_id=line_user_id, display_name="LINE User"), db_path)
     user_settings = get_user_settings(line_user_id, db_path)
     current_date = today or datetime.now(_safe_timezone(user_settings.timezone)).date()
 

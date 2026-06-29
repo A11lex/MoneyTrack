@@ -662,8 +662,11 @@ def upsert_line_user(payload: LineUserUpsert, db_path: str | None = None) -> Use
             INSERT INTO line_users (line_user_id, display_name, picture_url)
             VALUES (?, ?, ?)
             ON CONFLICT(line_user_id) DO UPDATE SET
-                display_name = excluded.display_name,
-                picture_url = excluded.picture_url,
+                display_name = CASE
+                    WHEN excluded.display_name IN ('LINE User', 'ผู้ใช้งาน') THEN line_users.display_name
+                    ELSE excluded.display_name
+                END,
+                picture_url = COALESCE(excluded.picture_url, line_users.picture_url),
                 updated_at = CURRENT_TIMESTAMP
             """,
             (payload.line_user_id, payload.display_name, payload.picture_url),

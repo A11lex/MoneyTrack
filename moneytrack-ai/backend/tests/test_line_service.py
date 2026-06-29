@@ -1,7 +1,7 @@
 from datetime import date
 from typing import Any
 
-from app.database import list_transactions, save_user_onboarding, save_user_settings, update_transaction, upsert_line_user
+from app.database import get_user_setup, list_transactions, save_user_onboarding, save_user_settings, update_transaction, upsert_line_user
 from app.line_service import handle_line_message, handle_line_message_detail
 from app.models import LineUserUpsert, OnboardingPayload, TransactionUpdate, UserSettingsUpdate
 
@@ -37,6 +37,17 @@ def test_line_transactions_are_scoped_by_user(tmp_path) -> None:
     assert [transaction.amount for transaction in user_a_transactions] == [80]
     assert [transaction.amount for transaction in user_b_transactions] == [120]
     assert len(list_transactions(db_path)) == 2
+
+
+def test_line_message_creates_line_user_setup_row(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+
+    handle_line_message("line-user-001", "ข้าว 80", db_path=db_path, today=date(2026, 6, 25))
+
+    setup = get_user_setup("line-user-001", db_path)
+    assert setup is not None
+    assert setup.line_user_id == "line-user-001"
+    assert setup.onboarding_completed is False
 
 
 def test_handle_line_message_returns_parse_error_without_saving(tmp_path) -> None:

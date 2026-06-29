@@ -33,6 +33,7 @@ const steps: Step[] = ["welcome", "source", "expense", "income", "done"];
 
 type LineProfile = {
   line_user_id: string;
+  alternate_line_user_id?: string | null;
   display_name: string;
   picture_url: string | null;
 };
@@ -128,7 +129,7 @@ export function OnboardingFlow() {
         setProfile(loadedProfile);
         if (!loadedProfile.line_user_id) return;
 
-        const setup = await getLineUserSetup(loadedProfile.line_user_id);
+        const setup = await resolveLineUserSetup(loadedProfile);
         if (setup?.onboarding_completed) {
           window.location.replace("/liff/summary");
         }
@@ -511,12 +512,35 @@ async function loadLineProfile(): Promise<LineProfile> {
   return readLineProfileFromLiff(window.liff);
 }
 
+async function resolveLineUserSetup(profile: LineProfile) {
+  const primarySetup = await getLineUserSetup(profile.line_user_id);
+  if (primarySetup?.onboarding_completed || !profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
+    return primarySetup;
+  }
+
+  const alternateSetup = await getLineUserSetup(profile.alternate_line_user_id);
+  if (!alternateSetup?.onboarding_completed) {
+    return primarySetup;
+  }
+
+  await upsertLineUser(profile);
+  return saveLineUserOnboarding(profile.line_user_id, {
+    discovery_source: alternateSetup.discovery_source,
+    expense_categories: alternateSetup.expense_categories,
+    income_categories: alternateSetup.income_categories,
+    monthly_budgets: alternateSetup.monthly_budgets,
+    budget_cycle: alternateSetup.budget_cycle,
+    budget_start_day: alternateSetup.budget_start_day,
+  });
+}
+
 async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
   try {
     const context = liff.getContext?.();
     const liffProfile = await liff.getProfile();
     return {
       line_user_id: context?.userId || liffProfile.userId,
+      alternate_line_user_id: context?.userId && context.userId !== liffProfile.userId ? liffProfile.userId : null,
       display_name: liffProfile.displayName,
       picture_url: liffProfile.pictureUrl ?? null,
     };
@@ -526,6 +550,7 @@ async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
     if (token?.sub) {
       return {
         line_user_id: context?.userId || token.sub,
+        alternate_line_user_id: context?.userId && context.userId !== token.sub ? token.sub : null,
         display_name: token.name || "LINE User",
         picture_url: token.picture ?? null,
       };
@@ -534,6 +559,7 @@ async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
     if (context?.userId) {
       return {
         line_user_id: context.userId,
+        alternate_line_user_id: null,
         display_name: "LINE User",
         picture_url: null,
       };
