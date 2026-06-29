@@ -49,7 +49,7 @@ import {
   updateTransaction,
   upsertLineUser,
 } from "@/lib/api";
-import type { DailyReminderSettingsInput, DashboardData, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
+import type { DailyReminderSettingsInput, DashboardData, LineUserSetup, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 type UserPlan = "free" | "pro";
@@ -223,12 +223,14 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
 
+      const resolvedProfile = mergeLineProfile(loadedProfile, setup);
+      setProfile(resolvedProfile);
       await upsertLineUser({
-        line_user_id: loadedProfile.line_user_id,
-        display_name: loadedProfile.display_name,
-        picture_url: loadedProfile.picture_url,
+        line_user_id: resolvedProfile.line_user_id,
+        display_name: resolvedProfile.display_name,
+        picture_url: resolvedProfile.picture_url,
       });
-      return Promise.all([getDashboard(loadedProfile.line_user_id), getTransactions(loadedProfile.line_user_id)]);
+      return Promise.all([getDashboard(resolvedProfile.line_user_id), getTransactions(resolvedProfile.line_user_id)]);
     }).catch(() => Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]))
       .then(([dashboardData, transactionData]) => {
         if (!mounted) return;
@@ -3610,10 +3612,10 @@ function SummaryProfileCard({ plan, profile }: { plan: UserPlan; profile: LinePr
   const planLabel = plan === "pro" ? "ผู้ใช้งานPro" : "ผู้ใช้งานฟรี";
   return (
     <section className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
-      <Image src={profile.picture_url ?? "/brand/moneytrack-pro.png"} alt={profile.display_name} width={48} height={48} className="h-12 w-12 rounded-full object-cover" unoptimized={Boolean(profile.picture_url)} />
+      <Image src={profile.picture_url || "/brand/moneytrack-pro.png"} alt={profile.display_name} width={48} height={48} className="h-12 w-12 rounded-full object-cover" unoptimized={Boolean(profile.picture_url)} />
       <div className="min-w-0 flex-1">
         <p className="truncate text-2xl font-black">{profile.display_name}</p>
-        <p className="mt-1 text-xs font-semibold text-[#8a928e]">{planLabel}</p>
+        <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{planLabel} · ID {formatLineUserId(profile.line_user_id)}</p>
       </div>
       <Image src="/brand/moneytrack-pro.png" alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover opacity-80" />
     </section>
@@ -5184,6 +5186,27 @@ function parseLocalDate(value: string) {
 function dateWithClampedDay(year: number, monthIndex: number, day: number) {
   const lastDay = new Date(year, monthIndex + 1, 0).getDate();
   return new Date(year, monthIndex, Math.min(day, lastDay));
+}
+
+function mergeLineProfile(profile: LineProfile, setup: LineUserSetup): LineProfile {
+  const setupName = setup.display_name?.trim();
+  const profileName = profile.display_name?.trim();
+  return {
+    line_user_id: profile.line_user_id || setup.line_user_id,
+    display_name: isGenericLineName(profileName) && setupName ? setupName : profileName || setupName || "ผู้ใช้งาน",
+    picture_url: profile.picture_url || setup.picture_url || null,
+  };
+}
+
+function isGenericLineName(value?: string) {
+  if (!value) return true;
+  return ["ผู้ใช้งาน", "LINE User"].includes(value);
+}
+
+function formatLineUserId(value: string) {
+  if (!value) return "-";
+  if (value.length <= 12) return value;
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
 async function loadLineProfile(): Promise<LineProfile> {
