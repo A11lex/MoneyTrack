@@ -44,6 +44,7 @@ const mockProfile: LineProfile = {
 };
 
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsP";
 
 type LiffProfile = {
   userId: string;
@@ -465,7 +466,7 @@ function customValues(options: { label: string }[], selected: string[]) {
 }
 
 async function loadLineProfile(): Promise<LineProfile> {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
+  const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
     return mockProfile;
   }
@@ -487,6 +488,11 @@ async function loadLineProfile(): Promise<LineProfile> {
     display_name: liffProfile.displayName,
     picture_url: liffProfile.pictureUrl ?? null,
   };
+}
+
+function resolveLiffId() {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
+  return liffId === KNOWN_WRONG_LIFF_ID ? DEFAULT_LIFF_ID : liffId;
 }
 
 function loadLiffSdk(): Promise<void> {

@@ -10,6 +10,7 @@ import type { Transaction, TransactionInput } from "@/lib/types";
 const accent = "#DC143C";
 const green = "#6DC5AD";
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsP";
 
 const expenseCategories = ["อาหาร", "เดินทาง", "ที่พัก", "ค่าโทรศัพท์", "ค่าเน็ต", "ค่าน้ำค่าไฟ", "ช้อปปิ้ง", "Subscription", "กาแฟ", "ผ่อนรถ", "อื่นๆ"];
 const incomeCategories = ["เงินเดือน", "ธุรกิจส่วนตัว", "งานพิเศษ", "ค่าคอมมิชชั่น", "ขายของ", "เงินปันผล", "อื่นๆ"];
@@ -282,7 +283,7 @@ function TypeButton({
 }
 
 async function loadLineUserId(): Promise<string> {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
+  const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
     return "";
   }
@@ -301,6 +302,11 @@ async function loadLineUserId(): Promise<string> {
 
   const profile = await lineWindow.liff.getProfile();
   return profile.userId;
+}
+
+function resolveLiffId() {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
+  return liffId === KNOWN_WRONG_LIFF_ID ? DEFAULT_LIFF_ID : liffId;
 }
 
 function ensureLiffSdk(): Promise<void> {

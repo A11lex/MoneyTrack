@@ -111,6 +111,8 @@ type LineProfile = {
 };
 
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsp";
+const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsP";
+const LINE_PROFILE_CACHE_KEY = "moneytrack.lineProfile";
 
 const currencyOptions: CurrencySetting[] = [
   { code: "THB", label: "Thai Baht", symbol: "฿" },
@@ -200,7 +202,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [creatingTransaction, setCreatingTransaction] = useState(false);
-  const [profile, setProfile] = useState<LineProfile>({ line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null });
+  const [profile, setProfile] = useState<LineProfile>(() => getCachedLineProfile());
   const [plan] = useState<UserPlan>(() => loadStoredUserPlan());
   const [loading, setLoading] = useState(true);
 
@@ -5176,28 +5178,58 @@ function dateWithClampedDay(year: number, monthIndex: number, day: number) {
 }
 
 async function loadLineProfile(): Promise<LineProfile> {
-  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
+  const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
-    return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
+    return getCachedLineProfile();
   }
 
   await loadLiffSdk();
   if (!window.liff) {
-    return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
+    return getCachedLineProfile();
   }
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
     window.liff.login({ redirectUri: window.location.href });
-    return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
+    return getCachedLineProfile();
   }
 
   const liffProfile = await window.liff.getProfile();
-  return {
+  const profile = {
     line_user_id: liffProfile.userId,
     display_name: liffProfile.displayName,
     picture_url: liffProfile.pictureUrl ?? null,
   };
+  cacheLineProfile(profile);
+  return profile;
+}
+
+function resolveLiffId() {
+  const liffId = process.env.NEXT_PUBLIC_LIFF_ID || DEFAULT_LIFF_ID;
+  return liffId === KNOWN_WRONG_LIFF_ID ? DEFAULT_LIFF_ID : liffId;
+}
+
+function getCachedLineProfile(): LineProfile {
+  const fallback = { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
+  if (typeof window === "undefined") return fallback;
+  try {
+    const value = window.localStorage.getItem(LINE_PROFILE_CACHE_KEY);
+    if (!value) return fallback;
+    const parsed = JSON.parse(value) as Partial<LineProfile>;
+    if (!parsed.line_user_id || !parsed.display_name) return fallback;
+    return {
+      line_user_id: parsed.line_user_id,
+      display_name: parsed.display_name,
+      picture_url: parsed.picture_url ?? null,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function cacheLineProfile(profile: LineProfile) {
+  if (typeof window === "undefined" || !profile.line_user_id) return;
+  window.localStorage.setItem(LINE_PROFILE_CACHE_KEY, JSON.stringify(profile));
 }
 
 function loadLiffSdk(): Promise<void> {
