@@ -172,6 +172,7 @@ const defaultUserSettings: UserSettingsInput = {
   confirmation_show_budget: true,
   confirmation_show_budget_warning: true,
   confirmation_show_payment_options: false,
+  payment_channels: [],
 };
 
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
@@ -205,7 +206,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [creatingTransaction, setCreatingTransaction] = useState(false);
-  const [profile, setProfile] = useState<LineProfile>(() => getCachedLineProfile());
+  const [profile, setProfile] = useState<LineProfile>(() => getEmptyLineProfile());
   const [plan] = useState<UserPlan>(() => loadStoredUserPlan());
   const [loading, setLoading] = useState(true);
 
@@ -255,7 +256,11 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const latest = useMemo(() => transactions.slice(0, 4), [transactions]);
 
   function refreshDashboard() {
-    getDashboard(profile.line_user_id || undefined)
+    if (!profile.line_user_id) {
+      setDashboard(null);
+      return;
+    }
+    getDashboard(profile.line_user_id)
       .then(setDashboard)
       .catch(() => setDashboard(null));
   }
@@ -301,7 +306,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
                   }}
                 />
               )}
-              {tab === "settings" && <SettingsScreen profile={profile} />}
+              {tab === "settings" && <SettingsScreen profile={profile} transactions={transactions} />}
             </>
           )}
         </section>
@@ -377,7 +382,7 @@ function SummaryScreen({
   const incomeRows = summaryIncomeRows(incomeByCategory);
   const donutPercent = spentInPeriod > 0 ? Math.max(8, Math.min(100, budgetLimit > 0 ? (spentInPeriod / budgetLimit) * 100 : 100)) : 0;
   const incomeDonutPercent = incomeInPeriod > 0 ? 100 : 0;
-  const streakDays = periodExpenses.length > 0 ? 2 : 0;
+  const streakDays = calculateStreakDays(transactions);
 
   return (
     <div className="space-y-5">
@@ -1450,7 +1455,10 @@ function TransactionsScreen({
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [bulkSaving, setBulkSaving] = useState(false);
   const [bulkError, setBulkError] = useState("");
-  const [showRecurringScreen, setShowRecurringScreen] = useState(false);
+  const [showRecurringScreen, setShowRecurringScreen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("view") === "recurring";
+  });
   const [recurringItems, setRecurringItems] = useState<RecurringItem[]>(() => loadStoredRecurringItems(lineUserId));
   const [recurringSaving, setRecurringSaving] = useState(false);
   const [recurringError, setRecurringError] = useState("");
@@ -1657,7 +1665,7 @@ function TransactionsScreen({
               description: transaction.description,
               mode: transaction.mode,
             },
-            lineUserId || undefined,
+            lineUserId,
           ),
         ),
       );
@@ -1688,7 +1696,7 @@ function TransactionsScreen({
               description: transaction.description,
               mode: transaction.mode,
             },
-            lineUserId || undefined,
+            lineUserId,
           ),
         ),
       );
@@ -1707,7 +1715,7 @@ function TransactionsScreen({
     setBulkSaving(true);
     setBulkError("");
     try {
-      await Promise.all(selectedTransactions.map((transaction) => deleteTransaction(transaction.id, lineUserId || undefined)));
+      await Promise.all(selectedTransactions.map((transaction) => deleteTransaction(transaction.id, lineUserId)));
       const deletingIds = new Set(selectedTransactions.map((transaction) => transaction.id));
       onTransactionsChanged(transactions.filter((transaction) => !deletingIds.has(transaction.id)));
       exitMultiSelectMode();
@@ -2701,7 +2709,7 @@ function DateRangePickerModal({
   );
 }
 
-function SettingsScreen({ profile }: { profile: LineProfile }) {
+function SettingsScreen({ profile, transactions }: { profile: LineProfile; transactions: Transaction[] }) {
   const settings = ["เตือนจดประจำวัน", "จัดหมวดด้วยความจำ", "แยกช่องทางชำระเงิน", "รายการจดประจำ", "ประวัติการชำระเงิน", "ตั้งค่าหมวด", "การแจ้งเตือน Streak", "ตั้งค่าสกุลเงิน", "ปรับแต่งข้อความยืนยัน", "ตั้งค่าโซนเวลา", "ตั้งค่าภาษา"];
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showPaymentScreen, setShowPaymentScreen] = useState(false);
@@ -2717,6 +2725,7 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
   const [languageSetting, setLanguageSetting] = useState<LanguageCode>(() => loadStoredLanguageSetting(profile.line_user_id));
   const [savingReminder, setSavingReminder] = useState(false);
   const [reminderError, setReminderError] = useState("");
+  const streakDays = calculateStreakDays(transactions);
 
   useEffect(() => {
     let mounted = true;
@@ -2759,8 +2768,15 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
           confirmation_show_budget: settings.confirmation_show_budget,
           confirmation_show_budget_warning: settings.confirmation_show_budget_warning,
           confirmation_show_payment_options: settings.confirmation_show_payment_options,
+          payment_channels: settings.payment_channels,
         };
         setUserSettings(nextSettings);
+        const nextPaymentSettings = {
+          enabled: settings.confirmation_show_payment_options,
+          channels: normalizePaymentChannels(settings.payment_channels),
+        };
+        setPaymentSettings(nextPaymentSettings);
+        saveStoredPaymentChannelSettings(profile.line_user_id, nextPaymentSettings);
         const nextTimezone = findTimezone(nextSettings.timezone);
         setTimezoneSetting(nextTimezone);
         saveStoredTimezoneSetting(profile.line_user_id, nextTimezone);
@@ -2818,8 +2834,14 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
   }
 
   function savePaymentSettings(nextSettings: PaymentChannelSettings) {
-    setPaymentSettings(nextSettings);
-    saveStoredPaymentChannelSettings(profile.line_user_id, nextSettings);
+    const normalized = { enabled: nextSettings.enabled, channels: normalizePaymentChannels(nextSettings.channels) };
+    setPaymentSettings(normalized);
+    saveStoredPaymentChannelSettings(profile.line_user_id, normalized);
+    void saveRemoteUserSettings({
+      ...userSettings,
+      confirmation_show_payment_options: normalized.enabled,
+      payment_channels: normalized.channels,
+    });
   }
 
   function saveCurrencySetting(nextSetting: CurrencySetting) {
@@ -2843,7 +2865,7 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     if (!profile.line_user_id) return Promise.resolve();
     return saveUserSettings(profile.line_user_id, nextSettings)
       .then((settings) => {
-        setUserSettings({
+        const nextSettings = {
           memory_categorization_enabled: settings.memory_categorization_enabled,
           streak_notifications_enabled: settings.streak_notifications_enabled,
           timezone: settings.timezone,
@@ -2851,7 +2873,15 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
           confirmation_show_budget: settings.confirmation_show_budget,
           confirmation_show_budget_warning: settings.confirmation_show_budget_warning,
           confirmation_show_payment_options: settings.confirmation_show_payment_options,
-        });
+          payment_channels: settings.payment_channels,
+        };
+        setUserSettings(nextSettings);
+        const nextPaymentSettings = {
+          enabled: settings.confirmation_show_payment_options,
+          channels: normalizePaymentChannels(settings.payment_channels),
+        };
+        setPaymentSettings(nextPaymentSettings);
+        saveStoredPaymentChannelSettings(profile.line_user_id, nextPaymentSettings);
       })
       .catch(() => undefined);
   }
@@ -2923,7 +2953,7 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
           <Image src="/brand/moneytrack-pro.png" alt="" width={80} height={80} className="h-20 w-20 rounded-md object-cover opacity-80" />
           <div>
             <p className="text-xl font-black">จดต่อเนื่องมา</p>
-            <p className="mt-1 text-4xl font-black">0 วัน</p>
+            <p className="mt-1 text-4xl font-black">{streakDays} วัน</p>
             <p className="mt-1 text-sm text-[#555f5b]">เริ่มจดวันนี้เพื่อสร้างนิสัยใหม่</p>
           </div>
         </div>
@@ -2942,6 +2972,8 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
             onClick={() => {
               if (index === 0) setShowReminderModal(true);
               if (index === 2) setShowPaymentScreen(true);
+              if (index === 3) window.location.assign("/liff/transactions?view=recurring");
+              if (index === 5) window.location.assign("/liff/categories");
               if (index === 7) setShowCurrencyScreen(true);
               if (index === 8) setShowConfirmationScreen(true);
               if (index === 9) setShowTimezoneScreen(true);
@@ -4428,7 +4460,7 @@ function TransactionCreateModal({
         ...draft,
         amount: Number(draft.amount),
         description: draft.description.trim(),
-      }, lineUserId || undefined);
+      }, lineUserId);
       onCreated(created);
     } catch {
       setError("เพิ่มรายการไม่สำเร็จ");
@@ -4530,7 +4562,7 @@ function TransactionEditModal({
     };
 
     try {
-      const updated = await updateTransaction(draft.id, payload, lineUserId || undefined);
+      const updated = await updateTransaction(draft.id, payload, lineUserId);
       onSaved(updated);
     } catch {
       setError("บันทึกไม่สำเร็จ");
@@ -4543,7 +4575,7 @@ function TransactionEditModal({
     setSaving(true);
     setError("");
     try {
-      await deleteTransaction(draft.id, lineUserId || undefined);
+      await deleteTransaction(draft.id, lineUserId);
       onDeleted(draft.id);
     } catch {
       setError("ลบรายการไม่สำเร็จ");
@@ -4756,6 +4788,20 @@ function paymentChannelStorageKey(lineUserId?: string) {
   return lineUserId ? `moneytrack_payment_channels_${lineUserId}` : "moneytrack_payment_channels";
 }
 
+function normalizePaymentChannels(channels: string[]) {
+  const seen = new Set<string>();
+  return channels
+    .map((channel) => channel.trim())
+    .filter((channel) => {
+      const key = channel.toLowerCase();
+      if (!channel || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((channel) => channel.slice(0, 40))
+    .slice(0, 10);
+}
+
 function loadStoredPaymentChannelSettings(lineUserId?: string): PaymentChannelSettings {
   const fallback: PaymentChannelSettings = { enabled: false, channels: [] };
   if (typeof window === "undefined") return fallback;
@@ -4769,7 +4815,7 @@ function loadStoredPaymentChannelSettings(lineUserId?: string): PaymentChannelSe
     ) {
       return {
         enabled: value.enabled,
-        channels: value.channels.map((channel: string) => channel.trim()).filter(Boolean).slice(0, 10),
+        channels: normalizePaymentChannels(value.channels),
       };
     }
   } catch {
@@ -5118,6 +5164,18 @@ function monthStartInputValue() {
   return inputDateValue(new Date(now.getFullYear(), now.getMonth(), 1));
 }
 
+function calculateStreakDays(transactions: Transaction[]) {
+  const transactionDates = new Set(transactions.map((transaction) => transaction.date.slice(0, 10)));
+  const cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  let streak = 0;
+  while (transactionDates.has(inputDateValue(cursor))) {
+    streak += 1;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}
+
 function inputDateValue(value: Date) {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -5276,18 +5334,18 @@ function formatLineUserId(value: string) {
 async function loadLineProfile(): Promise<LineProfile> {
   const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
-    return getCachedLineProfile();
+    return getEmptyLineProfile();
   }
 
   await loadLiffSdk();
   if (!window.liff) {
-    return getCachedLineProfile();
+    return getEmptyLineProfile();
   }
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
     window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
-    return getCachedLineProfile();
+    return getEmptyLineProfile();
   }
 
   const profile = await readLineProfileFromLiff(window.liff);
@@ -5354,6 +5412,10 @@ function resolveLiffRedirectUri(liffId: string) {
 function normalizeLiffAppPath(value: string) {
   const path = value.startsWith("/") ? value : `/${value}`;
   return path.startsWith("/liff/") ? path : "/liff/summary";
+}
+
+function getEmptyLineProfile(): LineProfile {
+  return { line_user_id: "", display_name: "ผู้ใช้งาน", picture_url: null };
 }
 
 function getCachedLineProfile(): LineProfile {

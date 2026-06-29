@@ -101,6 +101,7 @@ class UserSettingsBase(BaseModel):
     confirmation_show_budget: bool = True
     confirmation_show_budget_warning: bool = True
     confirmation_show_payment_options: bool = False
+    payment_channels: list[str] = Field(default_factory=list, max_length=10)
 
 
 class UserSettingsUpdate(UserSettingsBase):

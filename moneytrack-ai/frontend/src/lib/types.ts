@@ -54,6 +54,7 @@ export type UserSettings = {
   confirmation_show_budget: boolean;
   confirmation_show_budget_warning: boolean;
   confirmation_show_payment_options: boolean;
+  payment_channels: string[];
 };
 
 export type UserSettingsInput = Omit<UserSettings, "line_user_id">;

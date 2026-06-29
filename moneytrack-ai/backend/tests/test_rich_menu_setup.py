@@ -59,14 +59,25 @@ def test_main_app_base_url_defaults_to_liff_url_even_when_frontend_origin_exists
     )
 
 
-def test_main_app_base_url_allows_explicit_rich_menu_override(monkeypatch) -> None:
+def test_main_app_base_url_rejects_non_liff_rich_menu_override(monkeypatch) -> None:
     module = _load_setup_module()
 
     monkeypatch.setenv("LIFF_MAIN_URL_BASE", "https://example.com/custom/")
 
     assert (
         module.resolve_main_app_base_url("https://liff.line.me/2010521304-BrGvBhsP")
-        == "https://example.com/custom"
+        == "https://liff.line.me/2010521304-BrGvBhsP"
+    )
+
+
+def test_main_app_base_url_allows_liff_rich_menu_override(monkeypatch) -> None:
+    module = _load_setup_module()
+
+    monkeypatch.setenv("LIFF_MAIN_URL_BASE", "https://liff.line.me/custom-liff-id/")
+
+    assert (
+        module.resolve_main_app_base_url("https://liff.line.me/2010521304-BrGvBhsP")
+        == "https://liff.line.me/custom-liff-id"
     )
 
 

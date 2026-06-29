@@ -54,6 +54,7 @@ const expenseCategories = [
   "Other Expense",
 ];
 const palette = ["#0f766e", "#2563eb", "#d97706", "#dc2626", "#7c3aed", "#0891b2"];
+const legacyDashboardLineUserId = "legacy-dashboard-demo";
 
 const blankForm: TransactionInput = {
   date: new Date().toISOString().slice(0, 10),
@@ -85,7 +86,10 @@ export function Dashboard() {
   async function refresh() {
     setLoading(true);
     try {
-      const [dashboardData, transactionData] = await Promise.all([getDashboard(), getTransactions()]);
+      const [dashboardData, transactionData] = await Promise.all([
+        getDashboard(legacyDashboardLineUserId),
+        getTransactions(legacyDashboardLineUserId),
+      ]);
       setDashboard(dashboardData);
       setTransactions(transactionData);
       setApiOnline(true);
@@ -103,7 +107,10 @@ export function Dashboard() {
     async function loadInitial() {
       setLoading(true);
       try {
-        const [dashboardData, transactionData] = await Promise.all([getDashboard(), getTransactions()]);
+        const [dashboardData, transactionData] = await Promise.all([
+          getDashboard(legacyDashboardLineUserId),
+          getTransactions(legacyDashboardLineUserId),
+        ]);
         if (!cancelled) {
           setDashboard(dashboardData);
           setTransactions(transactionData);
@@ -143,9 +150,9 @@ export function Dashboard() {
     setBusy(true);
     try {
       if (editingId) {
-        await updateTransaction(editingId, form);
+        await updateTransaction(editingId, form, legacyDashboardLineUserId);
       } else {
-        await createTransaction(form);
+        await createTransaction(form, legacyDashboardLineUserId);
       }
       setForm(blankForm);
       setEditingId(null);
@@ -158,7 +165,7 @@ export function Dashboard() {
   async function removeTransaction(id: number) {
     setBusy(true);
     try {
-      await deleteTransaction(id);
+      await deleteTransaction(id, legacyDashboardLineUserId);
       await refresh();
     } finally {
       setBusy(false);
@@ -187,7 +194,7 @@ export function Dashboard() {
             increase_income_percent: 10,
             reduce_debt_percent: 10,
             reduce_business_cost_percent: 15,
-          })
+          }, legacyDashboardLineUserId)
         : {
             original_net_balance: 2500,
             new_net_balance: 3382,

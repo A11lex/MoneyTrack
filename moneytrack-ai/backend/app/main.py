@@ -4,7 +4,7 @@ import os
 from contextlib import suppress
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import (
@@ -144,12 +144,12 @@ def categories() -> dict:
 
 
 @app.get("/transactions", response_model=list[Transaction])
-def get_transactions(line_user_id: str | None = None) -> list[Transaction]:
+def get_transactions(line_user_id: str = Query(..., min_length=1)) -> list[Transaction]:
     return list_transactions(line_user_id=line_user_id)
 
 
 @app.get("/transactions/{transaction_id}", response_model=Transaction)
-def get_transaction_by_id(transaction_id: int, line_user_id: str | None = None) -> Transaction:
+def get_transaction_by_id(transaction_id: int, line_user_id: str = Query(..., min_length=1)) -> Transaction:
     transaction = get_transaction(transaction_id, line_user_id=line_user_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -157,12 +157,12 @@ def get_transaction_by_id(transaction_id: int, line_user_id: str | None = None) 
 
 
 @app.post("/transactions", response_model=Transaction, status_code=201)
-def post_transaction(payload: TransactionCreate, line_user_id: str | None = None) -> Transaction:
+def post_transaction(payload: TransactionCreate, line_user_id: str = Query(..., min_length=1)) -> Transaction:
     return create_transaction(payload, line_user_id=line_user_id)
 
 
 @app.put("/transactions/{transaction_id}", response_model=Transaction)
-def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_id: str | None = None) -> Transaction:
+def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_id: str = Query(..., min_length=1)) -> Transaction:
     transaction = update_transaction(transaction_id, payload, line_user_id=line_user_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -170,7 +170,7 @@ def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_i
 
 
 @app.delete("/transactions/{transaction_id}", status_code=204)
-def remove_transaction(transaction_id: int, line_user_id: str | None = None) -> None:
+def remove_transaction(transaction_id: int, line_user_id: str = Query(..., min_length=1)) -> None:
     deleted = delete_transaction(transaction_id, line_user_id=line_user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -259,7 +259,7 @@ def post_run_due_daily_reminders(request: Request) -> dict[str, Any]:
 
 
 @app.get("/dashboard")
-def dashboard(line_user_id: str | None = None) -> dict:
+def dashboard(line_user_id: str = Query(..., min_length=1)) -> dict:
     transactions = list_transactions(line_user_id=line_user_id)
     return {
         "summary": calculate_summary(transactions),
@@ -270,7 +270,7 @@ def dashboard(line_user_id: str | None = None) -> dict:
 
 
 @app.post("/what-if")
-def what_if(payload: WhatIfScenario, line_user_id: str | None = None) -> dict:
+def what_if(payload: WhatIfScenario, line_user_id: str = Query(..., min_length=1)) -> dict:
     return simulate_what_if(list_transactions(line_user_id=line_user_id), payload)
 
 

@@ -1,3 +1,4 @@
+import json
 import os
 import sqlite3
 from contextlib import contextmanager
@@ -144,11 +145,13 @@ def init_db(db_path: str | None = None) -> None:
                 confirmation_show_budget INTEGER NOT NULL DEFAULT 1,
                 confirmation_show_budget_warning INTEGER NOT NULL DEFAULT 1,
                 confirmation_show_payment_options INTEGER NOT NULL DEFAULT 0,
+                payment_channels TEXT NOT NULL DEFAULT '[]',
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id)
             )
             """
         )
+        _ensure_column(conn, "user_settings", "payment_channels", "TEXT NOT NULL DEFAULT '[]'")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS category_memory_mappings (
@@ -215,7 +218,37 @@ def row_to_user_settings(row: sqlite3.Row) -> UserSettings:
         confirmation_show_budget=bool(row["confirmation_show_budget"]),
         confirmation_show_budget_warning=bool(row["confirmation_show_budget_warning"]),
         confirmation_show_payment_options=bool(row["confirmation_show_payment_options"]),
+        payment_channels=_parse_payment_channels(row["payment_channels"]),
     )
+
+
+def _parse_payment_channels(value: str | None) -> list[str]:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return _normalize_payment_channels(parsed)
+
+
+def _normalize_payment_channels(channels: list[object]) -> list[str]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for channel in channels:
+        if not isinstance(channel, str):
+            continue
+        value = channel.strip()
+        key = value.casefold()
+        if not value or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(value[:40])
+        if len(normalized) >= 10:
+            break
+    return normalized
 
 
 def row_to_category_memory_mapping(row: sqlite3.Row) -> CategoryMemoryMapping:
@@ -573,9 +606,10 @@ def save_user_settings(line_user_id: str, payload: UserSettingsUpdate, db_path: 
                 confirmation_show_details,
                 confirmation_show_budget,
                 confirmation_show_budget_warning,
-                confirmation_show_payment_options
+                confirmation_show_payment_options,
+                payment_channels
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(line_user_id) DO UPDATE SET
                 memory_categorization_enabled = excluded.memory_categorization_enabled,
                 streak_notifications_enabled = excluded.streak_notifications_enabled,
@@ -584,6 +618,7 @@ def save_user_settings(line_user_id: str, payload: UserSettingsUpdate, db_path: 
                 confirmation_show_budget = excluded.confirmation_show_budget,
                 confirmation_show_budget_warning = excluded.confirmation_show_budget_warning,
                 confirmation_show_payment_options = excluded.confirmation_show_payment_options,
+                payment_channels = excluded.payment_channels,
                 updated_at = CURRENT_TIMESTAMP
             """,
             (
@@ -595,6 +630,7 @@ def save_user_settings(line_user_id: str, payload: UserSettingsUpdate, db_path: 
                 int(payload.confirmation_show_budget),
                 int(payload.confirmation_show_budget_warning),
                 int(payload.confirmation_show_payment_options),
+                json.dumps(_normalize_payment_channels(payload.payment_channels), ensure_ascii=False),
             ),
         )
         row = conn.execute(

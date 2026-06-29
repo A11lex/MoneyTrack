@@ -175,6 +175,7 @@ def build_transaction_success_flex(
     transaction_date: date,
     show_details: bool = True,
     show_payment_options: bool = False,
+    payment_channels: list[str] | None = None,
 ) -> dict[str, Any]:
     type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
     mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
@@ -218,7 +219,26 @@ def build_transaction_success_flex(
             ]
         )
     if show_payment_options:
-        contents.append(_plain_text("เลือกช่องทางชำระเงินได้ในหน้าแก้ไขรายการ", "xs", BRAND["muted"]))
+        channels = [channel for channel in (payment_channels or []) if channel][:4]
+        if channels:
+            contents.append(
+                {
+                    "type": "box",
+                    "layout": "vertical",
+                    "spacing": "xs",
+                    "contents": [
+                        _plain_text("ช่องทางชำระเงิน", "xs", BRAND["muted"], weight="bold"),
+                        {
+                            "type": "box",
+                            "layout": "horizontal",
+                            "spacing": "xs",
+                            "contents": [_payment_channel_chip(channel) for channel in channels],
+                        },
+                    ],
+                }
+            )
+        else:
+            contents.append(_plain_text("เลือกช่องทางชำระเงินได้ในหน้าแก้ไขรายการ", "xs", BRAND["muted"]))
     contents.append(_plain_text("กด ✎ เพื่อแก้ไข หรือ × เพื่อลบรายการนี้", "xs", BRAND["muted"]))
 
     return {
@@ -257,6 +277,7 @@ def build_transaction_success_with_budget_flex(
     show_details: bool = True,
     show_payment_options: bool = False,
     show_budget_warning: bool = True,
+    payment_channels: list[str] | None = None,
 ) -> dict[str, Any]:
     success_message = build_transaction_success_flex(
         transaction_id=transaction_id,
@@ -268,6 +289,7 @@ def build_transaction_success_with_budget_flex(
         transaction_date=transaction_date,
         show_details=show_details,
         show_payment_options=show_payment_options,
+        payment_channels=payment_channels,
     )
     budget_category_text = _category_label(budget_category)
     budget_alt = f"{'แจ้งเตือนงบ' if show_warning else 'งบคงเหลือ'}: {budget_category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}"
@@ -915,3 +937,26 @@ def _category_label(category: str) -> str:
         "Other Income": "อื่นๆ",
     }
     return labels.get(category, category)
+
+
+def _payment_channel_chip(label: str) -> dict[str, Any]:
+    return {
+        "type": "box",
+        "layout": "vertical",
+        "backgroundColor": "#F0F2F1",
+        "cornerRadius": "md",
+        "paddingAll": "6px",
+        "flex": 1,
+        "contents": [
+            {
+                "type": "text",
+                "text": label,
+                "size": "xxs",
+                "weight": "bold",
+                "color": BRAND["black"],
+                "align": "center",
+                "wrap": False,
+                "maxLines": 1,
+            }
+        ],
+    }

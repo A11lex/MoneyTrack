@@ -44,6 +44,12 @@ const mockProfile: LineProfile = {
   picture_url: null,
 };
 
+const emptyProfile: LineProfile = {
+  line_user_id: "",
+  display_name: "ผู้ใช้งาน",
+  picture_url: null,
+};
+
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
 const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsp";
 const DEFAULT_FRONTEND_ORIGIN = "https://money-track-sandy.vercel.app";
@@ -114,7 +120,7 @@ export function OnboardingFlow() {
   const [expenseCustomName, setExpenseCustomName] = useState("");
   const [incomeCustomName, setIncomeCustomName] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<LineProfile>(mockProfile);
+  const [profile, setProfile] = useState<LineProfile>(() => (isLocalDevelopment() ? mockProfile : emptyProfile));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -135,7 +141,7 @@ export function OnboardingFlow() {
         }
       })
       .catch(() => {
-        if (mounted) setProfile(mockProfile);
+        if (mounted) setProfile(isLocalDevelopment() ? mockProfile : emptyProfile);
       });
     return () => {
       mounted = false;
@@ -146,6 +152,11 @@ export function OnboardingFlow() {
     setSaving(true);
     setError(null);
     try {
+      if (!profile.line_user_id) {
+        await loadLineProfile();
+        setError("กรุณาเข้าสู่ระบบผ่าน LINE ก่อนบันทึกการสมัคร");
+        return;
+      }
       await upsertLineUser(profile);
       await saveLineUserOnboarding(profile.line_user_id, {
         discovery_source: source,
@@ -495,18 +506,18 @@ function customValues(options: { label: string }[], selected: string[]) {
 async function loadLineProfile(): Promise<LineProfile> {
   const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
-    return mockProfile;
+    return isLocalDevelopment() ? mockProfile : emptyProfile;
   }
 
   await loadLiffSdk();
   if (!window.liff) {
-    return mockProfile;
+    return isLocalDevelopment() ? mockProfile : emptyProfile;
   }
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
     window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
-    return mockProfile;
+    return emptyProfile;
   }
 
   return readLineProfileFromLiff(window.liff);
@@ -607,6 +618,10 @@ function resolveLiffRedirectUri(liffId: string) {
 function normalizeLiffAppPath(value: string) {
   const path = value.startsWith("/") ? value : `/${value}`;
   return path.startsWith("/liff/") ? path : "/liff/onboarding";
+}
+
+function isLocalDevelopment() {
+  return typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
 function loadLiffSdk(): Promise<void> {

@@ -55,7 +55,11 @@ def liff_url_from_id(liff_id: str) -> str:
 
 
 def resolve_main_app_base_url(default_liff_url: str) -> str:
-    return (os.getenv("LIFF_MAIN_URL_BASE") or default_liff_url).rstrip("/")
+    configured_url = (os.getenv("LIFF_MAIN_URL_BASE") or default_liff_url).rstrip("/")
+    if configured_url.startswith("https://liff.line.me/"):
+        return configured_url
+    print("Ignoring LIFF_MAIN_URL_BASE because rich menu URI actions must open through liff.line.me.")
+    return default_liff_url.rstrip("/")
 
 
 class PreparedImage:

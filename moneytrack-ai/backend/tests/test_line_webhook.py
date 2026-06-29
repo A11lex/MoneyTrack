@@ -82,6 +82,27 @@ def test_line_webhook_accepts_line_messaging_api_event_payload(tmp_path, monkeyp
     assert transactions[0].category == "Business Revenue"
 
 
+def test_financial_api_requires_line_user_id_and_scopes_transactions(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "api-scoped-users.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    client = TestClient(app)
+
+    first_response = client.post("/line/webhook", json={"line_user_id": "user-a", "message": "ข้าว 80"})
+    second_response = client.post("/line/webhook", json={"line_user_id": "user-b", "message": "กาแฟ 120"})
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert client.get("/transactions").status_code == 422
+    assert client.get("/dashboard").status_code == 422
+    assert client.post("/what-if", json={"scenario": "reduce_food"}).status_code == 422
+
+    user_a_transactions = client.get("/transactions", params={"line_user_id": "user-a"}).json()
+    user_b_transactions = client.get("/transactions", params={"line_user_id": "user-b"}).json()
+
+    assert [transaction["amount"] for transaction in user_a_transactions] == [80]
+    assert [transaction["amount"] for transaction in user_b_transactions] == [120]
+
+
 def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(tmp_path, monkeypatch) -> None:
     db_path = str(tmp_path / "api-line-signed.db")
     monkeypatch.setattr(database, "DATABASE_URL", db_path)

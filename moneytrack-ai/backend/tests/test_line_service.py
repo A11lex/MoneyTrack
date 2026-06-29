@@ -333,6 +333,26 @@ def test_confirmation_config_can_hide_budget_block(tmp_path) -> None:
     assert _find_text(result.line_message, "งบคงเหลือ") is False
 
 
+def test_confirmation_config_shows_payment_channels(tmp_path) -> None:
+    db_path = str(tmp_path / "line.db")
+    upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)
+    save_user_settings(
+        "test-user-001",
+        UserSettingsUpdate(
+            confirmation_show_payment_options=True,
+            payment_channels=["เงินสด", "พร้อมเพย์"],
+        ),
+        db_path,
+    )
+
+    result = handle_line_message_detail("test-user-001", "ข้าว 50", db_path=db_path, today=date(2026, 6, 25))
+
+    assert isinstance(result.line_message, dict)
+    assert _find_text(result.line_message, "ช่องทางชำระเงิน") is True
+    assert _find_text(result.line_message, "เงินสด") is True
+    assert _find_text(result.line_message, "พร้อมเพย์") is True
+
+
 def test_handle_line_message_detail_uses_custom_monthly_budget_start_day(tmp_path) -> None:
     db_path = str(tmp_path / "line.db")
     upsert_line_user(LineUserUpsert(line_user_id="test-user-001", display_name="Tester"), db_path)

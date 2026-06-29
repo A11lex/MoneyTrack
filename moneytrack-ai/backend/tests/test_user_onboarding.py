@@ -68,6 +68,33 @@ def test_generic_line_user_upsert_does_not_overwrite_existing_profile(tmp_path, 
     assert response.json()["picture_url"] == "https://example.com/avatar.png"
 
 
+def test_thai_generic_line_user_upsert_does_not_overwrite_existing_profile(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "onboarding.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    client = TestClient(app)
+
+    client.post(
+        "/users/line",
+        json={
+            "line_user_id": "line-user-001",
+            "display_name": "Methemek",
+            "picture_url": "https://example.com/avatar.png",
+        },
+    )
+    response = client.post(
+        "/users/line",
+        json={
+            "line_user_id": "line-user-001",
+            "display_name": "ผู้ใช้งาน",
+            "picture_url": None,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["display_name"] == "Methemek"
+    assert response.json()["picture_url"] == "https://example.com/avatar.png"
+
+
 def test_save_line_user_onboarding_categories_and_budgets(tmp_path, monkeypatch) -> None:
     db_path = str(tmp_path / "onboarding.db")
     monkeypatch.setattr(database, "DATABASE_URL", db_path)

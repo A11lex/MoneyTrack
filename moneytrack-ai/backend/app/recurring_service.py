@@ -99,6 +99,7 @@ def _build_recurring_success_message(line_user_id: str, transaction: Any, db_pat
             show_details=settings.confirmation_show_details,
             show_payment_options=settings.confirmation_show_payment_options,
             show_budget_warning=settings.confirmation_show_budget_warning,
+            payment_channels=settings.payment_channels,
             **budget_context,
         )
     return build_transaction_success_flex(
@@ -111,4 +112,5 @@ def _build_recurring_success_message(line_user_id: str, transaction: Any, db_pat
         transaction_date=transaction.date,
         show_details=settings.confirmation_show_details,
         show_payment_options=settings.confirmation_show_payment_options,
+        payment_channels=settings.payment_channels,
     )

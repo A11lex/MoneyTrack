@@ -144,6 +144,7 @@ def handle_line_message_detail(
             show_details=user_settings.confirmation_show_details,
             show_payment_options=user_settings.confirmation_show_payment_options,
             show_budget_warning=user_settings.confirmation_show_budget_warning,
+            payment_channels=user_settings.payment_channels,
             **budget_context,
         )
     else:
@@ -157,6 +158,7 @@ def handle_line_message_detail(
             transaction_date=saved.date,
             show_details=user_settings.confirmation_show_details,
             show_payment_options=user_settings.confirmation_show_payment_options,
+            payment_channels=user_settings.payment_channels,
         )
     if user_settings.streak_notifications_enabled:
         streak_days = _streak_days(line_user_id, saved.date, db_path)

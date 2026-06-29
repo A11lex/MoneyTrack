@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Loader2, Trash2 } from "lucide-react";
 
-import { deleteTransaction, getTransaction, updateTransaction } from "@/lib/api";
+import { deleteTransaction, getLineUserSetup, getTransaction, updateTransaction } from "@/lib/api";
 import type { Transaction, TransactionInput } from "@/lib/types";
 
 const accent = "#DC143C";
@@ -50,6 +50,8 @@ export default function EditTransactionPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [expenseOptions, setExpenseOptions] = useState<string[]>(() => loadStoredExpenseCategories());
+  const [incomeOptions, setIncomeOptions] = useState<string[]>(() => loadStoredIncomeCategories());
 
   useEffect(() => {
     if (!Number.isFinite(transactionId)) {
@@ -63,17 +65,29 @@ export default function EditTransactionPage() {
           throw new Error("LINE profile is required");
         }
         setLineUserId(loadedLineUserId);
-        return getTransaction(transactionId, loadedLineUserId);
+        return Promise.all([
+          getTransaction(transactionId, loadedLineUserId),
+          getLineUserSetup(loadedLineUserId).catch(() => null),
+        ]);
       })
-      .then((item) => setTransaction({ ...item, category: displayCategory(item.category, item.type) }))
+      .then(([item, setup]) => {
+        const nextExpenseOptions = setup?.expense_categories.length ? setup.expense_categories : loadStoredExpenseCategories();
+        const nextIncomeOptions = setup?.income_categories.length ? setup.income_categories : loadStoredIncomeCategories();
+        setExpenseOptions(nextExpenseOptions);
+        setIncomeOptions(nextIncomeOptions);
+        setTransaction({
+          ...item,
+          category: displayCategory(item.category, item.type, nextExpenseOptions, nextIncomeOptions),
+        });
+      })
       .catch(() => {
         router.replace("/liff/summary");
       });
   }, [router, transactionId]);
 
   const categories = useMemo(
-    () => ensureCategoryOption(transactionCategories(transaction?.type ?? "expense"), transaction?.category ?? ""),
-    [transaction?.type, transaction?.category],
+    () => ensureCategoryOption(transaction?.type === "income" ? incomeOptions : expenseOptions, transaction?.category ?? ""),
+    [expenseOptions, incomeOptions, transaction?.type, transaction?.category],
   );
 
   async function save() {
@@ -89,7 +103,11 @@ export default function EditTransactionPage() {
       mode: transaction.mode,
     };
     try {
-      await updateTransaction(transaction.id, payload, lineUserId || undefined);
+      if (!lineUserId) {
+        setError("ไม่พบ LINE ID กรุณาเปิดผ่าน LINE อีกครั้ง");
+        return;
+      }
+      await updateTransaction(transaction.id, payload, lineUserId);
       router.push("/liff/transactions");
     } catch {
       setError("บันทึกไม่สำเร็จ");
@@ -103,7 +121,11 @@ export default function EditTransactionPage() {
     setSaving(true);
     setError("");
     try {
-      await deleteTransaction(transaction.id, lineUserId || undefined);
+      if (!lineUserId) {
+        setError("ไม่พบ LINE ID กรุณาเปิดผ่าน LINE อีกครั้ง");
+        return;
+      }
+      await deleteTransaction(transaction.id, lineUserId);
       router.push("/liff/transactions");
     } catch {
       setError("ลบรายการไม่สำเร็จ");
@@ -157,13 +179,13 @@ export default function EditTransactionPage() {
                 active={transaction.type === "expense"}
                 label="รายจ่าย"
                 color={accent}
-                onClick={() => setTransaction({ ...transaction, type: "expense", category: transactionCategories("expense")[0] ?? "อื่นๆ" })}
+                onClick={() => setTransaction({ ...transaction, type: "expense", category: expenseOptions[0] ?? "อื่นๆ" })}
               />
               <TypeButton
                 active={transaction.type === "income"}
                 label="รายรับ"
                 color={green}
-                onClick={() => setTransaction({ ...transaction, type: "income", category: transactionCategories("income")[0] ?? "อื่นๆ" })}
+                onClick={() => setTransaction({ ...transaction, type: "income", category: incomeOptions[0] ?? "อื่นๆ" })}
               />
             </div>
           </section>
@@ -360,18 +382,14 @@ function ensureLiffSdk(): Promise<void> {
   });
 }
 
-function transactionCategories(type: "expense" | "income") {
-  return type === "income" ? loadStoredIncomeCategories() : loadStoredExpenseCategories();
-}
-
 function ensureCategoryOption(categories: string[], category: string) {
   return category && !categories.includes(category) ? [...categories, category] : categories;
 }
 
-function displayCategory(category: string, type: "expense" | "income") {
+function displayCategory(category: string, type: "expense" | "income", expenseOptions: string[], incomeOptions: string[]) {
   const mapped = categoryNameMap[category] ?? category;
   const defaults = type === "income" ? incomeCategories : expenseCategories;
-  const stored = transactionCategories(type);
+  const stored = type === "income" ? incomeOptions : expenseOptions;
   if (stored.includes(mapped)) return mapped;
 
   const defaultIndex = defaults.indexOf(mapped);

@@ -34,39 +34,41 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function withLineUser(path: string, lineUserId?: string): string {
-  if (!lineUserId) return path;
+function withLineUser(path: string, lineUserId: string): string {
+  if (!lineUserId.trim()) {
+    throw new Error("Missing LINE user id");
+  }
   const separator = path.includes("?") ? "&" : "?";
   return `${path}${separator}line_user_id=${encodeURIComponent(lineUserId)}`;
 }
 
-export function getDashboard(lineUserId?: string): Promise<DashboardData> {
+export function getDashboard(lineUserId: string): Promise<DashboardData> {
   return request<DashboardData>(withLineUser("/dashboard", lineUserId));
 }
 
-export function getTransactions(lineUserId?: string): Promise<Transaction[]> {
+export function getTransactions(lineUserId: string): Promise<Transaction[]> {
   return request<Transaction[]>(withLineUser("/transactions", lineUserId));
 }
 
-export function getTransaction(id: number, lineUserId?: string): Promise<Transaction> {
+export function getTransaction(id: number, lineUserId: string): Promise<Transaction> {
   return request<Transaction>(withLineUser(`/transactions/${id}`, lineUserId));
 }
 
-export function createTransaction(payload: TransactionInput, lineUserId?: string): Promise<Transaction> {
+export function createTransaction(payload: TransactionInput, lineUserId: string): Promise<Transaction> {
   return request<Transaction>(withLineUser("/transactions", lineUserId), {
     method: "POST",
     body: JSON.stringify(payload),
   });
 }
 
-export function updateTransaction(id: number, payload: TransactionInput, lineUserId?: string): Promise<Transaction> {
+export function updateTransaction(id: number, payload: TransactionInput, lineUserId: string): Promise<Transaction> {
   return request<Transaction>(withLineUser(`/transactions/${id}`, lineUserId), {
     method: "PUT",
     body: JSON.stringify(payload),
   });
 }
 
-export function deleteTransaction(id: number, lineUserId?: string): Promise<void> {
+export function deleteTransaction(id: number, lineUserId: string): Promise<void> {
   return request<void>(withLineUser(`/transactions/${id}`, lineUserId), { method: "DELETE" });
 }
 
@@ -114,7 +116,7 @@ export function saveUserSettings(lineUserId: string, payload: UserSettingsInput)
   });
 }
 
-export function runWhatIf(payload: WhatIfScenario, lineUserId?: string): Promise<WhatIfResult> {
+export function runWhatIf(payload: WhatIfScenario, lineUserId: string): Promise<WhatIfResult> {
   return request<WhatIfResult>(withLineUser("/what-if", lineUserId), {
     method: "POST",
     body: JSON.stringify(payload),
