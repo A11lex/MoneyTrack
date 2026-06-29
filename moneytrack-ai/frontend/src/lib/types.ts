@@ -136,4 +136,5 @@ export type OnboardingInput = {
   monthly_budgets: Record<string, number>;
   budget_cycle?: "daily" | "weekly" | "monthly";
   budget_start_day?: number;
+  merge_from_line_user_id?: string | null;
 };

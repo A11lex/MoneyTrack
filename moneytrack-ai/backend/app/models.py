@@ -132,6 +132,7 @@ class OnboardingPayload(BaseModel):
     monthly_budgets: dict[str, float] = Field(default_factory=dict)
     budget_cycle: Literal["daily", "weekly", "monthly"] = "monthly"
     budget_start_day: int = Field(default=1, ge=1, le=31)
+    merge_from_line_user_id: str | None = Field(default=None, max_length=120)
 
 
 class UserSetup(BaseModel):

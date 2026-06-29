@@ -5192,7 +5192,21 @@ function dateWithClampedDay(year: number, monthIndex: number, day: number) {
 
 async function resolveLineUserSetup(profile: LineProfile): Promise<LineUserSetup | null> {
   const primarySetup = await getLineUserSetup(profile.line_user_id);
-  if (primarySetup?.onboarding_completed || !profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
+  if (primarySetup?.onboarding_completed) {
+    if (!profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
+      return primarySetup;
+    }
+    return saveLineUserOnboarding(profile.line_user_id, {
+      discovery_source: primarySetup.discovery_source,
+      expense_categories: primarySetup.expense_categories,
+      income_categories: primarySetup.income_categories,
+      monthly_budgets: primarySetup.monthly_budgets,
+      budget_cycle: primarySetup.budget_cycle,
+      budget_start_day: primarySetup.budget_start_day,
+      merge_from_line_user_id: profile.alternate_line_user_id,
+    });
+  }
+  if (!profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
     return primarySetup;
   }
 
@@ -5213,6 +5227,7 @@ async function resolveLineUserSetup(profile: LineProfile): Promise<LineUserSetup
     monthly_budgets: alternateSetup.monthly_budgets,
     budget_cycle: alternateSetup.budget_cycle,
     budget_start_day: alternateSetup.budget_start_day,
+    merge_from_line_user_id: profile.alternate_line_user_id,
   });
 }
 

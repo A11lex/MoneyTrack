@@ -656,6 +656,7 @@ def match_category_memory_mapping(
 
 def upsert_line_user(payload: LineUserUpsert, db_path: str | None = None) -> UserSetup:
     init_db(db_path)
+    existing_setup = get_user_setup(payload.line_user_id, db_path)
     with get_connection(db_path) as conn:
         conn.execute(
             """
@@ -671,10 +672,103 @@ def upsert_line_user(payload: LineUserUpsert, db_path: str | None = None) -> Use
             """,
             (payload.line_user_id, payload.display_name, payload.picture_url),
         )
+        if existing_setup is not None:
+            display_name = existing_setup.display_name if payload.display_name in {"LINE User", "ผู้ใช้งาน"} else payload.display_name
+            picture_url = existing_setup.picture_url if payload.picture_url is None else payload.picture_url
+            conn.execute(
+                """
+                UPDATE line_users
+                SET display_name = ?,
+                    picture_url = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE line_user_id = ?
+                """,
+                (display_name, picture_url, payload.line_user_id),
+            )
     setup = get_user_setup(payload.line_user_id, db_path)
     if setup is None:
         raise RuntimeError("LINE user upsert failed")
     return setup
+
+
+def _merge_line_user_data(conn: sqlite3.Connection, target_line_user_id: str, source_line_user_id: str) -> None:
+    if not source_line_user_id or source_line_user_id == target_line_user_id:
+        return
+
+    source_user = conn.execute(
+        "SELECT * FROM line_users WHERE line_user_id = ?",
+        (source_line_user_id,),
+    ).fetchone()
+    if source_user is None:
+        return
+
+    conn.execute(
+        "UPDATE transactions SET line_user_id = ? WHERE line_user_id = ?",
+        (target_line_user_id, source_line_user_id),
+    )
+    conn.execute(
+        "UPDATE recurring_transactions SET line_user_id = ? WHERE line_user_id = ?",
+        (target_line_user_id, source_line_user_id),
+    )
+
+    if conn.execute("SELECT 1 FROM user_settings WHERE line_user_id = ?", (target_line_user_id,)).fetchone() is None:
+        conn.execute(
+            "UPDATE user_settings SET line_user_id = ? WHERE line_user_id = ?",
+            (target_line_user_id, source_line_user_id),
+        )
+
+    if conn.execute("SELECT 1 FROM daily_reminder_settings WHERE line_user_id = ?", (target_line_user_id,)).fetchone() is None:
+        conn.execute(
+            "UPDATE daily_reminder_settings SET line_user_id = ? WHERE line_user_id = ?",
+            (target_line_user_id, source_line_user_id),
+        )
+
+    memory_rows = conn.execute(
+        """
+        SELECT keyword, category, type
+        FROM category_memory_mappings
+        WHERE line_user_id = ?
+        """,
+        (source_line_user_id,),
+    ).fetchall()
+    for row in memory_rows:
+        conn.execute(
+            """
+            INSERT INTO category_memory_mappings (line_user_id, keyword, category, type)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(line_user_id, keyword, type) DO UPDATE SET
+                category = excluded.category
+            """,
+            (target_line_user_id, row["keyword"], row["category"], row["type"]),
+        )
+    conn.execute("DELETE FROM category_memory_mappings WHERE line_user_id = ?", (source_line_user_id,))
+
+    target_user = conn.execute(
+        "SELECT display_name, picture_url FROM line_users WHERE line_user_id = ?",
+        (target_line_user_id,),
+    ).fetchone()
+    if target_user is None:
+        return
+
+    copy_name = target_user["display_name"] in {"", "LINE User", "ผู้ใช้งาน"}
+    copy_picture = not target_user["picture_url"]
+    if copy_name or copy_picture:
+        conn.execute(
+            """
+            UPDATE line_users
+            SET display_name = CASE WHEN ? THEN ? ELSE display_name END,
+                picture_url = CASE WHEN ? THEN ? ELSE picture_url END,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE line_user_id = ?
+            """,
+            (
+                int(copy_name),
+                source_user["display_name"],
+                int(copy_picture),
+                source_user["picture_url"],
+                target_line_user_id,
+            ),
+        )
 
 
 def get_user_setup(line_user_id: str, db_path: str | None = None) -> UserSetup | None:
@@ -721,6 +815,9 @@ def save_user_onboarding(line_user_id: str, payload: OnboardingPayload, db_path:
         user = conn.execute("SELECT line_user_id FROM line_users WHERE line_user_id = ?", (line_user_id,)).fetchone()
         if user is None:
             return None
+
+        if payload.merge_from_line_user_id:
+            _merge_line_user_data(conn, line_user_id, payload.merge_from_line_user_id)
 
         conn.execute(
             """
