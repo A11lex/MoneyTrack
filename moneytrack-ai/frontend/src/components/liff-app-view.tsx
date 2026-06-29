@@ -57,6 +57,28 @@ type PaymentChannelSettings = {
   enabled: boolean;
   channels: string[];
 };
+type CurrencyCode =
+  | "THB"
+  | "USD"
+  | "EUR"
+  | "GBP"
+  | "JPY"
+  | "AUD"
+  | "CAD"
+  | "CHF"
+  | "CNY"
+  | "SEK"
+  | "NZD"
+  | "MXN"
+  | "SGD"
+  | "HKD"
+  | "NOK";
+type CurrencySetting = {
+  code: CurrencyCode;
+  label: string;
+  symbol: string;
+};
+type LanguageCode = "th" | "en";
 type RecurringItem = {
   id: number | string;
   type: "expense" | "income";
@@ -77,6 +99,29 @@ type LineProfile = {
 };
 
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
+
+const currencyOptions: CurrencySetting[] = [
+  { code: "THB", label: "Thai Baht", symbol: "฿" },
+  { code: "USD", label: "US Dollar", symbol: "$" },
+  { code: "EUR", label: "Euro", symbol: "€" },
+  { code: "GBP", label: "British Pound", symbol: "£" },
+  { code: "JPY", label: "Japanese Yen", symbol: "¥" },
+  { code: "AUD", label: "Australian Dollar", symbol: "A$" },
+  { code: "CAD", label: "Canadian Dollar", symbol: "C$" },
+  { code: "CHF", label: "Swiss Franc", symbol: "CHF" },
+  { code: "CNY", label: "Chinese Yuan", symbol: "¥" },
+  { code: "SEK", label: "Swedish Krona", symbol: "kr" },
+  { code: "NZD", label: "New Zealand Dollar", symbol: "NZ$" },
+  { code: "MXN", label: "Mexican Peso", symbol: "$" },
+  { code: "SGD", label: "Singapore Dollar", symbol: "S$" },
+  { code: "HKD", label: "Hong Kong Dollar", symbol: "HK$" },
+  { code: "NOK", label: "Norwegian Krone", symbol: "kr" },
+];
+
+const languageOptions: { code: LanguageCode; label: string }[] = [
+  { code: "th", label: "ไทย" },
+  { code: "en", label: "English" },
+];
 
 const tabs: { id: LiffTab; label: string; href: string; icon: React.ElementType }[] = [
   { id: "summary", label: "สรุป", href: "/liff/summary", icon: Home },
@@ -2599,8 +2644,12 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
   const settings = ["เตือนจดประจำวัน", "จัดหมวดด้วยความจำ", "แยกช่องทางชำระเงิน", "รายการจดประจำ", "ประวัติการชำระเงิน", "ตั้งค่าหมวด", "การแจ้งเตือน Streak", "ตั้งค่าสกุลเงิน", "ปรับแต่งข้อความยืนยัน", "ตั้งค่าโซนเวลา", "ตั้งค่าภาษา"];
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showPaymentScreen, setShowPaymentScreen] = useState(false);
+  const [showCurrencyScreen, setShowCurrencyScreen] = useState(false);
+  const [showLanguageScreen, setShowLanguageScreen] = useState(false);
   const [reminderSettings, setReminderSettings] = useState<DailyReminderSettingsInput>(() => loadStoredDailyReminderSettings(profile.line_user_id));
   const [paymentSettings, setPaymentSettings] = useState<PaymentChannelSettings>(() => loadStoredPaymentChannelSettings(profile.line_user_id));
+  const [currencySetting, setCurrencySetting] = useState<CurrencySetting>(() => loadStoredCurrencySetting(profile.line_user_id));
+  const [languageSetting, setLanguageSetting] = useState<LanguageCode>(() => loadStoredLanguageSetting(profile.line_user_id));
   const [savingReminder, setSavingReminder] = useState(false);
   const [reminderError, setReminderError] = useState("");
 
@@ -2639,6 +2688,22 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     };
   }, [profile.line_user_id]);
 
+  useEffect(() => {
+    let mounted = true;
+    Promise.resolve({
+      currency: loadStoredCurrencySetting(profile.line_user_id),
+      language: loadStoredLanguageSetting(profile.line_user_id),
+    }).then((settings) => {
+      if (!mounted) return;
+      setCurrencySetting(settings.currency);
+      setLanguageSetting(settings.language);
+      saveStoredCurrencySetting(profile.line_user_id, settings.currency);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [profile.line_user_id]);
+
   async function saveReminderSettings(nextSettings: DailyReminderSettingsInput) {
     setSavingReminder(true);
     setReminderError("");
@@ -2661,12 +2726,42 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
     saveStoredPaymentChannelSettings(profile.line_user_id, nextSettings);
   }
 
+  function saveCurrencySetting(nextSetting: CurrencySetting) {
+    setCurrencySetting(nextSetting);
+    saveStoredCurrencySetting(profile.line_user_id, nextSetting);
+  }
+
+  function saveLanguageSetting(nextSetting: LanguageCode) {
+    setLanguageSetting(nextSetting);
+    saveStoredLanguageSetting(profile.line_user_id, nextSetting);
+  }
+
   if (showPaymentScreen) {
     return (
       <PaymentChannelsScreen
         settings={paymentSettings}
         onBack={() => setShowPaymentScreen(false)}
         onChange={savePaymentSettings}
+      />
+    );
+  }
+
+  if (showCurrencyScreen) {
+    return (
+      <CurrencySettingsScreen
+        value={currencySetting}
+        onBack={() => setShowCurrencyScreen(false)}
+        onChange={saveCurrencySetting}
+      />
+    );
+  }
+
+  if (showLanguageScreen) {
+    return (
+      <LanguageSettingsScreen
+        value={languageSetting}
+        onBack={() => setShowLanguageScreen(false)}
+        onChange={saveLanguageSetting}
       />
     );
   }
@@ -2707,6 +2802,8 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
             onClick={() => {
               if (index === 0) setShowReminderModal(true);
               if (index === 2) setShowPaymentScreen(true);
+              if (index === 7) setShowCurrencyScreen(true);
+              if (index === 10) setShowLanguageScreen(true);
             }}
             className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm"
           >
@@ -2720,6 +2817,16 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
               {index === 2 && (
                 <span className={`rounded-full px-2 py-1 text-xs font-black ${paymentSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
                   {paymentSettings.enabled ? `${paymentSettings.channels.length}/10` : "ปิดอยู่"}
+                </span>
+              )}
+              {index === 7 && (
+                <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
+                  {currencySetting.symbol}
+                </span>
+              )}
+              {index === 10 && (
+                <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
+                  {languageSetting === "th" ? "ไทย" : "EN"}
                 </span>
               )}
               <ChevronRight className="text-[#9aa1a0]" />
@@ -2740,6 +2847,108 @@ function SettingsScreen({ profile }: { profile: LineProfile }) {
           saving={savingReminder}
         />
       )}
+    </div>
+  );
+}
+
+function CurrencySettingsScreen({
+  onBack,
+  onChange,
+  value,
+}: {
+  onBack: () => void;
+  onChange: (value: CurrencySetting) => void;
+  value: CurrencySetting;
+}) {
+  const [query, setQuery] = useState("");
+  const filteredCurrencies = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return currencyOptions;
+    return currencyOptions.filter((currency) => {
+      return (
+        currency.code.toLowerCase().includes(normalized) ||
+        currency.label.toLowerCase().includes(normalized) ||
+        currency.symbol.toLowerCase().includes(normalized)
+      );
+    });
+  }, [query]);
+
+  return (
+    <div className="space-y-5 pb-8">
+      <div className="flex items-center justify-between">
+        <div className="w-10" />
+        <h2 className="text-xl font-black text-[#151b18]">สกุลเงิน</h2>
+        <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-full text-[#64706a] hover:bg-[#f3f5f4]" aria-label="ปิด">
+          <X size={22} />
+        </button>
+      </div>
+      <div className="rounded-md border border-black/10 bg-white px-4 py-3 shadow-sm">
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="ค้นหาสกุลเงิน"
+          className="h-10 w-full border-0 bg-transparent text-sm font-semibold outline-none placeholder:text-[#9aa1a0]"
+        />
+      </div>
+      <div className="max-h-[68vh] overflow-y-auto rounded-md bg-white">
+        {filteredCurrencies.map((currency) => {
+          const selected = currency.code === value.code;
+          return (
+            <button
+              key={currency.code}
+              type="button"
+              onClick={() => onChange(currency)}
+              className={`flex min-h-12 w-full items-center justify-between px-4 text-left text-sm font-bold ${selected ? "bg-[#FCECEF] text-[#151b18]" : "bg-white text-[#4d5652] hover:bg-[#f8faf9]"}`}
+            >
+              <span>
+                {currency.label} ({currency.symbol})
+              </span>
+              {selected && <Check size={16} className="text-[#151b18]" />}
+            </button>
+          );
+        })}
+        {filteredCurrencies.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm font-semibold text-[#8a928e]">ไม่พบสกุลเงินที่ค้นหา</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LanguageSettingsScreen({
+  onBack,
+  onChange,
+  value,
+}: {
+  onBack: () => void;
+  onChange: (value: LanguageCode) => void;
+  value: LanguageCode;
+}) {
+  return (
+    <div className="space-y-5 pb-8">
+      <div className="flex items-center justify-between">
+        <div className="w-10" />
+        <h2 className="text-xl font-black text-[#151b18]">ภาษา</h2>
+        <button type="button" onClick={onBack} className="grid h-10 w-10 place-items-center rounded-full text-[#64706a] hover:bg-[#f3f5f4]" aria-label="ปิด">
+          <X size={22} />
+        </button>
+      </div>
+      <div className="overflow-hidden rounded-md bg-white">
+        {languageOptions.map((option) => {
+          const selected = option.code === value;
+          return (
+            <button
+              key={option.code}
+              type="button"
+              onClick={() => onChange(option.code)}
+              className={`flex min-h-12 w-full items-center justify-between px-4 text-left text-sm font-bold ${selected ? "bg-[#FCECEF] text-[#151b18]" : "bg-white text-[#4d5652] hover:bg-[#f8faf9]"}`}
+            >
+              <span>{option.label}</span>
+              {selected && <Check size={16} className="text-[#151b18]" />}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -4276,6 +4485,45 @@ function saveStoredPaymentChannelSettings(lineUserId: string | undefined, value:
   }
 }
 
+function currencyStorageKey(lineUserId?: string) {
+  return lineUserId ? `moneytrack_currency_${lineUserId}` : "moneytrack_currency";
+}
+
+function loadStoredCurrencySetting(lineUserId?: string): CurrencySetting {
+  if (typeof window === "undefined") return currencyOptions[0];
+  const storedCode = window.localStorage.getItem(currencyStorageKey(lineUserId));
+  return currencyOptions.find((currency) => currency.code === storedCode) ?? currencyOptions[0];
+}
+
+function loadActiveCurrencySetting(): CurrencySetting {
+  if (typeof window === "undefined") return currencyOptions[0];
+  const storedCode = window.localStorage.getItem("moneytrack_active_currency");
+  return currencyOptions.find((currency) => currency.code === storedCode) ?? currencyOptions[0];
+}
+
+function saveStoredCurrencySetting(lineUserId: string | undefined, value: CurrencySetting) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(currencyStorageKey(lineUserId), value.code);
+    window.localStorage.setItem("moneytrack_active_currency", value.code);
+  }
+}
+
+function languageStorageKey(lineUserId?: string) {
+  return lineUserId ? `moneytrack_language_${lineUserId}` : "moneytrack_language";
+}
+
+function loadStoredLanguageSetting(lineUserId?: string): LanguageCode {
+  if (typeof window === "undefined") return "th";
+  const value = window.localStorage.getItem(languageStorageKey(lineUserId));
+  return value === "en" ? "en" : "th";
+}
+
+function saveStoredLanguageSetting(lineUserId: string | undefined, value: LanguageCode) {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(languageStorageKey(lineUserId), value);
+  }
+}
+
 function recurringStorageKey(lineUserId?: string) {
   return lineUserId ? `moneytrack_recurring_items_${lineUserId}` : "moneytrack_recurring_items";
 }
@@ -4701,5 +4949,6 @@ function formatBudgetAmount(value: number) {
 }
 
 function formatBaht(value: number) {
-  return `฿${value.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const currency = loadActiveCurrencySetting();
+  return `${currency.symbol}${value.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
