@@ -152,13 +152,15 @@ export function OnboardingFlow() {
     setSaving(true);
     setError(null);
     try {
-      if (!profile.line_user_id) {
-        await loadLineProfile();
+      const loadedProfile = profile.line_user_id ? profile : await loadLineProfile();
+      if (!loadedProfile.line_user_id) {
+        setProfile(loadedProfile);
         setError("กรุณาเข้าสู่ระบบผ่าน LINE ก่อนบันทึกการสมัคร");
         return;
       }
-      await upsertLineUser(profile);
-      await saveLineUserOnboarding(profile.line_user_id, {
+      setProfile(loadedProfile);
+      await upsertLineUser(sanitizeLineProfileForApi(loadedProfile));
+      await saveLineUserOnboarding(loadedProfile.line_user_id, {
         discovery_source: source,
         expense_categories: expenses,
         income_categories: income,
@@ -196,6 +198,14 @@ export function OnboardingFlow() {
     setSelected([...selected, name]);
     setInput("");
     setCustomError(null);
+  }
+
+  function sanitizeLineProfileForApi(value: LineProfile): LineProfile {
+    return {
+      ...value,
+      display_name: value.display_name.slice(0, 120),
+      picture_url: value.picture_url && value.picture_url.length <= 500 ? value.picture_url : null,
+    };
   }
 
   function next() {

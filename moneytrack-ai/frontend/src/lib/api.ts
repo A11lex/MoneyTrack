@@ -26,7 +26,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    const detail = await response.text().catch(() => "");
+    throw new Error(`API request failed: ${response.status} ${path}${detail ? ` - ${detail.slice(0, 240)}` : ""}`);
   }
   if (response.status === 204) {
     return undefined as T;
