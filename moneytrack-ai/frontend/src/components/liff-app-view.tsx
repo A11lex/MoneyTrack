@@ -236,7 +236,12 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         picture_url: resolvedProfile.picture_url,
       });
       return Promise.all([getDashboard(resolvedProfile.line_user_id), getTransactions(resolvedProfile.line_user_id)]);
-    }).catch(() => Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]))
+    }).catch((error) => {
+      if (!mounted) return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
+      console.error("Failed to load LINE profile", error);
+      window.location.replace("/liff/onboarding");
+      return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
+    })
       .then(([dashboardData, transactionData]) => {
         if (!mounted) return;
         setDashboard(dashboardData);
@@ -285,6 +290,14 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
     refreshDashboard();
   }
 
+  function openCreateTransaction() {
+    if (!profile.line_user_id.trim()) {
+      window.location.replace("/liff/onboarding");
+      return;
+    }
+    setCreatingTransaction(true);
+  }
+
   return (
     <main className="moneytrack-liff min-h-screen bg-[#f8faf9] text-[#151b18]">
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
@@ -300,7 +313,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
                 <TransactionsScreen
                   lineUserId={profile.line_user_id}
                   transactions={transactions}
-                  onCreate={() => setCreatingTransaction(true)}
+                  onCreate={openCreateTransaction}
                   onEdit={setEditingTransaction}
                   onTransactionsChanged={(nextTransactions) => {
                     setTransactions(nextTransactions);
@@ -313,7 +326,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
           )}
         </section>
         <BottomNav active={tab} />
-        {editingTransaction && (
+        {editingTransaction && profile.line_user_id && (
           <TransactionEditModal
             key={editingTransaction.id}
             lineUserId={profile.line_user_id}
@@ -323,7 +336,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
             onSaved={handleTransactionSaved}
           />
         )}
-        {creatingTransaction && (
+        {creatingTransaction && profile.line_user_id && (
           <TransactionCreateModal
             lineUserId={profile.line_user_id}
             onClose={() => setCreatingTransaction(false)}
@@ -4450,6 +4463,11 @@ function TransactionCreateModal({
   const categories = ensureCategoryOption(transactionCategories(draft.type), draft.category);
 
   async function save() {
+    if (!lineUserId.trim()) {
+      setError("ไม่พบ LINE ID กรุณาเปิดผ่าน LINE แล้วลองอีกครั้ง");
+      return;
+    }
+
     if (!draft.description.trim() || Number(draft.amount) <= 0) {
       setError("กรอกรายละเอียดและจำนวนเงินก่อนบันทึก");
       return;
