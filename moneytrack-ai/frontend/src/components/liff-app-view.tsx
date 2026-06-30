@@ -216,6 +216,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
       if (!mounted) return Promise.reject(new Error("unmounted"));
       setProfile(loadedProfile);
       if (!loadedProfile.line_user_id) {
+        window.location.replace("/liff/onboarding");
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
 
