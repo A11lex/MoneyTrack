@@ -561,38 +561,38 @@ async function resolveLineUserSetup(profile: LineProfile) {
 }
 
 async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
+  const context = liff.getContext?.();
+  const token = liff.getDecodedIDToken?.();
+  let liffProfile: LiffProfile | null = null;
+
   try {
-    const context = liff.getContext?.();
-    const liffProfile = await liff.getProfile();
-    return {
-      line_user_id: context?.userId || liffProfile.userId,
-      alternate_line_user_id: context?.userId && context.userId !== liffProfile.userId ? liffProfile.userId : null,
-      display_name: liffProfile.displayName,
-      picture_url: liffProfile.pictureUrl ?? null,
-    };
-  } catch {
-    const token = liff.getDecodedIDToken?.();
-    const context = liff.getContext?.();
-    if (token?.sub) {
-      return {
-        line_user_id: context?.userId || token.sub,
-        alternate_line_user_id: context?.userId && context.userId !== token.sub ? token.sub : null,
-        display_name: token.name || "LINE User",
-        picture_url: token.picture ?? null,
-      };
-    }
+    liffProfile = await liff.getProfile();
+  } catch (error) {
+    console.warn("LINE getProfile failed; falling back to ID token/context", error);
+  }
 
-    if (context?.userId) {
-      return {
-        line_user_id: context.userId,
-        alternate_line_user_id: null,
-        display_name: "LINE User",
-        picture_url: null,
-      };
-    }
-
+  const lineUserId = context?.userId || liffProfile?.userId || token?.sub || "";
+  if (!lineUserId) {
     throw new Error("LINE profile is unavailable");
   }
+
+  const profileName = liffProfile?.displayName?.trim();
+  const tokenName = token?.name?.trim();
+  return {
+    line_user_id: lineUserId,
+    alternate_line_user_id: context?.userId && liffProfile?.userId && context.userId !== liffProfile.userId ? liffProfile.userId : null,
+    display_name: firstSpecificLineName(profileName, tokenName) || "ผู้ใช้งาน",
+    picture_url: liffProfile?.pictureUrl ?? token?.picture ?? null,
+  };
+}
+
+function isGenericLineName(value?: string) {
+  if (!value) return true;
+  return ["ผู้ใช้งาน", "LINE User"].includes(value);
+}
+
+function firstSpecificLineName(...values: Array<string | undefined>) {
+  return values.find((value) => value && !isGenericLineName(value));
 }
 
 function resolveLiffId() {
