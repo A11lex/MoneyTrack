@@ -122,7 +122,6 @@ export function OnboardingFlow() {
   const [customError, setCustomError] = useState<string | null>(null);
   const [profile, setProfile] = useState<LineProfile>(() => (isLocalDevelopment() ? mockProfile : emptyProfile));
   const [authChecking, setAuthChecking] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -136,7 +135,7 @@ export function OnboardingFlow() {
         if (!mounted) return;
         setProfile(loadedProfile);
         if (!loadedProfile.line_user_id) {
-          setAuthError("ไม่พบ LINE ID กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน");
+          void startLineLogin();
           return;
         }
 
@@ -148,8 +147,12 @@ export function OnboardingFlow() {
       .catch((error) => {
         console.error("Failed to resolve LINE identity", error);
         if (!mounted) return;
-        setProfile(isLocalDevelopment() ? mockProfile : emptyProfile);
-        setAuthError("ยังตรวจสอบ LINE ID ไม่สำเร็จ กรุณาเข้าสู่ระบบผ่าน LINE อีกครั้ง");
+        if (isLocalDevelopment()) {
+          setProfile(mockProfile);
+          return;
+        }
+        setProfile(emptyProfile);
+        void startLineLogin();
       })
       .finally(() => {
         if (mounted) setAuthChecking(false);
@@ -272,16 +275,8 @@ export function OnboardingFlow() {
             </>
           )}
 
-          {authChecking ? (
-            <LineAuthPanel title="กำลังตรวจสอบบัญชี LINE" body="เรากำลังเช็คว่า LINE ID นี้เคยสมัครไว้แล้วหรือยัง" loading />
-          ) : !profile.line_user_id ? (
-            <LineAuthPanel
-              title="เข้าสู่ระบบด้วย LINE"
-              body={authError ?? "ต้องเข้าสู่ระบบ LINE ก่อน เพื่อให้รู้ว่าเป็นผู้ใช้งานคนไหน"}
-              onLogin={() => {
-                void startLineLogin();
-              }}
-            />
+          {authChecking || !profile.line_user_id ? (
+            <LineLoginRedirectState />
           ) : (
             <>
           {step === "welcome" && (
@@ -383,7 +378,16 @@ function StepPanel({ title, subtitle, children }: { title: string; subtitle: str
   );
 }
 
-function LineAuthPanel({
+function LineLoginRedirectState() {
+  return (
+    <div className="mt-12 flex flex-1 flex-col items-center justify-center text-center">
+      <Loader2 className="h-8 w-8 animate-spin text-[#06c755]" />
+      <p className="mt-4 text-sm font-bold text-[#0d4a2b]">กำลังเปิดหน้าเข้าสู่ระบบ LINE...</p>
+    </div>
+  );
+}
+
+export function LineAuthPanel({
   title,
   body,
   loading = false,
