@@ -115,6 +115,7 @@ type LineProfile = {
 const DEFAULT_LIFF_ID = "2010521304-BrGvBhsP";
 const KNOWN_WRONG_LIFF_ID = "2010521304-BrGvBhsp";
 const LINE_PROFILE_CACHE_KEY = "moneytrack.lineProfile";
+const ACTIVE_LINE_USER_ID_KEY = "moneytrack.activeLineUserId";
 const DEFAULT_FRONTEND_ORIGIN = "https://money-track-sandy.vercel.app";
 
 const currencyOptions: CurrencySetting[] = [
@@ -4990,18 +4991,18 @@ function recurringLabel(item: RecurringItem) {
 
 function loadStoredUserPlan(): UserPlan {
   if (typeof window === "undefined") return "free";
-  return window.localStorage.getItem("moneytrack_user_plan") === "pro" ? "pro" : "free";
+  return getScopedLocalStorageItem("moneytrack_user_plan") === "pro" ? "pro" : "free";
 }
 
 function loadStoredBudgetMode(): BudgetMode {
   if (typeof window === "undefined") return "category";
-  return window.localStorage.getItem("moneytrack_budget_mode") === "total" ? "total" : "category";
+  return getScopedLocalStorageItem("moneytrack_budget_mode") === "total" ? "total" : "category";
 }
 
 function loadStoredExpenseCategories(): string[] {
   if (typeof window === "undefined") return expenseCategories;
   try {
-    const value = JSON.parse(window.localStorage.getItem("moneytrack_expense_categories") ?? "null");
+    const value = JSON.parse(getScopedLocalStorageItem("moneytrack_expense_categories") ?? "null");
     return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : expenseCategories;
   } catch {
     return expenseCategories;
@@ -5011,7 +5012,7 @@ function loadStoredExpenseCategories(): string[] {
 function loadStoredIncomeCategories(): string[] {
   if (typeof window === "undefined") return incomeCategories;
   try {
-    const value = JSON.parse(window.localStorage.getItem("moneytrack_income_categories") ?? "null");
+    const value = JSON.parse(getScopedLocalStorageItem("moneytrack_income_categories") ?? "null");
     return Array.isArray(value) && value.every((item) => typeof item === "string") ? value : incomeCategories;
   } catch {
     return incomeCategories;
@@ -5020,13 +5021,13 @@ function loadStoredIncomeCategories(): string[] {
 
 function saveStoredExpenseCategories(value: string[]) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_expense_categories", JSON.stringify(value));
+    setScopedLocalStorageItem("moneytrack_expense_categories", JSON.stringify(value));
   }
 }
 
 function saveStoredIncomeCategories(value: string[]) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_income_categories", JSON.stringify(value));
+    setScopedLocalStorageItem("moneytrack_income_categories", JSON.stringify(value));
   }
 }
 
@@ -5054,38 +5055,38 @@ function displayCategory(category: string, type: "expense" | "income") {
 
 function saveStoredBudgetMode(value: BudgetMode) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_budget_mode", value);
+    setScopedLocalStorageItem("moneytrack_budget_mode", value);
   }
 }
 
 function loadStoredBudgetCycle(): BudgetCycle {
   if (typeof window === "undefined") return "monthly";
-  const value = window.localStorage.getItem("moneytrack_budget_cycle");
+  const value = getScopedLocalStorageItem("moneytrack_budget_cycle");
   return value === "daily" || value === "weekly" || value === "monthly" ? value : "monthly";
 }
 
 function saveStoredBudgetCycle(value: BudgetCycle) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_budget_cycle", value);
+    setScopedLocalStorageItem("moneytrack_budget_cycle", value);
   }
 }
 
 function loadStoredBudgetStartDay() {
   if (typeof window === "undefined") return 1;
-  const value = Number(window.localStorage.getItem("moneytrack_budget_start_day") ?? 1);
+  const value = Number(getScopedLocalStorageItem("moneytrack_budget_start_day") ?? 1);
   return Number.isInteger(value) && value >= 1 && value <= 31 ? value : 1;
 }
 
 function saveStoredBudgetStartDay(value: number) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_budget_start_day", String(value));
+    setScopedLocalStorageItem("moneytrack_budget_start_day", String(value));
   }
 }
 
 function loadStoredExpenseBudgets(): Record<string, number> {
   if (typeof window === "undefined") return {};
   try {
-    const value = JSON.parse(window.localStorage.getItem("moneytrack_expense_budgets") ?? "{}");
+    const value = JSON.parse(getScopedLocalStorageItem("moneytrack_expense_budgets") ?? "{}");
     return typeof value === "object" && value !== null ? value : {};
   } catch {
     return {};
@@ -5094,19 +5095,35 @@ function loadStoredExpenseBudgets(): Record<string, number> {
 
 function saveStoredExpenseBudgets(value: Record<string, number>) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_expense_budgets", JSON.stringify(value));
+    setScopedLocalStorageItem("moneytrack_expense_budgets", JSON.stringify(value));
   }
 }
 
 function loadStoredTotalBudget() {
   if (typeof window === "undefined") return 0;
-  return Number(window.localStorage.getItem("moneytrack_total_budget") ?? 0) || 0;
+  return Number(getScopedLocalStorageItem("moneytrack_total_budget") ?? 0) || 0;
 }
 
 function saveStoredTotalBudget(value: number) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem("moneytrack_total_budget", String(value));
+    setScopedLocalStorageItem("moneytrack_total_budget", String(value));
   }
+}
+
+function scopedLocalStorageKey(baseKey: string) {
+  const lineUserId = window.localStorage.getItem(ACTIVE_LINE_USER_ID_KEY);
+  return lineUserId ? `${baseKey}.${lineUserId}` : baseKey;
+}
+
+function getScopedLocalStorageItem(baseKey: string) {
+  if (typeof window === "undefined") return null;
+  const scopedKey = scopedLocalStorageKey(baseKey);
+  return window.localStorage.getItem(scopedKey) ?? window.localStorage.getItem(baseKey);
+}
+
+function setScopedLocalStorageItem(baseKey: string, value: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(scopedLocalStorageKey(baseKey), value);
 }
 
 async function syncLineBudgetSettings({
@@ -5439,6 +5456,7 @@ function getCachedLineProfile(): LineProfile {
 
 function cacheLineProfile(profile: LineProfile) {
   if (typeof window === "undefined" || !profile.line_user_id) return;
+  window.localStorage.setItem(ACTIVE_LINE_USER_ID_KEY, profile.line_user_id);
   window.localStorage.setItem(LINE_PROFILE_CACHE_KEY, JSON.stringify(profile));
 }
 
