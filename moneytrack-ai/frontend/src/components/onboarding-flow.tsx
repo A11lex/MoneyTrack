@@ -583,7 +583,7 @@ async function loadLineProfile(): Promise<LineProfile> {
 
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
-    window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
+    openLineLogin(liffId);
     return emptyProfile;
   }
 
@@ -596,13 +596,19 @@ async function startLineLogin() {
     return;
   }
 
+  if (window.location.hostname !== "liff.line.me") {
+    window.location.replace(resolveOfficialLiffUrl(liffId, "/liff/onboarding"));
+    return;
+  }
+
   await loadLiffSdk();
   if (!window.liff) {
+    window.location.replace(resolveOfficialLiffUrl(liffId, "/liff/onboarding"));
     return;
   }
 
   await window.liff.init({ liffId });
-  window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
+  openLineLogin(liffId);
 }
 
 async function resolveLineUserSetup(profile: LineProfile) {
@@ -695,6 +701,21 @@ function resolveLiffRedirectUri(liffId: string) {
   const pathFromLiffUrl = url.pathname.startsWith(`/${liffId}`) ? url.pathname.slice(liffId.length + 1) : "";
   const path = normalizeLiffAppPath(decodedStatePath || pathFromLiffUrl || "/liff/onboarding");
   return `${frontendOrigin}${path}`;
+}
+
+function resolveOfficialLiffUrl(liffId: string, fallbackPath: string) {
+  const path = normalizeLiffAppPath(typeof window === "undefined" ? fallbackPath : window.location.pathname || fallbackPath);
+  return `https://liff.line.me/${liffId}${path}`;
+}
+
+function openLineLogin(liffId: string) {
+  const beforeLoginUrl = window.location.href;
+  window.liff?.login({ redirectUri: resolveLiffRedirectUri(liffId) });
+  window.setTimeout(() => {
+    if (window.location.href === beforeLoginUrl) {
+      window.location.replace(resolveOfficialLiffUrl(liffId, "/liff/onboarding"));
+    }
+  }, 1000);
 }
 
 function normalizeLiffAppPath(value: string) {
