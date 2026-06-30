@@ -5377,6 +5377,11 @@ async function loadLineProfile(): Promise<LineProfile> {
     return getEmptyLineProfile();
   }
 
+  if (shouldOpenViaOfficialLiffUrl()) {
+    window.location.replace(resolveOfficialLiffUrl(liffId, "/liff/summary"));
+    return getEmptyLineProfile();
+  }
+
   await loadLiffSdk();
   if (!window.liff) {
     return getEmptyLineProfile();
@@ -5385,6 +5390,9 @@ async function loadLineProfile(): Promise<LineProfile> {
   await window.liff.init({ liffId });
   if (!window.liff.isLoggedIn()) {
     window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
+    window.setTimeout(() => {
+      window.location.replace(resolveOfficialLiffUrl(liffId, "/liff/summary"));
+    }, 1000);
     return getEmptyLineProfile();
   }
 
@@ -5444,9 +5452,26 @@ function resolveLiffRedirectUri(liffId: string) {
   return `${frontendOrigin}${path}`;
 }
 
+function resolveOfficialLiffUrl(liffId: string, fallbackPath: string) {
+  const path = normalizeLiffAppPath(typeof window === "undefined" ? fallbackPath : window.location.pathname || fallbackPath);
+  return `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(path)}`;
+}
+
+function shouldOpenViaOfficialLiffUrl() {
+  if (typeof window === "undefined" || isLocalDevelopment() || window.location.hostname === "liff.line.me") {
+    return false;
+  }
+  const params = new URLSearchParams(window.location.search);
+  return !Array.from(params.keys()).some((key) => key === "access_token" || key.startsWith("liff."));
+}
+
 function normalizeLiffAppPath(value: string) {
   const path = value.startsWith("/") ? value : `/${value}`;
   return path.startsWith("/liff/") ? path : "/liff/summary";
+}
+
+function isLocalDevelopment() {
+  return typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }
 
 function getEmptyLineProfile(): LineProfile {
