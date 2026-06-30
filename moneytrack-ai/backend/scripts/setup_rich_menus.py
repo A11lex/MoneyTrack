@@ -1,7 +1,6 @@
 import os
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 from PIL import Image
@@ -57,9 +56,7 @@ def liff_url_from_id(liff_id: str) -> str:
 
 def liff_url_for_path(app_base_url: str, path: str) -> str:
     base_url = app_base_url.rstrip("/")
-    if not base_url.startswith("https://liff.line.me/"):
-        return f"{base_url}{path}"
-    return f"{base_url}?liff.state={quote(path, safe='')}"
+    return f"{base_url}{path}"
 
 
 def resolve_main_app_base_url(default_liff_url: str) -> str:

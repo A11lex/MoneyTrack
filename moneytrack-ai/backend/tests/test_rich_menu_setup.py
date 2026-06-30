@@ -27,23 +27,23 @@ def test_main_rich_menu_navigation_buttons_use_app_base_url() -> None:
 
     assert payload["areas"][1]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP?liff.state=%2Fliff%2Fsummary",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/summary",
     }
     assert payload["areas"][2]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP?liff.state=%2Fliff%2Finsights",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/insights",
     }
     assert payload["areas"][3]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP?liff.state=%2Fliff%2Fcategories",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/categories",
     }
     assert payload["areas"][4]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP?liff.state=%2Fliff%2Ftransactions",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/transactions",
     }
     assert payload["areas"][6]["action"] == {
         "type": "uri",
-        "uri": "https://liff.line.me/2010521304-BrGvBhsP?liff.state=%2Fliff%2Fsettings",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/settings",
     }
 
 

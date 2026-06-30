@@ -710,7 +710,7 @@ function resolveLiffRedirectUri(liffId: string) {
 
 function resolveOfficialLiffUrl(liffId: string, fallbackPath: string) {
   const path = normalizeLiffAppPath(typeof window === "undefined" ? fallbackPath : window.location.pathname || fallbackPath);
-  return `https://liff.line.me/${liffId}?liff.state=${encodeURIComponent(path)}`;
+  return `https://liff.line.me/${liffId}${path}`;
 }
 
 function shouldOpenViaOfficialLiffUrl() {
