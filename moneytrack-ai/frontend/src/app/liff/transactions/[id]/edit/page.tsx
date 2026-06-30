@@ -344,14 +344,14 @@ function resolveLiffRedirectUri(liffId: string) {
   const frontendOrigin = (process.env.NEXT_PUBLIC_FRONTEND_ORIGIN || DEFAULT_FRONTEND_ORIGIN).replace(/\/$/, "");
 
   if (url.hostname !== "liff.line.me") {
-    return `${frontendOrigin}${normalizeLiffAppPath(url.pathname)}`;
+    return `${frontendOrigin}${normalizeLiffAppPath(url.pathname)}${url.search}`;
   }
 
   const statePath = url.searchParams.get("liff.state");
   const decodedStatePath = statePath ? decodeURIComponent(statePath) : "";
   const pathFromLiffUrl = url.pathname.startsWith(`/${liffId}`) ? url.pathname.slice(liffId.length + 1) : "";
   const path = normalizeLiffAppPath(decodedStatePath || pathFromLiffUrl || "/liff/transactions");
-  return `${frontendOrigin}${path}`;
+  return `${frontendOrigin}${path}${url.search}`;
 }
 
 function normalizeLiffAppPath(value: string) {
