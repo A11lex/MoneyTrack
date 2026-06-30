@@ -121,6 +121,8 @@ export function OnboardingFlow() {
   const [incomeCustomName, setIncomeCustomName] = useState("");
   const [customError, setCustomError] = useState<string | null>(null);
   const [profile, setProfile] = useState<LineProfile>(() => (isLocalDevelopment() ? mockProfile : emptyProfile));
+  const [authChecking, setAuthChecking] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,15 +135,24 @@ export function OnboardingFlow() {
       .then(async (loadedProfile) => {
         if (!mounted) return;
         setProfile(loadedProfile);
-        if (!loadedProfile.line_user_id) return;
+        if (!loadedProfile.line_user_id) {
+          setAuthError("ไม่พบ LINE ID กรุณาเข้าสู่ระบบผ่าน LINE ก่อนใช้งาน");
+          return;
+        }
 
         const setup = await resolveLineUserSetup(loadedProfile);
-        if (setup?.onboarding_completed) {
+        if (setup) {
           window.location.replace("/liff/summary");
         }
       })
-      .catch(() => {
-        if (mounted) setProfile(isLocalDevelopment() ? mockProfile : emptyProfile);
+      .catch((error) => {
+        console.error("Failed to resolve LINE identity", error);
+        if (!mounted) return;
+        setProfile(isLocalDevelopment() ? mockProfile : emptyProfile);
+        setAuthError("ยังตรวจสอบ LINE ID ไม่สำเร็จ กรุณาเข้าสู่ระบบผ่าน LINE อีกครั้ง");
+      })
+      .finally(() => {
+        if (mounted) setAuthChecking(false);
       });
     return () => {
       mounted = false;
@@ -261,6 +272,18 @@ export function OnboardingFlow() {
             </>
           )}
 
+          {authChecking ? (
+            <LineAuthPanel title="กำลังตรวจสอบบัญชี LINE" body="เรากำลังเช็คว่า LINE ID นี้เคยสมัครไว้แล้วหรือยัง" loading />
+          ) : !profile.line_user_id ? (
+            <LineAuthPanel
+              title="เข้าสู่ระบบด้วย LINE"
+              body={authError ?? "ต้องเข้าสู่ระบบ LINE ก่อน เพื่อให้รู้ว่าเป็นผู้ใช้งานคนไหน"}
+              onLogin={() => {
+                void startLineLogin();
+              }}
+            />
+          ) : (
+            <>
           {step === "welcome" && (
             <div className="flex flex-1 flex-col pt-8">
               <div className="mx-auto w-full max-w-[18rem]">
@@ -339,6 +362,8 @@ export function OnboardingFlow() {
               <PrimaryButton onClick={() => { window.location.href = "/liff/summary"; }}>เริ่มต้นใช้งาน</PrimaryButton>
             </div>
           )}
+            </>
+          )}
         </section>
       </div>
     </main>
@@ -354,6 +379,33 @@ function StepPanel({ title, subtitle, children }: { title: string; subtitle: str
         <p className="mt-4 text-base leading-7 text-[#665728]">{subtitle}</p>
       </div>
       <div className="mt-5">{children}</div>
+    </div>
+  );
+}
+
+function LineAuthPanel({
+  title,
+  body,
+  loading = false,
+  onLogin,
+}: {
+  title: string;
+  body: string;
+  loading?: boolean;
+  onLogin?: () => void;
+}) {
+  return (
+    <div className="mt-12 rounded-md border border-[#6dc5ad]/35 bg-white p-6 text-center shadow-sm">
+      <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#eaf8f4] text-[#0d4a2b]">
+        {loading ? <Loader2 className="h-8 w-8 animate-spin" /> : <WalletCards className="h-8 w-8" />}
+      </div>
+      <h1 className="mt-5 text-2xl font-black text-[#0d4a2b]">{title}</h1>
+      <p className="mt-3 text-sm leading-6 text-[#665728]">{body}</p>
+      {!loading && (
+        <button type="button" onClick={onLogin} className="mt-6 h-12 w-full rounded-md bg-[#06c755] text-base font-black text-white shadow-sm active:scale-[0.99]">
+          เข้าสู่ระบบด้วย LINE
+        </button>
+      )}
     </div>
   );
 }
@@ -532,6 +584,21 @@ async function loadLineProfile(): Promise<LineProfile> {
   }
 
   return readLineProfileFromLiff(window.liff);
+}
+
+async function startLineLogin() {
+  const liffId = resolveLiffId();
+  if (!liffId || typeof window === "undefined") {
+    return;
+  }
+
+  await loadLiffSdk();
+  if (!window.liff) {
+    return;
+  }
+
+  await window.liff.init({ liffId });
+  window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
 }
 
 async function resolveLineUserSetup(profile: LineProfile) {

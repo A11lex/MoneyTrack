@@ -222,7 +222,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
       }
 
       const setup = await resolveLineUserSetup(loadedProfile);
-      if (!setup?.onboarding_completed) {
+      if (!setup) {
         window.location.replace("/liff/onboarding");
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
