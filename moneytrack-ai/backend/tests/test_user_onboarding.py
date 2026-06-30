@@ -41,6 +41,25 @@ def test_upsert_line_user_and_get_initial_setup(tmp_path, monkeypatch) -> None:
     assert setup.json()["onboarding_completed"] is False
 
 
+def test_upsert_line_user_accepts_long_line_picture_url(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "onboarding.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    client = TestClient(app)
+    long_picture_url = "https://profile.line-scdn.net/" + ("a" * 900)
+
+    response = client.post(
+        "/users/line",
+        json={
+            "line_user_id": "line-user-001",
+            "display_name": "Alex",
+            "picture_url": long_picture_url,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["picture_url"] == long_picture_url
+
+
 def test_generic_line_user_upsert_does_not_overwrite_existing_profile(tmp_path, monkeypatch) -> None:
     db_path = str(tmp_path / "onboarding.db")
     monkeypatch.setattr(database, "DATABASE_URL", db_path)

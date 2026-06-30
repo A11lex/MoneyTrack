@@ -123,7 +123,7 @@ class CategoryMemoryMapping(BaseModel):
 class LineUserUpsert(BaseModel):
     line_user_id: str = Field(min_length=1, max_length=120)
     display_name: str = Field(default="", max_length=120)
-    picture_url: str | None = Field(default=None, max_length=500)
+    picture_url: str | None = Field(default=None, max_length=2048)
 
 
 class OnboardingPayload(BaseModel):

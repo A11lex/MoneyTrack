@@ -169,7 +169,8 @@ export function OnboardingFlow() {
         },
       });
       setStepIndex(steps.indexOf("done"));
-    } catch {
+    } catch (error) {
+      console.error("Failed to save LINE onboarding", error);
       setError("ยังบันทึกไม่ได้ ลองตรวจสอบ backend แล้วกดอีกครั้ง");
     } finally {
       setSaving(false);
