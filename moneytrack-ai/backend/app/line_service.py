@@ -18,6 +18,7 @@ from .line_messages import (
     build_category_budget_flex,
     build_daily_summary_flex,
     build_monthly_summary_flex,
+    build_onboarding_required_flex,
     build_quick_start_flex,
     build_streak_flex,
     build_transaction_deleted_flex,
@@ -60,8 +61,17 @@ def handle_line_message_detail(
     message: str,
     db_path: str | None = None,
     today: date | None = None,
+    require_onboarding: bool = False,
 ) -> LineMessageResult:
     normalized = message.strip()
+    setup = get_user_setup(line_user_id, db_path)
+    if require_onboarding and (setup is None or not setup.onboarding_completed):
+        return LineMessageResult(
+            reply="สมัครใช้งานก่อนเริ่มจดรายการนะคะ",
+            handled=True,
+            line_message=build_onboarding_required_flex(),
+        )
+
     upsert_line_user(LineUserUpsert(line_user_id=line_user_id, display_name="LINE User"), db_path)
     user_settings = get_user_settings(line_user_id, db_path)
     current_date = today or datetime.now(_safe_timezone(user_settings.timezone)).date()

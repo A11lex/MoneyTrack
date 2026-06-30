@@ -34,6 +34,7 @@ def handle_line_events(
                 message=text,
                 db_path=db_path,
                 today=today,
+                require_onboarding=True,
             )
             replies.append(
                 {
@@ -76,6 +77,7 @@ def handle_line_events(
             message=text,
             db_path=db_path,
             today=today,
+            require_onboarding=True,
         )
         replies.append(
             {

@@ -53,6 +53,41 @@ def build_quick_start_flex() -> dict[str, Any]:
     }
 
 
+def build_onboarding_required_flex() -> dict[str, Any]:
+    return {
+        "type": "flex",
+        "altText": "สมัครใช้งาน เงินไปไหน? ก่อนเริ่มจดรายการ",
+        "contents": {
+            "type": "bubble",
+            "size": "mega",
+            "styles": _bubble_styles(),
+            "body": {
+                "type": "box",
+                "layout": "vertical",
+                "spacing": "lg",
+                "paddingAll": "20px",
+                "contents": [
+                    _brand_header("เงินไปไหน?", "สมัครใช้งานก่อนเริ่มจดรายรับรายจ่ายผ่านแชท"),
+                    {
+                        "type": "box",
+                        "layout": "vertical",
+                        "spacing": "sm",
+                        "backgroundColor": BRAND["soft_green"],
+                        "cornerRadius": "md",
+                        "paddingAll": "14px",
+                        "contents": [
+                            _plain_text("ใช้เวลาไม่ถึง 1 นาที", "sm", BRAND["dark_green"], weight="bold"),
+                            _plain_text("เลือกหมวดรายรับ รายจ่าย และตั้งค่างบเริ่มต้น เพื่อให้เราจัดหมวดและสรุปเงินให้ตรงกับคุณ", "sm", BRAND["black"], wrap=True),
+                        ],
+                    },
+                    _plain_text("หลังสมัครเสร็จ กลับมาพิมพ์ในแชทได้เลย เช่น ข้าว 80 หรือ เงินเดือน 20000", "sm", BRAND["muted"], wrap=True),
+                ],
+            },
+            "footer": _single_uri_footer("เริ่มสมัครใช้งาน", "/liff/onboarding", BRAND["green"]),
+        },
+    }
+
+
 def build_category_budget_flex() -> dict[str, Any]:
     return {
         "type": "flex",

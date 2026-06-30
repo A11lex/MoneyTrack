@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app import database
 import app.main as main_module
 from app.main import app
+from app.models import LineUserUpsert, OnboardingPayload
 
 
 def test_line_webhook_accepts_mock_message_and_saves_transaction(tmp_path, monkeypatch) -> None:
@@ -51,6 +52,7 @@ def test_line_webhook_returns_friendly_error_for_unparsed_message(tmp_path, monk
 def test_line_webhook_accepts_line_messaging_api_event_payload(tmp_path, monkeypatch) -> None:
     db_path = str(tmp_path / "api-line-event.db")
     monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    _complete_onboarding("line-user-001", db_path)
     client = TestClient(app)
 
     response = client.post(
@@ -106,6 +108,7 @@ def test_financial_api_requires_line_user_id_and_scopes_transactions(tmp_path, m
 def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(tmp_path, monkeypatch) -> None:
     db_path = str(tmp_path / "api-line-signed.db")
     monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    _complete_onboarding("line-user-001", db_path)
     monkeypatch.setenv("LINE_CHANNEL_SECRET", "test-secret")
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
     monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
@@ -239,7 +242,10 @@ def test_line_webhook_open_record_keyboard_postback_does_not_send_reply(monkeypa
     assert sent_replies == []
 
 
-def test_line_webhook_show_quick_start_postback_sends_help_flex(monkeypatch) -> None:
+def test_line_webhook_show_quick_start_postback_sends_help_flex(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "api-line-quick-start.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    _complete_onboarding("line-user-001", db_path)
     monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
     sent_replies = []
     monkeypatch.setattr(
@@ -283,6 +289,20 @@ def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkey
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Invalid LINE signature"}
+
+
+def _complete_onboarding(line_user_id: str, db_path: str) -> None:
+    database.upsert_line_user(LineUserUpsert(line_user_id=line_user_id, display_name="Tester"), db_path)
+    database.save_user_onboarding(
+        line_user_id,
+        OnboardingPayload(
+            discovery_source="test",
+            expense_categories=["Food"],
+            income_categories=["Salary"],
+            monthly_budgets={},
+        ),
+        db_path,
+    )
 
 
 def _buttons(value: Any) -> list[dict[str, Any]]:
