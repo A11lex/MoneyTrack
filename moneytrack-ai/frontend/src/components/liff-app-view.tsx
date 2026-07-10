@@ -5462,7 +5462,13 @@ function shouldOpenViaOfficialLiffUrl() {
     return false;
   }
   const params = new URLSearchParams(window.location.search);
-  return !Array.from(params.keys()).some((key) => key === "access_token" || key.startsWith("liff."));
+  return !hasLineRedirectParams(params);
+}
+
+function hasLineRedirectParams(params: URLSearchParams) {
+  return Array.from(params.keys()).some(
+    (key) => key === "access_token" || key === "code" || key === "state" || key === "friendship_status_changed" || key.startsWith("liff."),
+  );
 }
 
 function normalizeLiffAppPath(value: string) {

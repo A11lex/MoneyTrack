@@ -15,20 +15,13 @@ export default async function Home({ searchParams }: HomeProps) {
   const targetPath = resolveSafeLiffPath(liffState);
 
   if (targetPath) {
-    const query = new URLSearchParams();
-    Object.entries(params ?? {}).forEach(([key, value]) => {
-      if (Array.isArray(value)) {
-        value.forEach((item) => query.append(key, item));
-      } else if (value) {
-        query.set(key, value);
-      }
-    });
-
+    const query = buildQuery(params);
     const separator = targetPath.includes("?") ? "&" : "?";
     redirect(query.size ? `${targetPath}${separator}${query.toString()}` : targetPath);
   }
 
-  redirect("/liff/summary");
+  const query = buildQuery(params);
+  redirect(query.size ? `/liff/summary?${query.toString()}` : "/liff/summary");
 }
 
 function firstParam(value: string | string[] | undefined) {
@@ -47,4 +40,16 @@ function resolveSafeLiffPath(value: string | undefined) {
   } catch {
     return "";
   }
+}
+
+function buildQuery(params: Record<string, string | string[] | undefined> | undefined) {
+  const query = new URLSearchParams();
+  Object.entries(params ?? {}).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => query.append(key, item));
+    } else if (value) {
+      query.set(key, value);
+    }
+  });
+  return query;
 }
