@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { getLineUserSetup, saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
+import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 
 type Step = "welcome" | "source" | "expense" | "income" | "done";
 
@@ -130,35 +131,45 @@ export function OnboardingFlow() {
 
   useEffect(() => {
     let mounted = true;
-    loadLineProfile()
-      .then(async (loadedProfile) => {
+    let redirectTimer: number | undefined;
+    async function bootstrap() {
+      try {
+        const identity = await loadLineProfile();
         if (!mounted) return;
-        setProfile(loadedProfile);
-        if (!loadedProfile.line_user_id) {
-          void startLineLogin();
+        if (identity.status === "redirecting") {
+          redirectTimer = window.setTimeout(() => {
+            if (!mounted) return;
+            setError("LINE ไม่เปิดหน้าเข้าสู่ระบบ กรุณาลองอีกครั้ง หรือปิดหน้านี้แล้วเปิดจากเมนูใน LINE");
+            setAuthChecking(false);
+          }, 10000);
           return;
         }
 
-        const setup = await resolveLineUserSetup(loadedProfile);
+        setProfile(identity.profile);
+        const setup = await resolveLineUserSetup(identity.profile);
+        if (!mounted) return;
         if (setup) {
           window.location.replace("/liff/summary");
+          return;
         }
-      })
-      .catch((error) => {
+        setAuthChecking(false);
+      } catch (error) {
         console.error("Failed to resolve LINE identity", error);
         if (!mounted) return;
         if (isLocalDevelopment()) {
           setProfile(mockProfile);
+          setAuthChecking(false);
           return;
         }
         setProfile(emptyProfile);
-        void startLineLogin();
-      })
-      .finally(() => {
-        if (mounted) setAuthChecking(false);
-      });
+        setError("ไม่สามารถเข้าสู่ระบบ LINE ได้ กรุณาปิดหน้านี้แล้วเปิดจากเมนูใน LINE อีกครั้ง");
+        setAuthChecking(false);
+      }
+    }
+    void bootstrap();
     return () => {
       mounted = false;
+      if (redirectTimer !== undefined) window.clearTimeout(redirectTimer);
     };
   }, []);
 
@@ -166,7 +177,9 @@ export function OnboardingFlow() {
     setSaving(true);
     setError(null);
     try {
-      const loadedProfile = profile.line_user_id ? profile : await loadLineProfile();
+      const identity = profile.line_user_id ? { status: "authenticated" as const, profile } : await loadLineProfile();
+      if (identity.status === "redirecting") return;
+      const loadedProfile = identity.profile;
       if (!loadedProfile.line_user_id) {
         setProfile(loadedProfile);
         setError("กรุณาเข้าสู่ระบบผ่าน LINE ก่อนบันทึกการสมัคร");
@@ -275,7 +288,13 @@ export function OnboardingFlow() {
             </>
           )}
 
-          {authChecking || !profile.line_user_id ? (
+          {error && !authChecking && !profile.line_user_id ? (
+            <LineAuthPanel
+              title="เข้าสู่ระบบด้วย LINE"
+              body={error}
+              onLogin={() => window.location.reload()}
+            />
+          ) : authChecking || !profile.line_user_id ? (
             <LineLoginRedirectState />
           ) : (
             <>
@@ -570,39 +589,29 @@ function customValues(options: { label: string }[], selected: string[]) {
   return selected.filter((item) => !defaultLabels.has(item));
 }
 
-async function loadLineProfile(): Promise<LineProfile> {
+type LineIdentityResult =
+  | { status: "authenticated"; profile: LineProfile }
+  | { status: "redirecting" };
+
+async function loadLineProfile(): Promise<LineIdentityResult> {
   const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
-    return isLocalDevelopment() ? mockProfile : emptyProfile;
+    if (isLocalDevelopment()) return { status: "authenticated", profile: mockProfile };
+    throw new Error("LIFF configuration is unavailable");
   }
 
   await loadLiffSdk();
   if (!window.liff) {
-    return isLocalDevelopment() ? mockProfile : emptyProfile;
+    if (isLocalDevelopment()) return { status: "authenticated", profile: mockProfile };
+    throw new Error("LIFF SDK is unavailable");
   }
 
-  await window.liff.init({ liffId });
-  if (!window.liff.isLoggedIn()) {
-    openLineLogin(liffId);
-    return emptyProfile;
+  const status = await ensureLiffAuthenticated(window.liff, liffId, resolveLiffRedirectUri(liffId));
+  if (status === "redirecting") {
+    return { status };
   }
 
-  return readLineProfileFromLiff(window.liff);
-}
-
-async function startLineLogin() {
-  const liffId = resolveLiffId();
-  if (!liffId || typeof window === "undefined") {
-    return;
-  }
-
-  await loadLiffSdk();
-  if (!window.liff) {
-    return;
-  }
-
-  await window.liff.init({ liffId });
-  openLineLogin(liffId);
+  return { status: "authenticated", profile: await readLineProfileFromLiff(window.liff) };
 }
 
 async function resolveLineUserSetup(profile: LineProfile) {
@@ -695,10 +704,6 @@ function resolveLiffRedirectUri(liffId: string) {
   const pathFromLiffUrl = url.pathname.startsWith(`/${liffId}`) ? url.pathname.slice(liffId.length + 1) : "";
   const path = normalizeLiffAppPath(decodedStatePath || pathFromLiffUrl || "/liff/onboarding");
   return `${frontendOrigin}${path}${url.search}`;
-}
-
-function openLineLogin(liffId: string) {
-  window.liff?.login({ redirectUri: resolveLiffRedirectUri(liffId) });
 }
 
 function normalizeLiffAppPath(value: string) {

@@ -49,6 +49,7 @@ import {
   updateTransaction,
   upsertLineUser,
 } from "@/lib/api";
+import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 import type { DailyReminderSettingsInput, DashboardData, LineUserSetup, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
@@ -213,8 +214,13 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
 
   useEffect(() => {
     let mounted = true;
+    let loginRedirecting = false;
     loadLineProfile().then(async (loadedProfile) => {
       if (!mounted) return Promise.reject(new Error("unmounted"));
+      if (loadedProfile === null) {
+        loginRedirecting = true;
+        return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
+      }
       setProfile(loadedProfile);
       if (!loadedProfile.line_user_id) {
         window.location.replace("/liff/onboarding");
@@ -253,7 +259,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         setTransactions([]);
       })
       .finally(() => {
-        if (mounted) setLoading(false);
+        if (mounted && !loginRedirecting) setLoading(false);
       });
     return () => {
       mounted = false;
@@ -5371,7 +5377,7 @@ function formatLineUserId(value: string) {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-async function loadLineProfile(): Promise<LineProfile> {
+async function loadLineProfile(): Promise<LineProfile | null> {
   const liffId = resolveLiffId();
   if (!liffId || typeof window === "undefined") {
     return getEmptyLineProfile();
@@ -5382,10 +5388,9 @@ async function loadLineProfile(): Promise<LineProfile> {
     return getEmptyLineProfile();
   }
 
-  await window.liff.init({ liffId });
-  if (!window.liff.isLoggedIn()) {
-    window.liff.login({ redirectUri: resolveLiffRedirectUri(liffId) });
-    return getEmptyLineProfile();
+  const status = await ensureLiffAuthenticated(window.liff, liffId, resolveLiffRedirectUri(liffId));
+  if (status === "redirecting") {
+    return null;
   }
 
   const profile = await readLineProfileFromLiff(window.liff);
