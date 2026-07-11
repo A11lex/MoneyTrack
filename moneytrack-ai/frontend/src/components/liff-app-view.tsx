@@ -172,6 +172,8 @@ const defaultUserSettings: UserSettingsInput = {
   memory_categorization_enabled: false,
   streak_notifications_enabled: false,
   timezone: "Asia/Bangkok",
+  currency_code: "THB",
+  language: "th",
   confirmation_show_details: true,
   confirmation_show_budget: true,
   confirmation_show_budget_warning: true,
@@ -2736,7 +2738,18 @@ function DateRangePickerModal({
 }
 
 function SettingsScreen({ profile, transactions }: { profile: LineProfile; transactions: Transaction[] }) {
-  const settings = ["เตือนจดประจำวัน", "จัดหมวดด้วยความจำ", "แยกช่องทางชำระเงิน", "รายการจดประจำ", "ประวัติการชำระเงิน", "ตั้งค่าหมวด", "การแจ้งเตือน Streak", "ตั้งค่าสกุลเงิน", "ปรับแต่งข้อความยืนยัน", "ตั้งค่าโซนเวลา", "ตั้งค่าภาษา"];
+  const settings = [
+    { id: "daily-reminder", label: "เตือนจดประจำวัน" },
+    { id: "category-memory", label: "จัดหมวดด้วยความจำ", toggle: true },
+    { id: "payment-channels", label: "แยกช่องทางชำระเงิน" },
+    { id: "recurring", label: "รายการจดประจำ" },
+    { id: "categories", label: "ตั้งค่าหมวด" },
+    { id: "streak", label: "การแจ้งเตือน Streak", toggle: true },
+    { id: "currency", label: "ตั้งค่าสกุลเงิน" },
+    { id: "confirmation", label: "ปรับแต่งข้อความยืนยัน" },
+    { id: "timezone", label: "ตั้งค่าโซนเวลา" },
+    { id: "language", label: "ตั้งค่าภาษา" },
+  ] as const;
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [showPaymentScreen, setShowPaymentScreen] = useState(false);
   const [showCurrencyScreen, setShowCurrencyScreen] = useState(false);
@@ -2751,7 +2764,12 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
   const [languageSetting, setLanguageSetting] = useState<LanguageCode>(() => loadStoredLanguageSetting(profile.line_user_id));
   const [savingReminder, setSavingReminder] = useState(false);
   const [reminderError, setReminderError] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsMessage, setSettingsMessage] = useState("");
+  const [settingsError, setSettingsError] = useState("");
   const streakDays = calculateStreakDays(transactions);
+  const streakGoal = 7;
+  const streakProgress = Math.min((streakDays / streakGoal) * 100, 100);
 
   useEffect(() => {
     let mounted = true;
@@ -2772,7 +2790,7 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
         setReminderSettings(nextSettings);
         saveStoredDailyReminderSettings(profile.line_user_id, nextSettings);
       })
-      .catch(() => undefined);
+      .catch(() => setSettingsError("โหลดการตั้งค่าแจ้งเตือนไม่สำเร็จ กรุณาลองเปิดหน้านี้ใหม่"));
     return () => {
       mounted = false;
     };
@@ -2790,6 +2808,8 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
           memory_categorization_enabled: settings.memory_categorization_enabled,
           streak_notifications_enabled: settings.streak_notifications_enabled,
           timezone: settings.timezone,
+          currency_code: settings.currency_code || loadStoredCurrencySetting(profile.line_user_id).code,
+          language: settings.language || loadStoredLanguageSetting(profile.line_user_id),
           confirmation_show_details: settings.confirmation_show_details,
           confirmation_show_budget: settings.confirmation_show_budget,
           confirmation_show_budget_warning: settings.confirmation_show_budget_warning,
@@ -2806,8 +2826,13 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
         const nextTimezone = findTimezone(nextSettings.timezone);
         setTimezoneSetting(nextTimezone);
         saveStoredTimezoneSetting(profile.line_user_id, nextTimezone);
+        const nextCurrency = currencyOptions.find((currency) => currency.code === nextSettings.currency_code) ?? currencyOptions[0];
+        setCurrencySetting(nextCurrency);
+        saveStoredCurrencySetting(profile.line_user_id, nextCurrency);
+        setLanguageSetting(nextSettings.language);
+        saveStoredLanguageSetting(profile.line_user_id, nextSettings.language);
       })
-      .catch(() => undefined);
+      .catch(() => setSettingsError("โหลดการตั้งค่าไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วลองใหม่"));
     return () => {
       mounted = false;
     };
@@ -2859,57 +2884,97 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
     }
   }
 
-  function savePaymentSettings(nextSettings: PaymentChannelSettings) {
+  async function savePaymentSettings(nextSettings: PaymentChannelSettings) {
+    const previous = paymentSettings;
     const normalized = { enabled: nextSettings.enabled, channels: normalizePaymentChannels(nextSettings.channels) };
     setPaymentSettings(normalized);
     saveStoredPaymentChannelSettings(profile.line_user_id, normalized);
-    void saveRemoteUserSettings({
+    const saved = await saveRemoteUserSettings({
       ...userSettings,
       confirmation_show_payment_options: normalized.enabled,
       payment_channels: normalized.channels,
     });
+    if (!saved) {
+      setPaymentSettings(previous);
+      saveStoredPaymentChannelSettings(profile.line_user_id, previous);
+    }
   }
 
-  function saveCurrencySetting(nextSetting: CurrencySetting) {
+  async function saveCurrencySetting(nextSetting: CurrencySetting) {
+    const previous = currencySetting;
     setCurrencySetting(nextSetting);
     saveStoredCurrencySetting(profile.line_user_id, nextSetting);
+    const saved = await saveRemoteUserSettings({ ...userSettings, currency_code: nextSetting.code });
+    if (!saved) {
+      setCurrencySetting(previous);
+      saveStoredCurrencySetting(profile.line_user_id, previous);
+    }
   }
 
-  function saveLanguageSetting(nextSetting: LanguageCode) {
+  async function saveLanguageSetting(nextSetting: LanguageCode) {
+    const previous = languageSetting;
     setLanguageSetting(nextSetting);
     saveStoredLanguageSetting(profile.line_user_id, nextSetting);
+    const saved = await saveRemoteUserSettings({ ...userSettings, language: nextSetting });
+    if (!saved) {
+      setLanguageSetting(previous);
+      saveStoredLanguageSetting(profile.line_user_id, previous);
+    }
   }
 
-  function saveTimezoneSetting(nextSetting: TimezoneSetting) {
+  async function saveTimezoneSetting(nextSetting: TimezoneSetting) {
+    const previous = timezoneSetting;
     setTimezoneSetting(nextSetting);
     saveStoredTimezoneSetting(profile.line_user_id, nextSetting);
-    void saveRemoteUserSettings({ ...userSettings, timezone: nextSetting.value });
+    const saved = await saveRemoteUserSettings({ ...userSettings, timezone: nextSetting.value });
+    if (!saved) {
+      setTimezoneSetting(previous);
+      saveStoredTimezoneSetting(profile.line_user_id, previous);
+    }
   }
 
-  function saveRemoteUserSettings(nextSettings: UserSettingsInput) {
+  async function saveRemoteUserSettings(nextSettings: UserSettingsInput): Promise<boolean> {
+    const previousSettings = userSettings;
+    setSettingsSaving(true);
+    setSettingsMessage("");
+    setSettingsError("");
     setUserSettings(nextSettings);
-    if (!profile.line_user_id) return Promise.resolve();
-    return saveUserSettings(profile.line_user_id, nextSettings)
-      .then((settings) => {
-        const nextSettings = {
+    if (!profile.line_user_id) {
+      setUserSettings(previousSettings);
+      setSettingsError("ไม่พบบัญชี LINE กรุณาเปิดหน้านี้ผ่าน LINE อีกครั้ง");
+      setSettingsSaving(false);
+      return false;
+    }
+    try {
+      const settings = await saveUserSettings(profile.line_user_id, nextSettings);
+      const savedSettings: UserSettingsInput = {
           memory_categorization_enabled: settings.memory_categorization_enabled,
           streak_notifications_enabled: settings.streak_notifications_enabled,
           timezone: settings.timezone,
+          currency_code: settings.currency_code || previousSettings.currency_code,
+          language: settings.language || previousSettings.language,
           confirmation_show_details: settings.confirmation_show_details,
           confirmation_show_budget: settings.confirmation_show_budget,
           confirmation_show_budget_warning: settings.confirmation_show_budget_warning,
           confirmation_show_payment_options: settings.confirmation_show_payment_options,
           payment_channels: settings.payment_channels,
-        };
-        setUserSettings(nextSettings);
-        const nextPaymentSettings = {
+      };
+      setUserSettings(savedSettings);
+      const nextPaymentSettings = {
           enabled: settings.confirmation_show_payment_options,
           channels: normalizePaymentChannels(settings.payment_channels),
-        };
-        setPaymentSettings(nextPaymentSettings);
-        saveStoredPaymentChannelSettings(profile.line_user_id, nextPaymentSettings);
-      })
-      .catch(() => undefined);
+      };
+      setPaymentSettings(nextPaymentSettings);
+      saveStoredPaymentChannelSettings(profile.line_user_id, nextPaymentSettings);
+      setSettingsMessage("บันทึกการตั้งค่าแล้ว");
+      return true;
+    } catch {
+      setUserSettings(previousSettings);
+      setSettingsError("บันทึกการตั้งค่าไม่สำเร็จ กรุณาลองอีกครั้ง");
+      return false;
+    } finally {
+      setSettingsSaving(false);
+    }
   }
 
   if (showPaymentScreen) {
@@ -2965,14 +3030,11 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-4">
-        <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={64} height={64} className="h-16 w-16 rounded-full object-cover" />
+        <Image src={profile.picture_url || "/brand/moneytrack-pro.png"} alt={profile.display_name || "ผู้ใช้งาน LINE"} width={64} height={64} className="h-16 w-16 rounded-full object-cover" unoptimized={Boolean(profile.picture_url)} />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-2xl font-black">เงินไปไหน?</h2>
-          <p className="text-sm font-semibold text-[#8a928e]">ผู้ช่วยจดเงินผ่าน LINE</p>
+          <h2 className="truncate text-xl font-black">{profile.display_name || "ผู้ใช้งาน LINE"}</h2>
+          <p className="truncate text-sm font-semibold text-[#8a928e]">ผู้ใช้งานฟรี · เชื่อมต่อ LINE แล้ว</p>
         </div>
-        <button type="button" className="rounded-md bg-[#6dc5ad] px-4 py-2 text-sm font-black text-[#082f24]">
-          อัปเกรด
-        </button>
       </div>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-5">
@@ -2980,80 +3042,79 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
           <div>
             <p className="text-xl font-black">จดต่อเนื่องมา</p>
             <p className="mt-1 text-4xl font-black">{streakDays} วัน</p>
-            <p className="mt-1 text-sm text-[#555f5b]">เริ่มจดวันนี้เพื่อสร้างนิสัยใหม่</p>
+            <p className="mt-1 text-sm text-[#555f5b]">
+              {streakDays === 0 ? "เริ่มจดวันนี้เพื่อสร้างนิสัยใหม่" : streakDays < streakGoal ? `อีก ${streakGoal - streakDays} วันจะครบเป้าหมาย` : "ทำเป้าหมาย 7 วันสำเร็จแล้ว"}
+            </p>
           </div>
         </div>
         <div className="mt-4 h-3 rounded-full bg-[#e5e8e7]">
-          <div className="h-3 w-1/2 rounded-full bg-[#6dc5ad]" />
+          <div className="h-3 rounded-full bg-[#6dc5ad] transition-[width] duration-500" style={{ width: `${streakProgress}%` }} />
         </div>
       </section>
-      <button type="button" className="h-12 w-full rounded-md bg-[#6dc5ad] text-base font-black text-[#082f24]">
-        ชวนเพื่อนมาใช้ รับฟรี 1 เดือน
-      </button>
+      {settingsError && <p role="alert" className="rounded-md border border-[#DC143C]/25 bg-[#fff3f5] px-4 py-3 text-sm font-bold text-[#b41032]">{settingsError}</p>}
+      {settingsMessage && !settingsError && <p role="status" className="rounded-md border border-[#6dc5ad]/40 bg-[#eef8f5] px-4 py-3 text-sm font-bold text-[#0d4a2b]">{settingsMessage}</p>}
+      {settingsSaving && <p role="status" className="text-center text-xs font-semibold text-[#6b7280]">กำลังบันทึกการตั้งค่า...</p>}
       <div className="space-y-3">
-        {settings.map((item, index) => (
+        {settings.map((item) => (
           <button
-            key={item}
+            key={item.id}
             type="button"
+            disabled={settingsSaving}
             onClick={() => {
-              if (index === 0) setShowReminderModal(true);
-              if (index === 2) setShowPaymentScreen(true);
-              if (index === 3) window.location.assign("/liff/transactions?view=recurring");
-              if (index === 5) window.location.assign("/liff/categories");
-              if (index === 7) setShowCurrencyScreen(true);
-              if (index === 8) setShowConfirmationScreen(true);
-              if (index === 9) setShowTimezoneScreen(true);
-              if (index === 10) setShowLanguageScreen(true);
+              if (item.id === "daily-reminder") setShowReminderModal(true);
+              if (item.id === "category-memory") void saveRemoteUserSettings({ ...userSettings, memory_categorization_enabled: !userSettings.memory_categorization_enabled });
+              if (item.id === "payment-channels") setShowPaymentScreen(true);
+              if (item.id === "recurring") window.location.assign("/liff/transactions?view=recurring");
+              if (item.id === "categories") window.location.assign("/liff/categories");
+              if (item.id === "streak") void saveRemoteUserSettings({ ...userSettings, streak_notifications_enabled: !userSettings.streak_notifications_enabled });
+              if (item.id === "currency") setShowCurrencyScreen(true);
+              if (item.id === "confirmation") setShowConfirmationScreen(true);
+              if (item.id === "timezone") setShowTimezoneScreen(true);
+              if (item.id === "language") setShowLanguageScreen(true);
             }}
-            className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold shadow-sm"
+            className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-sm font-bold shadow-sm transition hover:border-[#6dc5ad]/60 hover:bg-[#fbfdfc] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 sm:text-base"
           >
-            <span className={index === settings.length - 1 ? "text-[#0d4a2b]" : ""}>{item}</span>
+            <span>{item.label}</span>
             <span className="flex items-center gap-2">
-              {index === 0 && (
+              {item.id === "daily-reminder" && (
                 <span className={`rounded-full px-2 py-1 text-xs font-black ${reminderSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
                   {reminderSettings.enabled ? `${reminderSettings.reminder_time} น.` : "ปิดอยู่"}
                 </span>
               )}
-              {index === 2 && (
+              {item.id === "payment-channels" && (
                 <span className={`rounded-full px-2 py-1 text-xs font-black ${paymentSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
                   {paymentSettings.enabled ? `${paymentSettings.channels.length}/10` : "ปิดอยู่"}
                 </span>
               )}
-              {index === 1 && (
-                <SettingsToggle
-                  checked={userSettings.memory_categorization_enabled}
-                  onToggle={() => void saveRemoteUserSettings({ ...userSettings, memory_categorization_enabled: !userSettings.memory_categorization_enabled })}
-                />
+              {item.id === "category-memory" && (
+                <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 rounded-full p-1 transition ${userSettings.memory_categorization_enabled ? "bg-[#6DC5AD]" : "bg-[#dfe4e2]"}`}>
+                  <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${userSettings.memory_categorization_enabled ? "translate-x-5" : "translate-x-0"}`} />
+                </span>
               )}
-              {index === 6 && (
-                <SettingsToggle
-                  checked={userSettings.streak_notifications_enabled}
-                  onToggle={() => void saveRemoteUserSettings({ ...userSettings, streak_notifications_enabled: !userSettings.streak_notifications_enabled })}
-                />
+              {item.id === "streak" && (
+                <span aria-hidden="true" className={`relative inline-flex h-7 w-12 shrink-0 rounded-full p-1 transition ${userSettings.streak_notifications_enabled ? "bg-[#6DC5AD]" : "bg-[#dfe4e2]"}`}>
+                  <span className={`h-5 w-5 rounded-full bg-white shadow-sm transition ${userSettings.streak_notifications_enabled ? "translate-x-5" : "translate-x-0"}`} />
+                </span>
               )}
-              {index === 7 && (
+              {item.id === "currency" && (
                 <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
                   {currencySetting.symbol}
                 </span>
               )}
-              {index === 9 && (
-                <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
-                  {timezoneSetting.label}
+              {item.id === "timezone" && (
+                <span className="max-w-24 truncate rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
+                  {timezoneSetting.label} {timezoneSetting.offset}
                 </span>
               )}
-              {index === 10 && (
+              {item.id === "language" && (
                 <span className="rounded-full bg-[#EAF8F4] px-2 py-1 text-xs font-black text-[#0D4A2B]">
                   {languageSetting === "th" ? "ไทย" : "EN"}
                 </span>
               )}
-              <ChevronRight className="text-[#9aa1a0]" />
+              {!("toggle" in item && item.toggle) && <ChevronRight className="text-[#9aa1a0]" />}
             </span>
           </button>
         ))}
-        <button type="button" className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-bold text-[#DC143C] shadow-sm">
-          <span>ลบรายการทั้งหมด</span>
-          <Trash2 />
-        </button>
       </div>
       {showReminderModal && (
         <DailyReminderSettingsModal

@@ -1,4 +1,5 @@
 .codex-remote-attachments/
+.pnpm-store/
 moneytrack-ai/backend/.generated/
 moneytrack-ai/backend/.pytest_cache/
 moneytrack-ai/backend/scripts/__pycache__/

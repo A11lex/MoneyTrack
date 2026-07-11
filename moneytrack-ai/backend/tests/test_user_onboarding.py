@@ -1,4 +1,5 @@
 from datetime import date
+import sqlite3
 
 from fastapi.testclient import TestClient
 
@@ -255,3 +256,54 @@ def test_get_setup_returns_404_for_unknown_line_user(tmp_path, monkeypatch) -> N
 
     assert response.status_code == 404
     assert response.json() == {"detail": "LINE user not found"}
+
+
+def test_user_settings_persist_currency_and_language(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "settings.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+
+    saved = save_user_settings(
+        "line-user-settings",
+        UserSettingsUpdate(currency_code="USD", language="en"),
+        db_path,
+    )
+
+    assert saved.currency_code == "USD"
+    assert saved.language == "en"
+    reloaded = get_user_settings("line-user-settings", db_path)
+    assert reloaded.currency_code == "USD"
+    assert reloaded.language == "en"
+
+
+def test_user_settings_migrate_currency_and_language_without_losing_existing_values(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "legacy-settings.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    connection = sqlite3.connect(db_path)
+    connection.execute(
+        """
+        CREATE TABLE user_settings (
+            line_user_id TEXT PRIMARY KEY,
+            memory_categorization_enabled INTEGER NOT NULL DEFAULT 0,
+            streak_notifications_enabled INTEGER NOT NULL DEFAULT 0,
+            timezone TEXT NOT NULL DEFAULT 'Asia/Bangkok',
+            confirmation_show_details INTEGER NOT NULL DEFAULT 1,
+            confirmation_show_budget INTEGER NOT NULL DEFAULT 1,
+            confirmation_show_budget_warning INTEGER NOT NULL DEFAULT 1,
+            confirmation_show_payment_options INTEGER NOT NULL DEFAULT 0,
+            payment_channels TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    connection.execute(
+        "INSERT INTO user_settings (line_user_id, memory_categorization_enabled) VALUES (?, ?)",
+        ("legacy-user", 1),
+    )
+    connection.commit()
+    connection.close()
+
+    settings = get_user_settings("legacy-user", db_path)
+
+    assert settings.memory_categorization_enabled is True
+    assert settings.currency_code == "THB"
+    assert settings.language == "th"

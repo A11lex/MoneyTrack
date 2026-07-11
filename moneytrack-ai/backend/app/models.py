@@ -97,6 +97,8 @@ class UserSettingsBase(BaseModel):
     memory_categorization_enabled: bool = False
     streak_notifications_enabled: bool = False
     timezone: str = Field(default="Asia/Bangkok", min_length=1, max_length=80)
+    currency_code: str = Field(default="THB", pattern="^[A-Z]{3}$")
+    language: str = Field(default="th", pattern="^(th|en)$")
     confirmation_show_details: bool = True
     confirmation_show_budget: bool = True
     confirmation_show_budget_warning: bool = True

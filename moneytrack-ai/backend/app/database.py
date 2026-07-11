@@ -137,6 +137,8 @@ def init_db(db_path: str | None = None) -> None:
                 memory_categorization_enabled INTEGER NOT NULL DEFAULT 0,
                 streak_notifications_enabled INTEGER NOT NULL DEFAULT 0,
                 timezone TEXT NOT NULL DEFAULT 'Asia/Bangkok',
+                currency_code TEXT NOT NULL DEFAULT 'THB',
+                language TEXT NOT NULL DEFAULT 'th',
                 confirmation_show_details INTEGER NOT NULL DEFAULT 1,
                 confirmation_show_budget INTEGER NOT NULL DEFAULT 1,
                 confirmation_show_budget_warning INTEGER NOT NULL DEFAULT 1,
@@ -148,6 +150,8 @@ def init_db(db_path: str | None = None) -> None:
             """
         )
         _ensure_column(conn, "user_settings", "payment_channels", "TEXT NOT NULL DEFAULT '[]'")
+        _ensure_column(conn, "user_settings", "currency_code", "TEXT NOT NULL DEFAULT 'THB'")
+        _ensure_column(conn, "user_settings", "language", "TEXT NOT NULL DEFAULT 'th'")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS category_memory_mappings (
@@ -230,6 +234,8 @@ def row_to_user_settings(row: Any) -> UserSettings:
         memory_categorization_enabled=bool(row["memory_categorization_enabled"]),
         streak_notifications_enabled=bool(row["streak_notifications_enabled"]),
         timezone=row["timezone"],
+        currency_code=row["currency_code"],
+        language=row["language"],
         confirmation_show_details=bool(row["confirmation_show_details"]),
         confirmation_show_budget=bool(row["confirmation_show_budget"]),
         confirmation_show_budget_warning=bool(row["confirmation_show_budget_warning"]),
@@ -634,17 +640,21 @@ def save_user_settings(line_user_id: str, payload: UserSettingsUpdate, db_path: 
                 memory_categorization_enabled,
                 streak_notifications_enabled,
                 timezone,
+                currency_code,
+                language,
                 confirmation_show_details,
                 confirmation_show_budget,
                 confirmation_show_budget_warning,
                 confirmation_show_payment_options,
                 payment_channels
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(line_user_id) DO UPDATE SET
                 memory_categorization_enabled = excluded.memory_categorization_enabled,
                 streak_notifications_enabled = excluded.streak_notifications_enabled,
                 timezone = excluded.timezone,
+                currency_code = excluded.currency_code,
+                language = excluded.language,
                 confirmation_show_details = excluded.confirmation_show_details,
                 confirmation_show_budget = excluded.confirmation_show_budget,
                 confirmation_show_budget_warning = excluded.confirmation_show_budget_warning,
@@ -657,6 +667,8 @@ def save_user_settings(line_user_id: str, payload: UserSettingsUpdate, db_path: 
                 int(payload.memory_categorization_enabled),
                 int(payload.streak_notifications_enabled),
                 payload.timezone,
+                payload.currency_code,
+                payload.language,
                 int(payload.confirmation_show_details),
                 int(payload.confirmation_show_budget),
                 int(payload.confirmation_show_budget_warning),

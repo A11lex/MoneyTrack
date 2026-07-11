@@ -50,6 +50,8 @@ export type UserSettings = {
   memory_categorization_enabled: boolean;
   streak_notifications_enabled: boolean;
   timezone: string;
+  currency_code: string;
+  language: "th" | "en";
   confirmation_show_details: boolean;
   confirmation_show_budget: boolean;
   confirmation_show_budget_warning: boolean;
