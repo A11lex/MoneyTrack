@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Loader2, Trash2 } from "lucide-react";
 
 import { deleteTransaction, getLineUserSetup, getTransaction, updateTransaction } from "@/lib/api";
+import { classifyAppError, type AppErrorKind } from "@/lib/app-flow";
 import type { Transaction, TransactionInput } from "@/lib/types";
 
 const accent = "#DC143C";
@@ -35,6 +36,7 @@ type LiffClient = {
   init: (options: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
   login: (options?: { redirectUri?: string }) => void;
+  logout?: () => void;
   getProfile: () => Promise<{ userId: string }>;
   getDecodedIDToken?: () => { sub?: string } | null;
   getContext?: () => { userId?: string } | null;
@@ -49,13 +51,15 @@ export default function EditTransactionPage() {
   const [lineUserId, setLineUserId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loadFailure, setLoadFailure] = useState<AppErrorKind | null>(() => (
+    Number.isFinite(transactionId) ? null : "not_found"
+  ));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [expenseOptions, setExpenseOptions] = useState<string[]>(() => loadStoredExpenseCategories());
   const [incomeOptions, setIncomeOptions] = useState<string[]>(() => loadStoredIncomeCategories());
 
   useEffect(() => {
     if (!Number.isFinite(transactionId)) {
-      router.replace("/liff/summary");
       return;
     }
     loadLineUserId()
@@ -80,10 +84,10 @@ export default function EditTransactionPage() {
           category: displayCategory(item.category, item.type, nextExpenseOptions, nextIncomeOptions),
         });
       })
-      .catch(() => {
-        router.replace("/liff/summary");
+      .catch((loadError: unknown) => {
+        setLoadFailure(classifyAppError(loadError));
       });
-  }, [router, transactionId]);
+  }, [transactionId]);
 
   const categories = useMemo(
     () => ensureCategoryOption(transaction?.type === "income" ? incomeOptions : expenseOptions, transaction?.category ?? ""),
@@ -135,6 +139,32 @@ export default function EditTransactionPage() {
   }
 
   if (!transaction) {
+    if (loadFailure) {
+      const content = transactionLoadFailureContent(loadFailure);
+      return (
+        <main className="grid min-h-screen place-items-center bg-[#f8faf9] px-5 text-[#151b18]">
+          <section className="w-full max-w-sm rounded-md border border-black/10 bg-white p-6 text-center shadow-sm">
+            <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#FDECEF] text-xl font-black text-[#DC143C]">!</div>
+            <h1 className="mt-4 text-xl font-black">{content.title}</h1>
+            <p className="mt-2 text-sm leading-6 text-[#66706b]">{content.description}</p>
+            <div className="mt-6 grid gap-2">
+              {loadFailure === "not_found" ? (
+                <button type="button" onClick={() => router.replace("/liff/summary")} className="h-11 rounded-md bg-[#6DC5AD] font-bold text-[#082F24]">
+                  กลับหน้าสรุป
+                </button>
+              ) : (
+                <button type="button" onClick={() => retryTransactionLoad(loadFailure)} className="h-11 rounded-md bg-[#6DC5AD] font-bold text-[#082F24]">
+                  ลองอีกครั้ง
+                </button>
+              )}
+              <button type="button" onClick={closeLiffWindow} className="h-10 rounded-md border border-black/10 bg-white text-sm font-bold">
+                ปิดหน้านี้
+              </button>
+            </div>
+          </section>
+        </main>
+      );
+    }
     return (
       <main className="grid min-h-screen place-items-center bg-white text-[#151b18]">
         <div className="text-center">
@@ -251,6 +281,40 @@ export default function EditTransactionPage() {
       )}
     </main>
   );
+}
+
+function transactionLoadFailureContent(kind: AppErrorKind) {
+  if (kind === "not_found") {
+    return {
+      title: "ไม่พบรายการนี้แล้ว",
+      description: "รายการอาจถูกลบ หรือเป็นลิงก์จาก Flex Message ก่อนย้ายฐานข้อมูล",
+    };
+  }
+  if (kind === "authentication") {
+    return {
+      title: "ยืนยันบัญชี LINE ไม่สำเร็จ",
+      description: "กรุณาเปิดหน้านี้จากเมนูใน LINE หรือลองเข้าสู่ระบบใหม่อีกครั้ง",
+    };
+  }
+  return {
+    title: "โหลดรายการไม่สำเร็จ",
+    description: "Backend อาจกำลังเริ่มทำงานหรือเชื่อมต่อไม่ได้ กรุณาลองใหม่อีกครั้ง",
+  };
+}
+
+function closeLiffWindow() {
+  const lineWindow = window as Window & { liff?: LiffClient };
+  if (lineWindow.liff?.closeWindow) {
+    lineWindow.liff.closeWindow();
+    return;
+  }
+  window.history.back();
+}
+
+function retryTransactionLoad(kind: AppErrorKind) {
+  const lineWindow = window as Window & { liff?: LiffClient };
+  if (kind === "authentication") lineWindow.liff?.logout?.();
+  window.location.reload();
 }
 
 function ConfirmDeleteDialog({

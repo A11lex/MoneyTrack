@@ -34,3 +34,17 @@ test("does not start LINE login for an authenticated session", async () => {
   assert.equal(status, "authenticated");
   assert.equal(loginCalls, 0);
 });
+
+test("reports an authentication failure when openid did not provide an ID token", async () => {
+  const client = {
+    init: async () => undefined,
+    isLoggedIn: () => true,
+    login: () => undefined,
+    getIDToken: () => null,
+  };
+
+  await assert.rejects(
+    ensureLiffAuthenticated(client, "liff-id", "https://example.com/liff/summary"),
+    (error) => error?.status === 401,
+  );
+});

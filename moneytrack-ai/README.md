@@ -109,7 +109,7 @@ The large main-menu area sends a quick-start Flex Message with the **จดเ�
 | Charts | Recharts |
 | Backend | FastAPI, Python 3.12, Pydantic |
 | Data analysis | Pandas, NumPy |
-| Database | SQLite for the portfolio MVP |
+| Database | PostgreSQL in production, SQLite for local development/tests |
 | LINE | Messaging API, LIFF, Flex Message, Rich Menu |
 | Deployment | Vercel frontend, Render backend |
 | Quality | pytest, Node test runner, ESLint, TypeScript, Next.js build |
@@ -123,7 +123,8 @@ moneytrack-ai/
 │   ├── src/components/       LIFF screens and interaction flows
 │   └── src/lib/              API, auth, types, and user-flow helpers
 ├── backend/                  FastAPI service
-│   ├── app/database.py       SQLite repositories and user-scoped data
+│   ├── app/database.py       User-scoped repositories
+│   ├── app/database_backend.py PostgreSQL/SQLite compatibility
 │   ├── app/finance.py        Financial formulas and advisor rules
 │   ├── app/line_*.py         LINE auth, webhook, parser, and Flex builders
 │   ├── scripts/              Rich Menu setup
@@ -188,6 +189,8 @@ LIFF_APP_BASE_URL=https://liff.line.me/2010521304-BrGvBhsP
 LINE_WEBHOOK_ALLOW_UNSIGNED=0
 ENABLE_LINE_WEBHOOK_MOCK=0
 FRONTEND_ORIGIN=https://money-track-sandy.vercel.app
+DATABASE_URL=postgresql://...
+SEED_DEMO_DATA=0
 CRON_SECRET=...
 ```
 
@@ -248,11 +251,11 @@ Except for public health/category metadata and the signed LINE webhook, user-dat
 
 MoneyTrack AI is a portfolio MVP intended to demonstrate full-stack engineering, financial data analysis, rule-based AI behavior, and LINE platform integration.
 
-> **Production note:** SQLite is appropriate for local development and a single-instance demonstration. Render's ephemeral filesystem can lose data after a restart or redeploy. A public multi-user release must migrate persistence to managed PostgreSQL and run scheduled jobs outside the sleeping web process.
+> **Production note:** The Render deployment uses PostgreSQL. SQLite is limited to local development and tests because Render's web-service filesystem is ephemeral.
 
 ## Roadmap
 
-- [ ] Migrate SQLite data to managed PostgreSQL
+- [x] Support managed PostgreSQL with a SQLite migration tool
 - [ ] Add schema migrations and automated backups
 - [ ] Add browser E2E tests for LIFF login and critical mobile flows
 - [ ] Move recurring jobs to a reliable external scheduler

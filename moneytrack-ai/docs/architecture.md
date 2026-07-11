@@ -5,7 +5,7 @@
 MoneyTrack AI uses a split frontend/backend architecture:
 
 - `frontend/`: Next.js 15 app router dashboard
-- `backend/`: FastAPI service with SQLite persistence
+- `backend/`: FastAPI service with PostgreSQL production persistence and SQLite local/test support
 - `docs/`: implementation and deployment documentation
 
 ## Backend
@@ -27,7 +27,8 @@ FastAPI routes:
 
 Important modules:
 
-- `app/database.py`: SQLite setup and CRUD repository functions
+- `app/database.py`: User-scoped CRUD repository functions
+- `app/database_backend.py`: SQLite/PostgreSQL connection compatibility layer
 - `app/models.py`: Pydantic models and category constants
 - `app/finance.py`: Pandas/NumPy calculations, advisor rules, health score, charts, simulator
 - `app/message_parser.py`: rule-based parser for Thai natural-language money messages
@@ -56,7 +57,7 @@ flowchart LR
   LINE["LINE event payload"] --> Adapter["line_adapter.py"]
   Adapter --> Service["line_service.py"]
   Service --> Parser["message_parser.py"]
-  Parser --> DB["SQLite transactions"]
+  Parser --> DB["PostgreSQL transactions"]
   Service --> Reply["Prepared reply text"]
 ```
 
@@ -84,7 +85,7 @@ The LIFF onboarding UI should call `/users/line` after profile permission is gra
 ```mermaid
 flowchart LR
   UI["Next.js Dashboard"] --> API["FastAPI API"]
-  API --> DB["SQLite"]
+  API --> DB["PostgreSQL"]
   API --> Finance["Pandas/NumPy Finance Logic"]
   Finance --> Advisor["Rule-Based Advisor"]
   API --> UI
@@ -92,4 +93,4 @@ flowchart LR
 
 ## Production Notes
 
-SQLite is acceptable for portfolio MVP and single-instance demos. A production SaaS should move persistence to Postgres, add authentication, and scope all transactions by user or workspace.
+SQLite remains available for local development and isolated tests. Production uses PostgreSQL, verifies a LINE ID token, and scopes all mutable user data by the authenticated LINE user ID.

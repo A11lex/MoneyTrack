@@ -49,6 +49,7 @@ import {
   updateTransaction,
   upsertLineUser,
 } from "@/lib/api";
+import { classifyAppError, type AppErrorKind } from "@/lib/app-flow";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 import type { DailyReminderSettingsInput, DashboardData, LineUserSetup, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
 import { hasCompletedOnboarding } from "@/lib/user-flow";
@@ -212,6 +213,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   const [profile, setProfile] = useState<LineProfile>(() => getEmptyLineProfile());
   const [plan] = useState<UserPlan>(() => loadStoredUserPlan());
   const [loading, setLoading] = useState(true);
+  const [appFailure, setAppFailure] = useState<AppErrorKind | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -224,7 +226,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
       }
       setProfile(loadedProfile);
       if (!loadedProfile.line_user_id) {
-        window.location.replace("/liff/onboarding");
+        setAppFailure("authentication");
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
 
@@ -246,7 +248,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
     }).catch((error) => {
       if (!mounted) return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       console.error("Failed to load LINE profile", error);
-      window.location.replace("/liff/onboarding");
+      setAppFailure(classifyAppError(error));
       return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
     })
       .then(([dashboardData, transactionData]) => {
@@ -311,6 +313,8 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
         <section className="flex-1 px-4 pb-24 pt-4">
           {loading ? (
             <LoadingState />
+          ) : appFailure ? (
+            <AppFailureState kind={appFailure} />
           ) : (
             <>
               {tab === "summary" && <SummaryScreen dashboard={dashboard} latest={latest} onEdit={setEditingTransaction} profile={profile} plan={plan} transactions={transactions} />}
@@ -4762,6 +4766,33 @@ function LoadingState() {
       </div>
     </div>
   );
+}
+
+function AppFailureState({ kind }: { kind: AppErrorKind }) {
+  const authentication = kind === "authentication";
+  return (
+    <div className="grid min-h-[60vh] place-items-center px-2">
+      <section className="w-full rounded-md border border-black/10 bg-white p-6 text-center shadow-sm">
+        <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#FDECEF] text-xl font-black text-[#DC143C]">!</div>
+        <h1 className="mt-4 text-xl font-black text-[#151b18]">
+          {authentication ? "ยืนยันบัญชี LINE ไม่สำเร็จ" : "เชื่อมต่อระบบไม่สำเร็จ"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-[#66706b]">
+          {authentication
+            ? "กรุณาเปิดจาก Rich Menu ใน LINE และตรวจว่าอนุญาตสิทธิ์ profile กับ openid แล้ว"
+            : "ข้อมูลของคุณยังไม่ถูกเปลี่ยน กรุณารอให้ Backend พร้อมแล้วลองอีกครั้ง"}
+        </p>
+        <button type="button" onClick={authentication ? restartLineAuthentication : () => window.location.reload()} className="mt-6 h-11 w-full rounded-md bg-[#6DC5AD] font-bold text-[#082F24]">
+          ลองอีกครั้ง
+        </button>
+      </section>
+    </div>
+  );
+}
+
+function restartLineAuthentication() {
+  window.liff?.logout?.();
+  window.location.reload();
 }
 
 function BottomNav({ active }: { active: LiffTab }) {

@@ -9,6 +9,7 @@ def test_main_rich_menu_largest_panel_opens_quick_start_flex() -> None:
         width=1920,
         height=1200,
         app_base_url="https://money-track-sandy.vercel.app",
+        line_oa_url="https://page.line.me/moneytrack",
     )
 
     largest_panel = payload["areas"][0]
@@ -38,6 +39,7 @@ def test_main_rich_menu_navigation_buttons_use_app_base_url() -> None:
         width=1920,
         height=1200,
         app_base_url="https://liff.line.me/2010521304-BrGvBhsP",
+        line_oa_url="https://page.line.me/moneytrack",
     )
 
     assert payload["areas"][1]["action"] == {
@@ -59,6 +61,10 @@ def test_main_rich_menu_navigation_buttons_use_app_base_url() -> None:
     assert payload["areas"][6]["action"] == {
         "type": "uri",
         "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/settings",
+    }
+    assert payload["areas"][5]["action"] == {
+        "type": "uri",
+        "uri": "https://page.line.me/moneytrack",
     }
 
 

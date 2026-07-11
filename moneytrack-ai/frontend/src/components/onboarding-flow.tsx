@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { getLineUserSetup, saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
+import { classifyAppError } from "@/lib/app-flow";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 import { hasCompletedOnboarding } from "@/lib/user-flow";
 
@@ -74,6 +75,7 @@ type LiffClient = {
   init: (options: { liffId: string }) => Promise<void>;
   isLoggedIn: () => boolean;
   login: (options?: { redirectUri?: string }) => void;
+  logout?: () => void;
   getProfile: () => Promise<LiffProfile>;
   getDecodedIDToken?: () => LiffDecodedIDToken | null;
   getIDToken?: () => string | null;
@@ -164,7 +166,11 @@ export function OnboardingFlow() {
           return;
         }
         setProfile(emptyProfile);
-        setError("ไม่สามารถเข้าสู่ระบบ LINE ได้ กรุณาปิดหน้านี้แล้วเปิดจากเมนูใน LINE อีกครั้ง");
+        setError(
+          classifyAppError(error) === "authentication"
+            ? "ยืนยันบัญชี LINE ไม่สำเร็จ กรุณาปิดหน้านี้แล้วเปิดจากเมนูใน LINE อีกครั้ง"
+            : "เชื่อมต่อ Backend ไม่สำเร็จ ข้อมูลยังไม่ถูกเปลี่ยน กรุณารอสักครู่แล้วลองอีกครั้ง",
+        );
         setAuthChecking(false);
       }
     }
@@ -202,7 +208,11 @@ export function OnboardingFlow() {
       setStepIndex(steps.indexOf("done"));
     } catch (error) {
       console.error("Failed to save LINE onboarding", error);
-      setError("ยังบันทึกไม่ได้ ลองตรวจสอบ backend แล้วกดอีกครั้ง");
+      setError(
+        classifyAppError(error) === "authentication"
+          ? "สิทธิ์เข้าสู่ระบบ LINE หมดอายุ กรุณาปิดหน้านี้แล้วเปิดจากเมนูใน LINE อีกครั้ง"
+          : "ยังบันทึกไม่ได้ กรุณาตรวจสอบ Backend แล้วกดอีกครั้ง",
+      );
     } finally {
       setSaving(false);
     }

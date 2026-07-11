@@ -1,10 +1,11 @@
 import json
 import os
-import sqlite3
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
+
+from .database_backend import DatabaseConnection, connect, inserted_id
 
 from .models import (
     CategoryMemoryMapping,
@@ -28,14 +29,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", str(BASE_DIR / "moneytrack.db"))
 
 
 @contextmanager
-def get_connection(db_path: str | None = None) -> Iterator[sqlite3.Connection]:
-    conn = sqlite3.connect(db_path or DATABASE_URL)
-    conn.row_factory = sqlite3.Row
-    try:
+def get_connection(db_path: str | None = None) -> Iterator[DatabaseConnection]:
+    with connect(db_path or DATABASE_URL) as conn:
         yield conn
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def init_db(db_path: str | None = None) -> None:
@@ -188,7 +184,7 @@ def claim_line_webhook_event(webhook_event_id: str, db_path: str | None = None) 
         return cursor.rowcount > 0
 
 
-def row_to_transaction(row: sqlite3.Row) -> Transaction:
+def row_to_transaction(row: Any) -> Transaction:
     return Transaction(
         id=row["id"],
         date=date.fromisoformat(row["date"]),
@@ -200,7 +196,7 @@ def row_to_transaction(row: sqlite3.Row) -> Transaction:
     )
 
 
-def row_to_recurring_transaction(row: sqlite3.Row) -> RecurringTransaction:
+def row_to_recurring_transaction(row: Any) -> RecurringTransaction:
     return RecurringTransaction(
         id=row["id"],
         line_user_id=row["line_user_id"],
@@ -218,7 +214,7 @@ def row_to_recurring_transaction(row: sqlite3.Row) -> RecurringTransaction:
     )
 
 
-def row_to_daily_reminder_settings(row: sqlite3.Row) -> DailyReminderSettings:
+def row_to_daily_reminder_settings(row: Any) -> DailyReminderSettings:
     return DailyReminderSettings(
         line_user_id=row["line_user_id"],
         enabled=bool(row["enabled"]),
@@ -228,7 +224,7 @@ def row_to_daily_reminder_settings(row: sqlite3.Row) -> DailyReminderSettings:
     )
 
 
-def row_to_user_settings(row: sqlite3.Row) -> UserSettings:
+def row_to_user_settings(row: Any) -> UserSettings:
     return UserSettings(
         line_user_id=row["line_user_id"],
         memory_categorization_enabled=bool(row["memory_categorization_enabled"]),
@@ -271,7 +267,7 @@ def _normalize_payment_channels(channels: list[object]) -> list[str]:
     return normalized
 
 
-def row_to_category_memory_mapping(row: sqlite3.Row) -> CategoryMemoryMapping:
+def row_to_category_memory_mapping(row: Any) -> CategoryMemoryMapping:
     return CategoryMemoryMapping(
         id=row["id"],
         line_user_id=row["line_user_id"],
@@ -281,8 +277,19 @@ def row_to_category_memory_mapping(row: sqlite3.Row) -> CategoryMemoryMapping:
     )
 
 
-def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
-    columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+def _ensure_column(conn: DatabaseConnection, table: str, column: str, definition: str) -> None:
+    if conn.kind == "postgresql":
+        rows = conn.execute(
+            """
+            SELECT column_name AS name
+            FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = ?
+            """,
+            (table,),
+        ).fetchall()
+    else:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    columns = {row["name"] for row in rows}
     if column not in columns:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
@@ -316,11 +323,13 @@ def get_transaction(transaction_id: int, db_path: str | None = None, line_user_i
 def create_transaction(payload: TransactionCreate, db_path: str | None = None, line_user_id: str | None = None) -> Transaction:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """
+        insert_sql = """
             INSERT INTO transactions (line_user_id, date, type, amount, category, description, mode)
             VALUES (?, ?, ?, ?, ?, ?, ?)
-            """,
+            """
+        transaction_id = inserted_id(
+            conn,
+            insert_sql,
             (
                 line_user_id,
                 payload.date.isoformat(),
@@ -331,7 +340,7 @@ def create_transaction(payload: TransactionCreate, db_path: str | None = None, l
                 payload.mode.value,
             ),
         )
-        row = conn.execute("SELECT * FROM transactions WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         return row_to_transaction(row)
 
 
@@ -439,14 +448,16 @@ def create_recurring_transaction(
 ) -> RecurringTransaction:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        cursor = conn.execute(
-            """
+        insert_sql = """
             INSERT INTO recurring_transactions (
                 line_user_id, type, amount, category, description, mode, interval,
                 day_of_week, day_of_month, month, notify_time
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            """
+        recurring_id = inserted_id(
+            conn,
+            insert_sql,
             (
                 line_user_id,
                 payload.type.value,
@@ -461,7 +472,7 @@ def create_recurring_transaction(
                 payload.notify_time,
             ),
         )
-        row = conn.execute("SELECT * FROM recurring_transactions WHERE id = ?", (cursor.lastrowid,)).fetchone()
+        row = conn.execute("SELECT * FROM recurring_transactions WHERE id = ?", (recurring_id,)).fetchone()
         return row_to_recurring_transaction(row)
 
 
@@ -747,7 +758,7 @@ def upsert_line_user(payload: LineUserUpsert, db_path: str | None = None) -> Use
     return setup
 
 
-def _merge_line_user_data(conn: sqlite3.Connection, target_line_user_id: str, source_line_user_id: str) -> None:
+def _merge_line_user_data(conn: DatabaseConnection, target_line_user_id: str, source_line_user_id: str) -> None:
     if not source_line_user_id or source_line_user_id == target_line_user_id:
         return
 
@@ -818,9 +829,9 @@ def _merge_line_user_data(conn: sqlite3.Connection, target_line_user_id: str, so
             WHERE line_user_id = ?
             """,
             (
-                int(copy_name),
+                copy_name,
                 source_user["display_name"],
-                int(copy_picture),
+                copy_picture,
                 source_user["picture_url"],
                 target_line_user_id,
             ),
@@ -921,7 +932,8 @@ def save_user_onboarding(line_user_id: str, payload: OnboardingPayload, db_path:
 def seed_demo_data(db_path: str | None = None) -> None:
     init_db(db_path)
     with get_connection(db_path) as conn:
-        count = conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+        count_row = conn.execute("SELECT COUNT(*) AS count FROM transactions").fetchone()
+        count = count_row["count"]
         if count:
             return
     demo = [

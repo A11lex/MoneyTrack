@@ -20,6 +20,7 @@ def main() -> None:
     liff_id = os.getenv("NEXT_PUBLIC_LIFF_ID", DEFAULT_LIFF_ID)
     liff_url = os.getenv("LIFF_ONBOARDING_URL") or liff_url_from_id(liff_id)
     main_liff_url = resolve_main_app_base_url(liff_url)
+    line_oa_url = required_url_env("LINE_OA_URL")
 
     start_image = prepare_image(ASSET_DIR / "ListMenuStart.png")
     main_image = prepare_image(ASSET_DIR / "ListMenuMain.png")
@@ -33,7 +34,12 @@ def main() -> None:
 
     main_menu_id = create_rich_menu(
         access_token,
-        build_main_menu_payload(main_image.width, main_image.height, main_liff_url.rstrip("/")),
+        build_main_menu_payload(
+            main_image.width,
+            main_image.height,
+            main_liff_url.rstrip("/"),
+            line_oa_url,
+        ),
     )
     upload_rich_menu_image(access_token, main_menu_id, main_image.path)
 
@@ -47,6 +53,13 @@ def required_env(name: str) -> str:
     value = os.getenv(name)
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+def required_url_env(name: str) -> str:
+    value = required_env(name).strip()
+    if not value.startswith("https://"):
+        raise RuntimeError(f"{name} must be an HTTPS URL")
     return value
 
 
@@ -110,7 +123,12 @@ def build_start_menu_payload(width: int, height: int, liff_url: str) -> dict[str
     }
 
 
-def build_main_menu_payload(width: int, height: int, app_base_url: str) -> dict[str, Any]:
+def build_main_menu_payload(
+    width: int,
+    height: int,
+    app_base_url: str,
+    line_oa_url: str,
+) -> dict[str, Any]:
     # Coordinates match the current 1920x1200 artwork and scale if the image size changes.
     def area(x: int, y: int, w: int, h: int, action: dict[str, str]) -> dict[str, Any]:
         return {
@@ -134,7 +152,7 @@ def build_main_menu_payload(width: int, height: int, app_base_url: str) -> dict[
             area(1560, 0, 360, 410, {"type": "uri", "uri": liff_url_for_path(app_base_url, "/liff/insights")}),
             area(1200, 410, 360, 440, {"type": "uri", "uri": liff_url_for_path(app_base_url, "/liff/categories")}),
             area(1560, 410, 360, 440, {"type": "uri", "uri": liff_url_for_path(app_base_url, "/liff/transactions")}),
-            area(860, 850, 340, 350, {"type": "message", "text": "ประกาศ"}),
+            area(860, 850, 340, 350, {"type": "uri", "uri": line_oa_url}),
             area(1200, 850, 360, 350, {"type": "uri", "uri": liff_url_for_path(app_base_url, "/liff/settings")}),
             area(1560, 850, 360, 350, {"type": "message", "text": "Help"}),
         ],

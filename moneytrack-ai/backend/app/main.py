@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import (
+    DATABASE_URL,
     create_recurring_transaction,
     create_transaction,
     delete_recurring_transaction,
@@ -17,6 +18,7 @@ from .database import (
     get_transaction,
     get_user_setup,
     get_user_settings,
+    init_db,
     list_recurring_transactions,
     list_transactions,
     save_daily_reminder_settings,
@@ -27,6 +29,7 @@ from .database import (
     update_transaction,
     upsert_line_user,
 )
+from .database_backend import require_persistent_database
 from .daily_reminder_service import run_due_daily_reminders
 from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
 from .line_adapter import handle_line_events
@@ -95,7 +98,10 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup() -> None:
-    seed_demo_data()
+    require_persistent_database(DATABASE_URL, os.getenv("RENDER"))
+    init_db()
+    if os.getenv("SEED_DEMO_DATA", "0") == "1":
+        seed_demo_data()
     if os.getenv("ENABLE_RECURRING_WORKER", "1") != "0":
         app.state.recurring_worker_task = asyncio.create_task(_recurring_worker_loop())
 

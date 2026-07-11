@@ -18,6 +18,17 @@ import { currentLineAuthorizationHeaders } from "./line-api-auth";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly path: string,
+    detail = "",
+  ) {
+    super(`API request failed: ${status} ${path}${detail ? ` - ${detail.slice(0, 240)}` : ""}`);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -29,7 +40,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(`API request failed: ${response.status} ${path}${detail ? ` - ${detail.slice(0, 240)}` : ""}`);
+    throw new ApiError(response.status, path, detail);
   }
   if (response.status === 204) {
     return undefined as T;
@@ -144,7 +155,8 @@ export async function getLineUserSetup(lineUserId: string): Promise<LineUserSetu
     return null;
   }
   if (!response.ok) {
-    throw new Error(`API request failed: ${response.status}`);
+    const detail = await response.text().catch(() => "");
+    throw new ApiError(response.status, `/users/line/${lineUserId}/setup`, detail);
   }
   return response.json() as Promise<LineUserSetup>;
 }
