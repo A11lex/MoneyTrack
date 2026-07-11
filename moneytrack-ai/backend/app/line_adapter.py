@@ -1,6 +1,7 @@
 from datetime import date
 from typing import Any
 
+from .database import claim_line_webhook_event
 from .line_service import handle_line_message_detail
 
 
@@ -13,9 +14,14 @@ def handle_line_events(
     for event in payload.get("events", []):
         if event.get("type") not in {"message", "postback"}:
             continue
+        webhook_event_id = str(event.get("webhookEventId") or "")
+        if webhook_event_id and not claim_line_webhook_event(webhook_event_id, db_path):
+            continue
 
         reply_token = event.get("replyToken")
-        line_user_id = event.get("source", {}).get("userId", "unknown-line-user")
+        line_user_id = event.get("source", {}).get("userId")
+        if not line_user_id:
+            continue
         if event.get("type") == "postback":
             data = event.get("postback", {}).get("data", "")
             if data == "open_record_keyboard":

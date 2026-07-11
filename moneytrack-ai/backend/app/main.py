@@ -4,7 +4,7 @@ import os
 from contextlib import suppress
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .database import (
@@ -30,6 +30,7 @@ from .database import (
 from .daily_reminder_service import run_due_daily_reminders
 from .finance import advisor, calculate_summary, chart_data, financial_health_score, simulate_what_if
 from .line_adapter import handle_line_events
+from .line_auth import LineIdentity, authorize_claimed_line_user, require_line_identity
 from .line_client import link_user_rich_menu, send_line_push, send_line_reply
 from .line_security import verify_line_signature
 from .line_service import LineWebhookPayload, LineWebhookResponse, handle_line_message
@@ -55,6 +56,20 @@ from .recurring_service import run_due_recurring_transactions
 
 app = FastAPI(title="MoneyTrack AI API", version="0.1.0")
 logger = logging.getLogger(__name__)
+
+
+def authenticated_query_line_user(
+    line_user_id: str = Query(..., min_length=1),
+    identity: LineIdentity | None = Depends(require_line_identity),
+) -> str:
+    return authorize_claimed_line_user(line_user_id, identity)
+
+
+def authenticated_path_line_user(
+    line_user_id: str,
+    identity: LineIdentity | None = Depends(require_line_identity),
+) -> str:
+    return authorize_claimed_line_user(line_user_id, identity)
 
 frontend_origin = os.getenv("FRONTEND_ORIGIN")
 allowed_origins = [
@@ -144,12 +159,12 @@ def categories() -> dict:
 
 
 @app.get("/transactions", response_model=list[Transaction])
-def get_transactions(line_user_id: str = Query(..., min_length=1)) -> list[Transaction]:
+def get_transactions(line_user_id: str = Depends(authenticated_query_line_user)) -> list[Transaction]:
     return list_transactions(line_user_id=line_user_id)
 
 
 @app.get("/transactions/{transaction_id}", response_model=Transaction)
-def get_transaction_by_id(transaction_id: int, line_user_id: str = Query(..., min_length=1)) -> Transaction:
+def get_transaction_by_id(transaction_id: int, line_user_id: str = Depends(authenticated_query_line_user)) -> Transaction:
     transaction = get_transaction(transaction_id, line_user_id=line_user_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -157,12 +172,12 @@ def get_transaction_by_id(transaction_id: int, line_user_id: str = Query(..., mi
 
 
 @app.post("/transactions", response_model=Transaction, status_code=201)
-def post_transaction(payload: TransactionCreate, line_user_id: str = Query(..., min_length=1)) -> Transaction:
+def post_transaction(payload: TransactionCreate, line_user_id: str = Depends(authenticated_query_line_user)) -> Transaction:
     return create_transaction(payload, line_user_id=line_user_id)
 
 
 @app.put("/transactions/{transaction_id}", response_model=Transaction)
-def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_id: str = Query(..., min_length=1)) -> Transaction:
+def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_id: str = Depends(authenticated_query_line_user)) -> Transaction:
     transaction = update_transaction(transaction_id, payload, line_user_id=line_user_id)
     if transaction is None:
         raise HTTPException(status_code=404, detail="Transaction not found")
@@ -170,19 +185,19 @@ def put_transaction(transaction_id: int, payload: TransactionUpdate, line_user_i
 
 
 @app.delete("/transactions/{transaction_id}", status_code=204)
-def remove_transaction(transaction_id: int, line_user_id: str = Query(..., min_length=1)) -> None:
+def remove_transaction(transaction_id: int, line_user_id: str = Depends(authenticated_query_line_user)) -> None:
     deleted = delete_transaction(transaction_id, line_user_id=line_user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
 
 @app.get("/recurring-transactions", response_model=list[RecurringTransaction])
-def get_recurring_transactions(line_user_id: str) -> list[RecurringTransaction]:
+def get_recurring_transactions(line_user_id: str = Depends(authenticated_query_line_user)) -> list[RecurringTransaction]:
     return list_recurring_transactions(line_user_id=line_user_id)
 
 
 @app.get("/recurring-transactions/{recurring_id}", response_model=RecurringTransaction)
-def get_recurring_transaction_by_id(recurring_id: int, line_user_id: str) -> RecurringTransaction:
+def get_recurring_transaction_by_id(recurring_id: int, line_user_id: str = Depends(authenticated_query_line_user)) -> RecurringTransaction:
     item = get_recurring_transaction(recurring_id, line_user_id=line_user_id)
     if item is None:
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
@@ -190,7 +205,7 @@ def get_recurring_transaction_by_id(recurring_id: int, line_user_id: str) -> Rec
 
 
 @app.post("/recurring-transactions", response_model=RecurringTransaction, status_code=201)
-def post_recurring_transaction(payload: RecurringTransactionCreate, line_user_id: str) -> RecurringTransaction:
+def post_recurring_transaction(payload: RecurringTransactionCreate, line_user_id: str = Depends(authenticated_query_line_user)) -> RecurringTransaction:
     return create_recurring_transaction(payload, line_user_id=line_user_id)
 
 
@@ -198,7 +213,7 @@ def post_recurring_transaction(payload: RecurringTransactionCreate, line_user_id
 def put_recurring_transaction(
     recurring_id: int,
     payload: RecurringTransactionUpdate,
-    line_user_id: str,
+    line_user_id: str = Depends(authenticated_query_line_user),
 ) -> RecurringTransaction:
     item = update_recurring_transaction(recurring_id, payload, line_user_id=line_user_id)
     if item is None:
@@ -207,7 +222,7 @@ def put_recurring_transaction(
 
 
 @app.delete("/recurring-transactions/{recurring_id}", status_code=204)
-def remove_recurring_transaction(recurring_id: int, line_user_id: str) -> None:
+def remove_recurring_transaction(recurring_id: int, line_user_id: str = Depends(authenticated_query_line_user)) -> None:
     deleted = delete_recurring_transaction(recurring_id, line_user_id=line_user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Recurring transaction not found")
@@ -216,16 +231,17 @@ def remove_recurring_transaction(recurring_id: int, line_user_id: str) -> None:
 @app.post("/recurring-transactions/run-due")
 def post_run_due_recurring_transactions(request: Request) -> dict[str, Any]:
     cron_secret = os.getenv("CRON_SECRET")
-    if cron_secret:
-        authorization = request.headers.get("Authorization", "")
-        if authorization != f"Bearer {cron_secret}":
-            raise HTTPException(status_code=401, detail="Invalid cron secret")
+    if not cron_secret:
+        raise HTTPException(status_code=503, detail="Cron secret is not configured")
+    authorization = request.headers.get("Authorization", "")
+    if authorization != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Invalid cron secret")
 
     return _run_due_recurring_and_push()
 
 
 @app.get("/daily-reminder-settings", response_model=DailyReminderSettings)
-def get_daily_reminder_settings_endpoint(line_user_id: str) -> DailyReminderSettings:
+def get_daily_reminder_settings_endpoint(line_user_id: str = Depends(authenticated_query_line_user)) -> DailyReminderSettings:
     settings = get_daily_reminder_settings(line_user_id)
     if settings is not None:
         return settings
@@ -233,33 +249,34 @@ def get_daily_reminder_settings_endpoint(line_user_id: str) -> DailyReminderSett
 
 
 @app.put("/daily-reminder-settings", response_model=DailyReminderSettings)
-def put_daily_reminder_settings(line_user_id: str, payload: DailyReminderSettingsUpdate) -> DailyReminderSettings:
+def put_daily_reminder_settings(payload: DailyReminderSettingsUpdate, line_user_id: str = Depends(authenticated_query_line_user)) -> DailyReminderSettings:
     return save_daily_reminder_settings(line_user_id, payload)
 
 
 @app.get("/user-settings", response_model=UserSettings)
-def get_user_settings_endpoint(line_user_id: str) -> UserSettings:
+def get_user_settings_endpoint(line_user_id: str = Depends(authenticated_query_line_user)) -> UserSettings:
     return get_user_settings(line_user_id)
 
 
 @app.put("/user-settings", response_model=UserSettings)
-def put_user_settings(line_user_id: str, payload: UserSettingsUpdate) -> UserSettings:
+def put_user_settings(payload: UserSettingsUpdate, line_user_id: str = Depends(authenticated_query_line_user)) -> UserSettings:
     return save_user_settings(line_user_id, payload)
 
 
 @app.post("/daily-reminders/run-due")
 def post_run_due_daily_reminders(request: Request) -> dict[str, Any]:
     cron_secret = os.getenv("CRON_SECRET")
-    if cron_secret:
-        authorization = request.headers.get("Authorization", "")
-        if authorization != f"Bearer {cron_secret}":
-            raise HTTPException(status_code=401, detail="Invalid cron secret")
+    if not cron_secret:
+        raise HTTPException(status_code=503, detail="Cron secret is not configured")
+    authorization = request.headers.get("Authorization", "")
+    if authorization != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Invalid cron secret")
 
     return _run_due_daily_reminders_and_push()
 
 
 @app.get("/dashboard")
-def dashboard(line_user_id: str = Query(..., min_length=1)) -> dict:
+def dashboard(line_user_id: str = Depends(authenticated_query_line_user)) -> dict:
     transactions = list_transactions(line_user_id=line_user_id)
     return {
         "summary": calculate_summary(transactions),
@@ -270,7 +287,7 @@ def dashboard(line_user_id: str = Query(..., min_length=1)) -> dict:
 
 
 @app.post("/what-if")
-def what_if(payload: WhatIfScenario, line_user_id: str = Query(..., min_length=1)) -> dict:
+def what_if(payload: WhatIfScenario, line_user_id: str = Depends(authenticated_query_line_user)) -> dict:
     return simulate_what_if(list_transactions(line_user_id=line_user_id), payload)
 
 
@@ -280,6 +297,9 @@ async def line_webhook(request: Request) -> dict[str, Any] | LineWebhookResponse
     payload = await request.json()
     if "events" in payload:
         channel_secret = os.getenv("LINE_CHANNEL_SECRET")
+        allow_unsigned = os.getenv("LINE_WEBHOOK_ALLOW_UNSIGNED", "0") == "1"
+        if not channel_secret and not allow_unsigned:
+            raise HTTPException(status_code=503, detail="LINE webhook secret is not configured")
         if channel_secret and not verify_line_signature(body, request.headers.get("X-Line-Signature"), channel_secret):
             raise HTTPException(status_code=401, detail="Invalid LINE signature")
 
@@ -295,20 +315,35 @@ async def line_webhook(request: Request) -> dict[str, Any] | LineWebhookResponse
                         logger.exception("Failed to refresh LINE main rich menu for user %s", reply["line_user_id"])
                 reply_message = reply.get("line_message") or reply.get("reply")
                 if reply.get("reply_token") and reply_message:
-                    send_line_reply(reply["reply_token"], reply_message, access_token)
+                    try:
+                        send_line_reply(reply["reply_token"], reply_message, access_token)
+                    except Exception:
+                        logger.exception("Failed to send LINE reply for user %s", reply["line_user_id"])
         return {"replies": replies, "handled": any(reply["handled"] for reply in replies)}
 
+    if os.getenv("ENABLE_LINE_WEBHOOK_MOCK", "0") != "1":
+        raise HTTPException(status_code=404, detail="Not found")
     mock_payload = LineWebhookPayload.model_validate(payload)
     return handle_line_message(mock_payload.line_user_id, mock_payload.message)
 
 
 @app.post("/users/line", response_model=UserSetup)
-def post_line_user(payload: LineUserUpsert) -> UserSetup:
+def post_line_user(
+    payload: LineUserUpsert,
+    identity: LineIdentity | None = Depends(require_line_identity),
+) -> UserSetup:
+    if identity is not None:
+        authorize_claimed_line_user(payload.line_user_id, identity)
+        payload = LineUserUpsert(
+            line_user_id=identity.user_id,
+            display_name=identity.display_name,
+            picture_url=identity.picture_url,
+        )
     return upsert_line_user(payload)
 
 
 @app.get("/users/line/{line_user_id}/setup", response_model=UserSetup)
-def get_line_user_setup(line_user_id: str) -> UserSetup:
+def get_line_user_setup(line_user_id: str = Depends(authenticated_path_line_user)) -> UserSetup:
     setup = get_user_setup(line_user_id)
     if setup is None:
         raise HTTPException(status_code=404, detail="LINE user not found")
@@ -316,7 +351,13 @@ def get_line_user_setup(line_user_id: str) -> UserSetup:
 
 
 @app.post("/users/line/{line_user_id}/onboarding", response_model=UserSetup)
-def post_line_user_onboarding(line_user_id: str, payload: OnboardingPayload) -> UserSetup:
+def post_line_user_onboarding(
+    payload: OnboardingPayload,
+    line_user_id: str = Depends(authenticated_path_line_user),
+    identity: LineIdentity | None = Depends(require_line_identity),
+) -> UserSetup:
+    if identity is not None and payload.merge_from_line_user_id:
+        payload = payload.model_copy(update={"merge_from_line_user_id": None})
     setup = save_user_onboarding(line_user_id, payload)
     if setup is None:
         raise HTTPException(status_code=404, detail="LINE user not found")

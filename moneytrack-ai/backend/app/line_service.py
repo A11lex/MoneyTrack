@@ -83,6 +83,12 @@ def handle_line_message_detail(
             line_message=build_quick_start_flex(),
         )
 
+    if normalized == "ประกาศ":
+        return LineMessageResult(
+            reply="ตอนนี้ยังไม่มีประกาศใหม่จาก เงินไปไหน?",
+            handled=True,
+        )
+
     if normalized in {"หมวด/งบ", "หมวดงบ", "จัดการหมวด", "ตั้งงบ", "งบ"}:
         return LineMessageResult(
             reply="เปิดหน้าจัดการหมวดและงบ",

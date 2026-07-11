@@ -166,6 +166,26 @@ def init_db(db_path: str | None = None) -> None:
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS processed_line_webhook_events (
+                webhook_event_id TEXT PRIMARY KEY,
+                processed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+
+def claim_line_webhook_event(webhook_event_id: str, db_path: str | None = None) -> bool:
+    if not webhook_event_id:
+        return True
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        cursor = conn.execute(
+            "INSERT OR IGNORE INTO processed_line_webhook_events (webhook_event_id) VALUES (?)",
+            (webhook_event_id,),
+        )
+        return cursor.rowcount > 0
 
 
 def row_to_transaction(row: sqlite3.Row) -> Transaction:

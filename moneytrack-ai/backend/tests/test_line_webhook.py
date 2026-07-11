@@ -291,6 +291,82 @@ def test_line_webhook_rejects_invalid_signature_when_secret_is_configured(monkey
     assert response.json() == {"detail": "Invalid LINE signature"}
 
 
+def test_line_webhook_rejects_unsigned_events_when_production_secret_is_missing(monkeypatch) -> None:
+    monkeypatch.delenv("LINE_CHANNEL_SECRET", raising=False)
+    monkeypatch.setenv("LINE_WEBHOOK_ALLOW_UNSIGNED", "0")
+    client = TestClient(app)
+
+    response = client.post("/line/webhook", json={"events": []})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "LINE webhook secret is not configured"}
+
+
+def test_line_webhook_mock_payload_is_disabled_by_default(monkeypatch) -> None:
+    monkeypatch.setenv("ENABLE_LINE_WEBHOOK_MOCK", "0")
+    client = TestClient(app)
+
+    response = client.post(
+        "/line/webhook",
+        json={"line_user_id": "test-user-001", "message": "ข้าว 80"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_line_webhook_deduplicates_webhook_event_id(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "api-line-dedup.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    _complete_onboarding("line-user-001", db_path)
+    client = TestClient(app)
+    payload = {
+        "events": [
+            {
+                "type": "message",
+                "webhookEventId": "01JTESTEVENT001",
+                "replyToken": "reply-token-001",
+                "source": {"userId": "line-user-001"},
+                "message": {"type": "text", "text": "ข้าว 80"},
+            }
+        ]
+    }
+
+    first = client.post("/line/webhook", json=payload)
+    second = client.post("/line/webhook", json=payload)
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(database.list_transactions(db_path, line_user_id="line-user-001")) == 1
+    assert second.json()["replies"] == []
+
+
+def test_line_webhook_returns_success_when_line_reply_api_fails(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "api-line-reply-failure.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    _complete_onboarding("line-user-001", db_path)
+    monkeypatch.setenv("LINE_CHANNEL_ACCESS_TOKEN", "access-token-001")
+    monkeypatch.setattr(main_module, "send_line_reply", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("LINE 400")))
+    client = TestClient(app)
+
+    response = client.post(
+        "/line/webhook",
+        json={
+            "events": [
+                {
+                    "type": "message",
+                    "webhookEventId": "01JTESTEVENT002",
+                    "replyToken": "reply-token-002",
+                    "source": {"userId": "line-user-001"},
+                    "message": {"type": "text", "text": "ข้าว 80"},
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert len(database.list_transactions(db_path, line_user_id="line-user-001")) == 1
+
+
 def _complete_onboarding(line_user_id: str, db_path: str) -> None:
     database.upsert_line_user(LineUserUpsert(line_user_id=line_user_id, display_name="Tester"), db_path)
     database.save_user_onboarding(

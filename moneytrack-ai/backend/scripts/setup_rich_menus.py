@@ -93,6 +93,9 @@ def prepare_image(source: Path) -> PreparedImage:
 
 
 def build_start_menu_payload(width: int, height: int, liff_url: str) -> dict[str, Any]:
+    onboarding_url = liff_url.rstrip("/")
+    if not onboarding_url.endswith("/liff/onboarding"):
+        onboarding_url = liff_url_for_path(onboarding_url, "/liff/onboarding")
     return {
         "size": {"width": width, "height": height},
         "selected": True,
@@ -101,7 +104,7 @@ def build_start_menu_payload(width: int, height: int, liff_url: str) -> dict[str
         "areas": [
             {
                 "bounds": {"x": 0, "y": 0, "width": width, "height": height},
-                "action": {"type": "uri", "uri": liff_url},
+                "action": {"type": "uri", "uri": onboarding_url},
             }
         ],
     }

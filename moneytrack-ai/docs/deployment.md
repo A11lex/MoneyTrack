@@ -31,6 +31,12 @@ FRONTEND_ORIGIN=https://money-track-sandy.vercel.app
 LINE_CHANNEL_SECRET=your-line-channel-secret
 LINE_CHANNEL_ACCESS_TOKEN=your-line-channel-access-token
 LINE_RICH_MENU_MAIN_ID=richmenu-id-created-by-the-setup-script
+LINE_LOGIN_CHANNEL_ID=2010521304
+LINE_AUTH_REQUIRED=1
+LIFF_APP_BASE_URL=https://liff.line.me/2010521304-BrGvBhsP
+LINE_WEBHOOK_ALLOW_UNSIGNED=0
+ENABLE_LINE_WEBHOOK_MOCK=0
+CRON_SECRET=generate-a-long-random-value
 ```
 
 Do not commit real LINE secrets to Git.
@@ -48,6 +54,7 @@ Environment variable:
 ```text
 NEXT_PUBLIC_API_BASE_URL=https://your-render-service.onrender.com
 NEXT_PUBLIC_LIFF_ID=your-liff-id
+NEXT_PUBLIC_FRONTEND_ORIGIN=https://your-vercel-domain.vercel.app
 ```
 
 Build command:
@@ -59,6 +66,10 @@ npm run build
 ## CORS
 
 Set `FRONTEND_ORIGIN` on Render to your Vercel production domain if it changes.
+
+The frontend sends the LIFF ID token in the `Authorization` header. The backend verifies it with LINE and rejects a `line_user_id` that does not match the verified token. Keep `LINE_AUTH_REQUIRED=1` outside automated tests.
+
+`LIFF_APP_BASE_URL` must use the official `https://liff.line.me/{LIFF_ID}` URL. Flex Message buttons use this value so profile and login context remain available when users open app pages from LINE.
 
 ## LINE Webhook URL
 

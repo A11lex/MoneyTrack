@@ -27,6 +27,7 @@ import {
 
 import { getLineUserSetup, saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
+import { hasCompletedOnboarding } from "@/lib/user-flow";
 
 type Step = "welcome" | "source" | "expense" | "income" | "done";
 
@@ -75,6 +76,7 @@ type LiffClient = {
   login: (options?: { redirectUri?: string }) => void;
   getProfile: () => Promise<LiffProfile>;
   getDecodedIDToken?: () => LiffDecodedIDToken | null;
+  getIDToken?: () => string | null;
   getContext?: () => LiffContext | null;
   closeWindow?: () => void;
 };
@@ -148,7 +150,7 @@ export function OnboardingFlow() {
         setProfile(identity.profile);
         const setup = await resolveLineUserSetup(identity.profile);
         if (!mounted) return;
-        if (setup) {
+        if (hasCompletedOnboarding(setup)) {
           window.location.replace("/liff/summary");
           return;
         }

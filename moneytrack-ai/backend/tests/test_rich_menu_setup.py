@@ -16,6 +16,21 @@ def test_main_rich_menu_largest_panel_opens_quick_start_flex() -> None:
     assert largest_panel["action"] == {"type": "postback", "data": "show_quick_start"}
 
 
+def test_start_rich_menu_opens_onboarding_route() -> None:
+    module = _load_setup_module()
+
+    payload = module.build_start_menu_payload(
+        width=2500,
+        height=1686,
+        liff_url="https://liff.line.me/2010521304-BrGvBhsP",
+    )
+
+    assert payload["areas"][0]["action"] == {
+        "type": "uri",
+        "uri": "https://liff.line.me/2010521304-BrGvBhsP/liff/onboarding",
+    }
+
+
 def test_main_rich_menu_navigation_buttons_use_app_base_url() -> None:
     module = _load_setup_module()
 

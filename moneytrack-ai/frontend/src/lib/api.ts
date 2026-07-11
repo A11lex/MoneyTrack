@@ -14,6 +14,7 @@ import type {
   WhatIfResult,
   WhatIfScenario,
 } from "./types";
+import { currentLineAuthorizationHeaders } from "./line-api-auth";
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -22,6 +23,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      ...currentLineAuthorizationHeaders(),
       ...init?.headers,
     },
   });
@@ -135,6 +137,7 @@ export async function getLineUserSetup(lineUserId: string): Promise<LineUserSetu
   const response = await fetch(`${API_BASE_URL}/users/line/${encodeURIComponent(lineUserId)}/setup`, {
     headers: {
       "Content-Type": "application/json",
+      ...currentLineAuthorizationHeaders(),
     },
   });
   if (response.status === 404) {

@@ -51,6 +51,7 @@ import {
 } from "@/lib/api";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 import type { DailyReminderSettingsInput, DashboardData, LineUserSetup, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
+import { hasCompletedOnboarding } from "@/lib/user-flow";
 
 type LiffTab = "summary" | "insights" | "categories" | "transactions" | "settings";
 type UserPlan = "free" | "pro";
@@ -228,7 +229,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
       }
 
       const setup = await resolveLineUserSetup(loadedProfile);
-      if (!setup) {
+      if (!hasCompletedOnboarding(setup)) {
         window.location.replace("/liff/onboarding");
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }

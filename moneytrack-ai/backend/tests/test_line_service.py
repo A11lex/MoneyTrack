@@ -130,6 +130,18 @@ def test_handle_line_message_detail_returns_quick_start_flex_for_help() -> None:
     assert result.handled is True
     assert result.line_message is not None
     assert result.line_message["altText"] == "เริ่มจดรายรับรายจ่ายกับ เงินไปไหน?"
+
+
+def test_handle_line_message_detail_handles_announcement_menu_action() -> None:
+    result = handle_line_message_detail(
+        line_user_id="test-user-001",
+        message="ประกาศ",
+        today=date(2026, 6, 26),
+    )
+
+    assert result.handled is True
+    assert result.reply == "ตอนนี้ยังไม่มีประกาศใหม่จาก เงินไปไหน?"
+    assert result.line_message is None
     assert _buttons(result.line_message)[0]["action"] == {
         "type": "postback",
         "label": "จดเลย",
