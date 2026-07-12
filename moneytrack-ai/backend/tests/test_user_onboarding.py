@@ -307,3 +307,38 @@ def test_user_settings_migrate_currency_and_language_without_losing_existing_val
     assert settings.memory_categorization_enabled is True
     assert settings.currency_code == "THB"
     assert settings.language == "th"
+
+
+def test_transactions_migrate_payment_channel_without_losing_existing_rows(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "legacy-transactions.db")
+    monkeypatch.setattr(database, "DATABASE_URL", db_path)
+    connection = sqlite3.connect(db_path)
+    connection.execute(
+        """
+        CREATE TABLE transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            line_user_id TEXT,
+            date TEXT NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT NOT NULL DEFAULT '',
+            mode TEXT NOT NULL
+        )
+        """
+    )
+    connection.execute(
+        """
+        INSERT INTO transactions (line_user_id, date, type, amount, category, description, mode)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        ("legacy-user", "2026-06-25", "expense", 80, "Food", "ข้าว", "personal"),
+    )
+    connection.commit()
+    connection.close()
+
+    transactions = list_transactions(db_path, line_user_id="legacy-user")
+
+    assert len(transactions) == 1
+    assert transactions[0].description == "ข้าว"
+    assert transactions[0].payment_channel is None

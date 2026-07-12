@@ -37,6 +37,7 @@ class TransactionBase(BaseModel):
     category: str = Field(min_length=1, max_length=80)
     description: str = Field(default="", max_length=240)
     mode: TransactionMode
+    payment_channel: str | None = Field(default=None, max_length=40)
 
 
 class TransactionCreate(TransactionBase):

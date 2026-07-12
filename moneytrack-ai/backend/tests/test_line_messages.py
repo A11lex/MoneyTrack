@@ -1,4 +1,5 @@
 from datetime import date
+from base64 import urlsafe_b64encode
 from typing import Any
 
 from app.line_messages import (
@@ -79,6 +80,32 @@ def test_build_transaction_success_flex_uses_green_amount_for_income() -> None:
     assert message["altText"] == "จดสำเร็จ: รายรับ 2,500 บาท"
     assert _find_text(message, "฿2,500") is True
     assert _find_color(message, "#6DC5AD") is True
+
+
+def test_build_transaction_success_flex_payment_channels_use_postback_and_show_selection(monkeypatch) -> None:
+    monkeypatch.setenv("FRONTEND_ORIGIN", "https://example.vercel.app")
+    message = build_transaction_success_flex(
+        transaction_id=44,
+        transaction_type="expense",
+        amount=80,
+        category="Food",
+        description="ข้าว",
+        mode="personal",
+        transaction_date=date(2026, 6, 26),
+        show_payment_options=True,
+        payment_channels=["เงินสด", "พร้อมเพย์", "บัตร"],
+        payment_channel="พร้อมเพย์",
+    )
+
+    assert _find_text(message, "✓ พร้อมเพย์") is True
+    assert _find_text(message, "ช่องทางปัจจุบัน: พร้อมเพย์") is True
+    assert _postback_data(message) == [
+        "delete_transaction=44",
+        f"set_payment=44:{_channel_token('เงินสด')}",
+        f"set_payment=44:{_channel_token('พร้อมเพย์')}",
+        f"set_payment=44:{_channel_token('บัตร')}",
+    ]
+    assert _find_uri(message, "https://example.vercel.app/liff/settings?section=payment-channels") is True
 
 
 def test_build_transaction_success_with_budget_flex_combines_success_and_budget_in_one_bubble() -> None:
@@ -319,3 +346,30 @@ def _find_color(value: Any, color: str) -> bool:
     if isinstance(value, list):
         return any(_find_color(child, color) for child in value)
     return False
+
+
+def _postback_data(value: Any) -> list[str]:
+    found: list[str] = []
+    if isinstance(value, dict):
+        if value.get("type") == "postback" and isinstance(value.get("data"), str):
+            found.append(value["data"])
+        for child in value.values():
+            found.extend(_postback_data(child))
+    elif isinstance(value, list):
+        for child in value:
+            found.extend(_postback_data(child))
+    return found
+
+
+def _find_uri(value: Any, uri: str) -> bool:
+    if isinstance(value, dict):
+        if value.get("type") == "uri" and value.get("uri") == uri:
+            return True
+        return any(_find_uri(child, uri) for child in value.values())
+    if isinstance(value, list):
+        return any(_find_uri(child, uri) for child in value)
+    return False
+
+
+def _channel_token(label: str) -> str:
+    return urlsafe_b64encode(label.encode("utf-8")).decode("ascii").rstrip("=")

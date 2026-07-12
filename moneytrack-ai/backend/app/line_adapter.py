@@ -103,4 +103,8 @@ def _postback_to_text(data: str) -> str:
     if data.startswith("delete_transaction="):
         transaction_id = data.split("=", 1)[1]
         return f"ลบรายการ {transaction_id}"
+    if data.startswith("set_payment="):
+        values = data.split("=", 1)[1].split(":", 1)
+        if len(values) == 2:
+            return f"ตั้งช่องทาง {values[0]} {values[1]}"
     return data

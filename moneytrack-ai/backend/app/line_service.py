@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from base64 import urlsafe_b64decode
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -12,6 +13,7 @@ from .database import (
     get_user_settings,
     list_transactions,
     match_category_memory_mapping,
+    set_transaction_payment_channel,
     upsert_line_user,
 )
 from .line_messages import (
@@ -127,6 +129,9 @@ def handle_line_message_detail(
     if normalized.startswith("ลบรายการ"):
         return _delete_transaction_from_line(line_user_id, normalized, db_path)
 
+    if normalized.startswith("ตั้งช่องทาง"):
+        return _set_payment_channel_from_line(line_user_id, normalized, db_path)
+
     try:
         transaction = parse_transaction_message(normalized, today=current_date)
     except ParseError:
@@ -161,6 +166,7 @@ def handle_line_message_detail(
             show_payment_options=user_settings.confirmation_show_payment_options,
             show_budget_warning=user_settings.confirmation_show_budget_warning,
             payment_channels=user_settings.payment_channels,
+            payment_channel=saved.payment_channel,
             **budget_context,
         )
     else:
@@ -175,6 +181,7 @@ def handle_line_message_detail(
             show_details=user_settings.confirmation_show_details,
             show_payment_options=user_settings.confirmation_show_payment_options,
             payment_channels=user_settings.payment_channels,
+            payment_channel=saved.payment_channel,
         )
     if user_settings.streak_notifications_enabled:
         streak_days = _streak_days(line_user_id, saved.date, db_path)
@@ -243,6 +250,83 @@ def _delete_transaction_from_line(line_user_id: str, message: str, db_path: str 
         handled=True,
         line_message=line_message,
     )
+
+
+def _set_payment_channel_from_line(line_user_id: str, message: str, db_path: str | None) -> LineMessageResult:
+    parts = message.split()
+    if len(parts) != 3 or not parts[1].isdigit():
+        return LineMessageResult(reply="เลือกช่องทางไม่สำเร็จ: ข้อมูลไม่ถูกต้อง", handled=False)
+
+    transaction_id = int(parts[1])
+    channel = _decode_payment_channel_token(parts[2])
+    if channel is None:
+        return LineMessageResult(reply="เลือกช่องทางไม่สำเร็จ: ข้อมูลไม่ถูกต้อง", handled=False)
+    settings = get_user_settings(line_user_id, db_path)
+    available_channels = [item for item in settings.payment_channels if item]
+    if channel not in available_channels:
+        return LineMessageResult(
+            reply="ช่องทางนี้ไม่มีแล้ว กรุณาจัดการช่องทางในหน้าแอป",
+            handled=False,
+        )
+
+    transaction = get_transaction(transaction_id, db_path, line_user_id=line_user_id)
+    if transaction is None:
+        return LineMessageResult(reply="ไม่พบรายการนี้แล้ว", handled=False)
+
+    updated = set_transaction_payment_channel(
+        transaction_id,
+        channel,
+        db_path,
+        line_user_id=line_user_id,
+    )
+    if updated is None:
+        return LineMessageResult(reply="อัปเดตช่องทางไม่สำเร็จ กรุณาลองอีกครั้ง", handled=False)
+
+    budget_context = _budget_context_after_transaction(line_user_id, updated, db_path)
+    if budget_context and settings.confirmation_show_budget:
+        line_message = build_transaction_success_with_budget_flex(
+            transaction_id=updated.id,
+            transaction_type=updated.type.value,
+            amount=updated.amount,
+            category=updated.category,
+            description=updated.description,
+            mode=updated.mode.value,
+            transaction_date=updated.date,
+            show_details=settings.confirmation_show_details,
+            show_payment_options=True,
+            show_budget_warning=settings.confirmation_show_budget_warning,
+            payment_channels=settings.payment_channels,
+            payment_channel=updated.payment_channel,
+            **budget_context,
+        )
+    else:
+        line_message = build_transaction_success_flex(
+            transaction_id=updated.id,
+            transaction_type=updated.type.value,
+            amount=updated.amount,
+            category=updated.category,
+            description=updated.description,
+            mode=updated.mode.value,
+            transaction_date=updated.date,
+            show_details=settings.confirmation_show_details,
+            show_payment_options=True,
+            payment_channels=settings.payment_channels,
+            payment_channel=updated.payment_channel,
+        )
+    return LineMessageResult(
+        reply=f"เปลี่ยนช่องทางเป็น {channel} แล้ว",
+        handled=True,
+        line_message=line_message,
+    )
+
+
+def _decode_payment_channel_token(token: str) -> str | None:
+    try:
+        padding = "=" * (-len(token) % 4)
+        decoded = urlsafe_b64decode(f"{token}{padding}").decode("utf-8").strip()
+    except (ValueError, UnicodeDecodeError):
+        return None
+    return decoded[:40] if decoded else None
 
 
 def _daily_summary_totals(db_path: str | None, today: date, line_user_id: str) -> tuple[float, float, float, dict[str, float]]:

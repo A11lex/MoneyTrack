@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Loader2, Trash2 } from "lucide-react";
 
-import { deleteTransaction, getLineUserSetup, getTransaction, updateTransaction } from "@/lib/api";
+import { deleteTransaction, getLineUserSetup, getTransaction, getUserSettings, updateTransaction } from "@/lib/api";
 import { classifyAppError, type AppErrorKind } from "@/lib/app-flow";
 import type { Transaction, TransactionInput } from "@/lib/types";
 
@@ -57,6 +57,7 @@ export default function EditTransactionPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [expenseOptions, setExpenseOptions] = useState<string[]>(() => loadStoredExpenseCategories());
   const [incomeOptions, setIncomeOptions] = useState<string[]>(() => loadStoredIncomeCategories());
+  const [paymentOptions, setPaymentOptions] = useState<string[]>([]);
 
   useEffect(() => {
     if (!Number.isFinite(transactionId)) {
@@ -72,13 +73,15 @@ export default function EditTransactionPage() {
         return Promise.all([
           getTransaction(transactionId, loadedLineUserId),
           getLineUserSetup(loadedLineUserId).catch(() => null),
+          getUserSettings(loadedLineUserId).catch(() => null),
         ]);
       })
-      .then(([item, setup]) => {
+      .then(([item, setup, settings]) => {
         const nextExpenseOptions = setup?.expense_categories.length ? setup.expense_categories : loadStoredExpenseCategories();
         const nextIncomeOptions = setup?.income_categories.length ? setup.income_categories : loadStoredIncomeCategories();
         setExpenseOptions(nextExpenseOptions);
         setIncomeOptions(nextIncomeOptions);
+        setPaymentOptions(settings?.confirmation_show_payment_options ? settings.payment_channels : []);
         setTransaction({
           ...item,
           category: displayCategory(item.category, item.type, nextExpenseOptions, nextIncomeOptions),
@@ -105,6 +108,7 @@ export default function EditTransactionPage() {
       category: transaction.category,
       description: transaction.description,
       mode: transaction.mode,
+      payment_channel: transaction.payment_channel,
     };
     try {
       if (!lineUserId) {
@@ -246,6 +250,23 @@ export default function EditTransactionPage() {
               <span className="font-bold text-[#6b7280]">฿</span>
             </div>
           </label>
+
+          {paymentOptions.length > 0 && (
+            <label className="block">
+              <span className="text-base font-black">ช่องทางชำระเงิน</span>
+              <select
+                value={transaction.payment_channel ?? ""}
+                onChange={(event) => setTransaction({ ...transaction, payment_channel: event.target.value || null })}
+                className="mt-2 h-12 w-full rounded-md border border-black/10 bg-white px-4 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
+              >
+                <option value="">ยังไม่ระบุ</option>
+                {(transaction.payment_channel && !paymentOptions.includes(transaction.payment_channel)
+                  ? [transaction.payment_channel, ...paymentOptions]
+                  : paymentOptions
+                ).map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
+            </label>
+          )}
 
           <label className="block">
             <span className="text-base font-black">วันที่และเวลา</span>

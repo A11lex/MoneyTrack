@@ -9,6 +9,7 @@ export type Transaction = {
   category: string;
   description: string;
   mode: TransactionMode;
+  payment_channel?: string | null;
 };
 
 export type TransactionInput = Omit<Transaction, "id">;

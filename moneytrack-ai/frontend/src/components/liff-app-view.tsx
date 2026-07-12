@@ -2751,7 +2751,9 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
     { id: "language", label: "ตั้งค่าภาษา" },
   ] as const;
   const [showReminderModal, setShowReminderModal] = useState(false);
-  const [showPaymentScreen, setShowPaymentScreen] = useState(false);
+  const [showPaymentScreen, setShowPaymentScreen] = useState(() => (
+    typeof window !== "undefined" && new URLSearchParams(window.location.search).get("section") === "payment-channels"
+  ));
   const [showCurrencyScreen, setShowCurrencyScreen] = useState(false);
   const [showTimezoneScreen, setShowTimezoneScreen] = useState(false);
   const [showConfirmationScreen, setShowConfirmationScreen] = useState(false);
@@ -4475,7 +4477,7 @@ function TransactionList({ transactions, onEdit }: { transactions: Transaction[]
         <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 border-b border-black/5 px-4 py-3 text-left last:border-b-0 active:bg-[#f7f8f7]">
           <div className="min-w-0">
             <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{transaction.date} · {displayCategory(transaction.category, transaction.type)}</p>
+            <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{transaction.date} · {displayCategory(transaction.category, transaction.type)}{transaction.payment_channel ? ` · ${transaction.payment_channel}` : ""}</p>
           </div>
           <p className={`shrink-0 text-base font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
@@ -4498,6 +4500,7 @@ function SummaryTransactionList({ transactions, onEdit }: { transactions: Transa
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-xs font-semibold text-[#8a928e]">{formatTimeFallback(transaction.date)}</span>
                 <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#6b756f]">{displayCategory(transaction.category, transaction.type)}</span>
+                {transaction.payment_channel && <span className="max-w-24 truncate rounded-md bg-[#eaf8f4] px-2 py-1 text-xs font-black text-[#0d4a2b]">{transaction.payment_channel}</span>}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
@@ -4510,6 +4513,58 @@ function SummaryTransactionList({ transactions, onEdit }: { transactions: Transa
         ))}
       </div>
     </div>
+  );
+}
+
+function usePaymentChannelOptions(lineUserId: string): PaymentChannelSettings {
+  const [settings, setSettings] = useState<PaymentChannelSettings>(() => loadStoredPaymentChannelSettings(lineUserId));
+
+  useEffect(() => {
+    const localSettings = loadStoredPaymentChannelSettings(lineUserId);
+    Promise.resolve(localSettings).then(setSettings);
+    if (!lineUserId.trim()) return;
+    let mounted = true;
+    getUserSettings(lineUserId)
+      .then((remoteSettings) => {
+        if (!mounted) return;
+        const nextSettings = {
+          enabled: remoteSettings.confirmation_show_payment_options,
+          channels: normalizePaymentChannels(remoteSettings.payment_channels),
+        };
+        setSettings(nextSettings);
+        saveStoredPaymentChannelSettings(lineUserId, nextSettings);
+      })
+      .catch(() => undefined);
+    return () => {
+      mounted = false;
+    };
+  }, [lineUserId]);
+
+  return settings;
+}
+
+function PaymentChannelSelect({
+  onChange,
+  options,
+  value,
+}: {
+  onChange: (value: string | null) => void;
+  options: string[];
+  value?: string | null;
+}) {
+  const availableOptions = value && !options.includes(value) ? [value, ...options] : options;
+  return (
+    <label className="block">
+      <span className="text-base font-black">ช่องทางชำระเงิน</span>
+      <select
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value || null)}
+        className="mt-2 h-11 w-full rounded-md border border-black/10 bg-white px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]"
+      >
+        <option value="">ยังไม่ระบุ</option>
+        {availableOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+      </select>
+    </label>
   );
 }
 
@@ -4529,10 +4584,12 @@ function TransactionCreateModal({
     category: transactionCategories("expense")[0] ?? "อื่นๆ",
     description: "",
     mode: "personal",
+    payment_channel: null,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const categories = ensureCategoryOption(transactionCategories(draft.type), draft.category);
+  const paymentSettings = usePaymentChannelOptions(lineUserId);
 
   async function save() {
     if (!lineUserId.trim()) {
@@ -4606,6 +4663,14 @@ function TransactionCreateModal({
             </div>
           </label>
 
+          {paymentSettings.enabled && (
+            <PaymentChannelSelect
+              options={paymentSettings.channels}
+              value={draft.payment_channel}
+              onChange={(paymentChannel) => setDraft({ ...draft, payment_channel: paymentChannel })}
+            />
+          )}
+
           <label className="block">
             <span className="text-base font-black">วันที่</span>
             <input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })} className="mt-2 h-11 w-full rounded-md border border-black/10 px-3 text-base shadow-sm outline-none focus:border-[#6DC5AD]" />
@@ -4640,6 +4705,7 @@ function TransactionEditModal({
   const [error, setError] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const categories = ensureCategoryOption(transactionCategories(draft.type), draft.category);
+  const paymentSettings = usePaymentChannelOptions(lineUserId);
 
   async function save() {
     setSaving(true);
@@ -4651,6 +4717,7 @@ function TransactionEditModal({
       category: draft.category,
       description: draft.description,
       mode: draft.mode,
+      payment_channel: draft.payment_channel,
     };
 
     try {
@@ -4724,6 +4791,14 @@ function TransactionEditModal({
               <span className="font-bold text-[#6b7280]">฿</span>
             </div>
           </label>
+
+          {paymentSettings.enabled && (
+            <PaymentChannelSelect
+              options={paymentSettings.channels}
+              value={draft.payment_channel}
+              onChange={(paymentChannel) => setDraft({ ...draft, payment_channel: paymentChannel })}
+            />
+          )}
 
           <label className="block">
             <span className="text-base font-black">วันที่</span>

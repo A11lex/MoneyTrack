@@ -1,4 +1,5 @@
 import os
+from base64 import urlsafe_b64encode
 from datetime import date
 from typing import Any
 
@@ -211,6 +212,7 @@ def build_transaction_success_flex(
     show_details: bool = True,
     show_payment_options: bool = False,
     payment_channels: list[str] | None = None,
+    payment_channel: str | None = None,
 ) -> dict[str, Any]:
     type_label = "รายรับ" if transaction_type == "income" else "รายจ่าย"
     mode_label = "ธุรกิจ" if mode == "business" else "ส่วนตัว"
@@ -254,7 +256,7 @@ def build_transaction_success_flex(
             ]
         )
     if show_payment_options:
-        channels = [channel for channel in (payment_channels or []) if channel][:4]
+        channels = [channel for channel in (payment_channels or []) if channel][:3]
         if channels:
             contents.append(
                 {
@@ -267,7 +269,26 @@ def build_transaction_success_flex(
                             "type": "box",
                             "layout": "horizontal",
                             "spacing": "xs",
-                            "contents": [_payment_channel_chip(channel) for channel in channels],
+                            "contents": [
+                                _payment_channel_chip(
+                                    channel,
+                                    transaction_id=transaction_id,
+                                    channel_token=_payment_channel_token(channel),
+                                    selected=channel == payment_channel,
+                                )
+                                for channel in channels
+                            ],
+                        },
+                        {
+                            "type": "text",
+                            "text": f"ช่องทางปัจจุบัน: {payment_channel or 'ยังไม่ระบุ'}  ·  จัดการช่องทาง",
+                            "size": "xxs",
+                            "color": BRAND["muted"],
+                            "wrap": True,
+                            "action": {
+                                "type": "uri",
+                                "uri": _frontend_url("/liff/settings?section=payment-channels"),
+                            },
                         },
                     ],
                 }
@@ -313,6 +334,7 @@ def build_transaction_success_with_budget_flex(
     show_payment_options: bool = False,
     show_budget_warning: bool = True,
     payment_channels: list[str] | None = None,
+    payment_channel: str | None = None,
 ) -> dict[str, Any]:
     success_message = build_transaction_success_flex(
         transaction_id=transaction_id,
@@ -325,6 +347,7 @@ def build_transaction_success_with_budget_flex(
         show_details=show_details,
         show_payment_options=show_payment_options,
         payment_channels=payment_channels,
+        payment_channel=payment_channel,
     )
     budget_category_text = _category_label(budget_category)
     budget_alt = f"{'แจ้งเตือนงบ' if show_warning else 'งบคงเหลือ'}: {budget_category_text} ใช้ไป ฿{spent:,.0f} / ฿{budget_limit:,.0f}"
@@ -974,24 +997,32 @@ def _category_label(category: str) -> str:
     return labels.get(category, category)
 
 
-def _payment_channel_chip(label: str) -> dict[str, Any]:
+def _payment_channel_chip(label: str, *, transaction_id: int, channel_token: str, selected: bool) -> dict[str, Any]:
     return {
         "type": "box",
         "layout": "vertical",
-        "backgroundColor": "#F0F2F1",
+        "backgroundColor": BRAND["soft_green"] if selected else "#F0F2F1",
         "cornerRadius": "md",
         "paddingAll": "6px",
         "flex": 1,
+        "action": {
+            "type": "postback",
+            "data": f"set_payment={transaction_id}:{channel_token}",
+        },
         "contents": [
             {
                 "type": "text",
-                "text": label,
+                "text": f"✓ {label}" if selected else label,
                 "size": "xxs",
                 "weight": "bold",
-                "color": BRAND["black"],
+                "color": BRAND["green"] if selected else BRAND["black"],
                 "align": "center",
                 "wrap": False,
                 "maxLines": 1,
             }
         ],
     }
+
+
+def _payment_channel_token(label: str) -> str:
+    return urlsafe_b64encode(label.encode("utf-8")).decode("ascii").rstrip("=")

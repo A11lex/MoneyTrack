@@ -46,11 +46,13 @@ def init_db(db_path: str | None = None) -> None:
                 amount REAL NOT NULL CHECK(amount > 0),
                 category TEXT NOT NULL,
                 description TEXT NOT NULL DEFAULT '',
-                mode TEXT NOT NULL CHECK(mode IN ('personal', 'business'))
+                mode TEXT NOT NULL CHECK(mode IN ('personal', 'business')),
+                payment_channel TEXT
             )
             """
         )
         _ensure_column(conn, "transactions", "line_user_id", "TEXT")
+        _ensure_column(conn, "transactions", "payment_channel", "TEXT")
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS line_users (
@@ -197,6 +199,7 @@ def row_to_transaction(row: Any) -> Transaction:
         category=row["category"],
         description=row["description"],
         mode=row["mode"],
+        payment_channel=row["payment_channel"],
     )
 
 
@@ -330,8 +333,8 @@ def create_transaction(payload: TransactionCreate, db_path: str | None = None, l
     init_db(db_path)
     with get_connection(db_path) as conn:
         insert_sql = """
-            INSERT INTO transactions (line_user_id, date, type, amount, category, description, mode)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO transactions (line_user_id, date, type, amount, category, description, mode, payment_channel)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """
         transaction_id = inserted_id(
             conn,
@@ -344,6 +347,7 @@ def create_transaction(payload: TransactionCreate, db_path: str | None = None, l
                 payload.category,
                 payload.description,
                 payload.mode.value,
+                payload.payment_channel,
             ),
         )
         row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
@@ -366,7 +370,7 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
             conn.execute(
                 """
                 UPDATE transactions
-                SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?
+                SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?, payment_channel = ?
                 WHERE id = ? AND line_user_id = ?
                 """,
                 (
@@ -376,6 +380,7 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
                     payload.category,
                     payload.description,
                     payload.mode.value,
+                    payload.payment_channel,
                     transaction_id,
                     line_user_id,
                 ),
@@ -385,7 +390,7 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
             conn.execute(
                 """
                 UPDATE transactions
-                SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?
+                SET date = ?, type = ?, amount = ?, category = ?, description = ?, mode = ?, payment_channel = ?
                 WHERE id = ?
                 """,
                 (
@@ -395,6 +400,7 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
                     payload.category,
                     payload.description,
                     payload.mode.value,
+                    payload.payment_channel,
                     transaction_id,
                 ),
             )
@@ -405,6 +411,33 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db_path:
         if settings.memory_categorization_enabled:
             save_category_memory_mapping(line_user_id, existing["description"] or payload.description, payload.category, payload.type.value, db_path)
     return transaction
+
+
+def set_transaction_payment_channel(
+    transaction_id: int,
+    payment_channel: str | None,
+    db_path: str | None = None,
+    line_user_id: str | None = None,
+) -> Transaction | None:
+    init_db(db_path)
+    normalized = payment_channel.strip()[:40] if payment_channel and payment_channel.strip() else None
+    with get_connection(db_path) as conn:
+        if line_user_id:
+            conn.execute(
+                "UPDATE transactions SET payment_channel = ? WHERE id = ? AND line_user_id = ?",
+                (normalized, transaction_id, line_user_id),
+            )
+            row = conn.execute(
+                "SELECT * FROM transactions WHERE id = ? AND line_user_id = ?",
+                (transaction_id, line_user_id),
+            ).fetchone()
+        else:
+            conn.execute(
+                "UPDATE transactions SET payment_channel = ? WHERE id = ?",
+                (normalized, transaction_id),
+            )
+            row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+        return row_to_transaction(row) if row else None
 
 
 def delete_transaction(transaction_id: int, db_path: str | None = None, line_user_id: str | None = None) -> bool:
