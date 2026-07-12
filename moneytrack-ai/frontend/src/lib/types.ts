@@ -98,6 +98,11 @@ export type DashboardData = {
   health: Health;
 };
 
+export type AppData = {
+  dashboard: DashboardData;
+  transactions: Transaction[];
+};
+
 export type WhatIfScenario = {
   reduce_food_percent: number;
   reduce_shopping_percent: number;

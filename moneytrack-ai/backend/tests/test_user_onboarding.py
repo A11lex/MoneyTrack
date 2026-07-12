@@ -342,3 +342,15 @@ def test_transactions_migrate_payment_channel_without_losing_existing_rows(tmp_p
     assert len(transactions) == 1
     assert transactions[0].description == "ข้าว"
     assert transactions[0].payment_channel is None
+
+
+def test_init_db_reuses_completed_schema_initialization(tmp_path, monkeypatch) -> None:
+    db_path = str(tmp_path / "schema-cache.db")
+    calls: list[str | None] = []
+    database._INITIALIZED_DATABASES.discard(db_path)
+    monkeypatch.setattr(database, "_initialize_database", lambda value: calls.append(value))
+
+    database.init_db(db_path)
+    database.init_db(db_path)
+
+    assert calls == [db_path]

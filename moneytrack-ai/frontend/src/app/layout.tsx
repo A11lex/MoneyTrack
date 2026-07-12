@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
+const apiOrigin = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "");
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -34,6 +36,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
+      <head>
+        <link rel="preconnect" href="https://static.line-scdn.net" />
+        <link rel="dns-prefetch" href="https://static.line-scdn.net" />
+        {apiOrigin && <link rel="preconnect" href={apiOrigin} />}
+      </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">{children}</body>
     </html>
   );

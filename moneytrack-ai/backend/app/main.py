@@ -284,6 +284,19 @@ def post_run_due_daily_reminders(request: Request) -> dict[str, Any]:
 @app.get("/dashboard")
 def dashboard(line_user_id: str = Depends(authenticated_query_line_user)) -> dict:
     transactions = list_transactions(line_user_id=line_user_id)
+    return _dashboard_payload(transactions)
+
+
+@app.get("/app-data")
+def app_data(line_user_id: str = Depends(authenticated_query_line_user)) -> dict:
+    transactions = list_transactions(line_user_id=line_user_id)
+    return {
+        "dashboard": _dashboard_payload(transactions),
+        "transactions": transactions,
+    }
+
+
+def _dashboard_payload(transactions: list[Transaction]) -> dict:
     return {
         "summary": calculate_summary(transactions),
         "charts": chart_data(transactions),

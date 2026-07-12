@@ -3,6 +3,7 @@ import os
 from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
+from threading import Lock
 from typing import Any, Iterator
 
 from .database_backend import DatabaseConnection, connect, inserted_id
@@ -26,6 +27,8 @@ from .models import (
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATABASE_URL = os.getenv("DATABASE_URL", str(BASE_DIR / "moneytrack.db"))
+_INITIALIZED_DATABASES: set[str] = set()
+_INITIALIZE_LOCK = Lock()
 
 
 @contextmanager
@@ -35,6 +38,20 @@ def get_connection(db_path: str | None = None) -> Iterator[DatabaseConnection]:
 
 
 def init_db(db_path: str | None = None) -> None:
+    target = db_path or DATABASE_URL
+    cacheable = target != ":memory:"
+    if cacheable and target in _INITIALIZED_DATABASES:
+        return
+
+    with _INITIALIZE_LOCK:
+        if cacheable and target in _INITIALIZED_DATABASES:
+            return
+        _initialize_database(db_path)
+        if cacheable:
+            _INITIALIZED_DATABASES.add(target)
+
+
+def _initialize_database(db_path: str | None = None) -> None:
     with get_connection(db_path) as conn:
         conn.execute(
             """
@@ -53,6 +70,10 @@ def init_db(db_path: str | None = None) -> None:
         )
         _ensure_column(conn, "transactions", "line_user_id", "TEXT")
         _ensure_column(conn, "transactions", "payment_channel", "TEXT")
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_line_user_date_id "
+            "ON transactions (line_user_id, date DESC, id DESC)"
+        )
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS line_users (

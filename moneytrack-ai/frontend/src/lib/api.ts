@@ -1,4 +1,5 @@
 import type {
+  AppData,
   DashboardData,
   DailyReminderSettings,
   DailyReminderSettingsInput,
@@ -58,6 +59,10 @@ function withLineUser(path: string, lineUserId: string): string {
 
 export function getDashboard(lineUserId: string): Promise<DashboardData> {
   return request<DashboardData>(withLineUser("/dashboard", lineUserId));
+}
+
+export function getAppData(lineUserId: string): Promise<AppData> {
+  return request<AppData>(withLineUser("/app-data", lineUserId));
 }
 
 export function getTransactions(lineUserId: string): Promise<Transaction[]> {

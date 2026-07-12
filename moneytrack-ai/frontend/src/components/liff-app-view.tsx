@@ -32,15 +32,16 @@ import {
 } from "lucide-react";
 
 import {
+  API_BASE_URL,
   createRecurringTransaction,
   createTransaction,
   deleteRecurringTransaction,
   deleteTransaction,
   getDailyReminderSettings,
+  getAppData,
   getDashboard,
   getLineUserSetup,
   getRecurringTransactions,
-  getTransactions,
   getUserSettings,
   saveDailyReminderSettings,
   saveLineUserOnboarding,
@@ -50,6 +51,7 @@ import {
   upsertLineUser,
 } from "@/lib/api";
 import { classifyAppError, type AppErrorKind } from "@/lib/app-flow";
+import { warmBackend } from "@/lib/backend-warmup";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 import type { DailyReminderSettingsInput, DashboardData, LineUserSetup, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
 import { hasCompletedOnboarding } from "@/lib/user-flow";
@@ -220,6 +222,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   useEffect(() => {
     let mounted = true;
     let loginRedirecting = false;
+    void warmBackend(API_BASE_URL).catch(() => undefined);
     loadLineProfile().then(async (loadedProfile) => {
       if (!mounted) return Promise.reject(new Error("unmounted"));
       if (loadedProfile === null) {
@@ -241,12 +244,13 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
       applyLineUserSetupToLocalStorage(setup);
       const resolvedProfile = mergeLineProfile(loadedProfile, setup);
       setProfile(resolvedProfile);
-      await upsertLineUser({
+      void upsertLineUser({
         line_user_id: resolvedProfile.line_user_id,
         display_name: resolvedProfile.display_name,
         picture_url: resolvedProfile.picture_url,
-      });
-      return Promise.all([getDashboard(resolvedProfile.line_user_id), getTransactions(resolvedProfile.line_user_id)]);
+      }).catch((error) => console.warn("Failed to refresh LINE profile", error));
+      const appData = await getAppData(resolvedProfile.line_user_id);
+      return [appData.dashboard, appData.transactions] as [DashboardData, Transaction[]];
     }).catch((error) => {
       if (!mounted) return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       console.error("Failed to load LINE profile", error);

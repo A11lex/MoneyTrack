@@ -25,8 +25,9 @@ import {
   X,
 } from "lucide-react";
 
-import { getLineUserSetup, saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
+import { API_BASE_URL, getLineUserSetup, saveLineUserOnboarding, upsertLineUser } from "@/lib/api";
 import { classifyAppError } from "@/lib/app-flow";
+import { warmBackend } from "@/lib/backend-warmup";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
 import { hasCompletedOnboarding } from "@/lib/user-flow";
 
@@ -136,6 +137,7 @@ export function OnboardingFlow() {
   useEffect(() => {
     let mounted = true;
     let redirectTimer: number | undefined;
+    void warmBackend(API_BASE_URL).catch(() => undefined);
     async function bootstrap() {
       try {
         const identity = await loadLineProfile();
