@@ -5,6 +5,16 @@
 :root {
   --background: #f5f7fb;
   --foreground: #16211d;
+  --mt-surface: #ffffff;
+  --mt-surface-muted: #f7faf8;
+  --mt-text: #151b18;
+  --mt-text-muted: #6b756f;
+  --mt-border: rgba(21, 27, 24, 0.1);
+  --mt-income: #6dc5ad;
+  --mt-income-dark: #0d4a2b;
+  --mt-expense: #dc143c;
+  --mt-radius: 8px;
+  --mt-nav-height: 80px;
 }
 
 @theme inline {
@@ -22,7 +32,9 @@ body {
   min-width: 320px;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Noto Sans Thai", "Leelawadee UI", Tahoma, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
 }
 
 button,
@@ -37,6 +49,81 @@ textarea {
   text-rendering: optimizeLegibility;
 }
 
+.moneytrack-shell {
+  position: relative;
+  margin-inline: auto;
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 48rem;
+  flex-direction: column;
+  background: var(--mt-surface);
+}
+
+.moneytrack-onboarding-shell {
+  position: relative;
+  margin-inline: auto;
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 40rem;
+  flex-direction: column;
+  background: var(--mt-surface);
+  box-shadow: 0 0 50px rgba(13, 74, 43, 0.08);
+}
+
+.moneytrack-content {
+  min-width: 0;
+  flex: 1;
+  padding: 1rem 1rem calc(var(--mt-nav-height) + 1rem + env(safe-area-inset-bottom));
+}
+
+.moneytrack-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  z-index: 30;
+  display: grid;
+  min-height: var(--mt-nav-height);
+  width: 100%;
+  max-width: 48rem;
+  transform: translateX(-50%);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border-top: 1px solid var(--mt-border);
+  background: var(--mt-surface);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.moneytrack-nav-link {
+  display: flex;
+  min-width: 0;
+  min-height: 3.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.25rem;
+  text-align: center;
+}
+
+.moneytrack-nav-label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.money-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.moneytrack-fab {
+  right: max(1rem, calc((100vw - min(100vw, 48rem)) / 2 + 1rem));
+  bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
 .moneytrack-liff *,
 .moneytrack-liff *::before,
 .moneytrack-liff *::after {
@@ -44,15 +131,28 @@ textarea {
 }
 
 .moneytrack-liff p,
-.moneytrack-liff span,
 .moneytrack-liff h1,
 .moneytrack-liff h2,
 .moneytrack-liff h3,
-.moneytrack-liff button,
 .moneytrack-liff a,
 .moneytrack-liff dd,
 .moneytrack-liff dt {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.moneytrack-liff .font-black {
+  font-weight: 700;
+}
+
+.moneytrack-liff :is(button, input, select, textarea) {
+  letter-spacing: 0;
+}
+
+.moneytrack-liff [aria-label="ปิด"],
+.moneytrack-liff [aria-label^="กลับ"] {
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .moneytrack-liff button,
@@ -84,10 +184,13 @@ textarea {
 
 .moneytrack-liff .fixed.inset-0 {
   animation: moneytrackFadeIn 160ms ease-out both;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }
 
 .moneytrack-liff .fixed.inset-0 > div {
   animation: moneytrackModalIn 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  max-height: calc(100dvh - 1.5rem);
+  overscroll-behavior: contain;
 }
 
 .moneytrack-liff .recharts-wrapper text {
@@ -96,44 +199,85 @@ textarea {
 }
 
 @media (max-width: 480px) {
-  .moneytrack-liff {
-    font-size: 15px;
+  .moneytrack-content {
+    padding-inline: 0.875rem;
   }
 
-  .moneytrack-liff .text-4xl {
-    font-size: 1.875rem;
-    line-height: 2.25rem;
+  .moneytrack-onboarding-shell > section {
+    padding-inline: 1rem;
+  }
+}
+
+@media (min-width: 640px) {
+  .moneytrack-content {
+    padding: 1.5rem 1.5rem calc(var(--mt-nav-height) + 1.5rem + env(safe-area-inset-bottom));
   }
 
-  .moneytrack-liff .text-3xl {
-    font-size: 1.5rem;
-    line-height: 2rem;
+  .moneytrack-liff .fixed.inset-0 {
+    align-items: center !important;
+    padding: 1.5rem;
   }
 
-  .moneytrack-liff .text-2xl {
-    font-size: 1.25rem;
-    line-height: 1.75rem;
+  .moneytrack-liff .fixed.inset-0 > div {
+    border-radius: var(--mt-radius);
+  }
+}
+
+@media (min-width: 1024px) {
+  .moneytrack-shell {
+    display: grid;
+    max-width: 70rem;
+    grid-template-columns: 12rem minmax(0, 1fr);
+    align-items: start;
+    border-inline: 1px solid var(--mt-border);
   }
 
-  .moneytrack-liff .text-xl {
-    font-size: 1.125rem;
-    line-height: 1.625rem;
+  .moneytrack-content {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 100vh;
+    padding: 2rem;
   }
 
-  .moneytrack-liff .text-lg {
-    font-size: 1rem;
-    line-height: 1.5rem;
+  .moneytrack-bottom-nav {
+    position: sticky;
+    top: 0;
+    left: auto;
+    grid-column: 1;
+    grid-row: 1;
+    height: 100vh;
+    max-width: none;
+    transform: none;
+    grid-template-columns: 1fr;
+    grid-template-rows: repeat(5, 4.75rem);
+    align-content: center;
+    border-top: 0;
+    border-right: 1px solid var(--mt-border);
+    padding: 1rem;
   }
 
-  .moneytrack-liff .font-black {
-    font-weight: 800;
+  .moneytrack-nav-link {
+    min-height: 4rem;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 0.75rem;
+    border-radius: var(--mt-radius);
+    padding: 0.75rem;
+    text-align: left;
   }
 
-  .moneytrack-liff button,
-  .moneytrack-liff select,
-  .moneytrack-liff input,
-  .moneytrack-liff textarea {
-    letter-spacing: 0;
+  .moneytrack-nav-link:hover {
+    background: var(--mt-surface-muted);
+  }
+
+  .moneytrack-nav-label {
+    overflow: visible;
+    text-overflow: clip;
+  }
+
+  .moneytrack-fab {
+    right: max(2rem, calc((100vw - 70rem) / 2 + 2rem));
+    bottom: 2rem;
   }
 }
 

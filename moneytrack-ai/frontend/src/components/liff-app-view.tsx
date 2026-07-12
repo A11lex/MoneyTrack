@@ -311,8 +311,8 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
 
   return (
     <main className="moneytrack-liff min-h-screen bg-[#f8faf9] text-[#151b18]">
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-white">
-        <section className="flex-1 px-4 pb-24 pt-4">
+      <div className="moneytrack-shell">
+        <section className="moneytrack-content">
           {loading ? (
             <LoadingState />
           ) : appFailure ? (
@@ -417,9 +417,9 @@ function SummaryScreen({
       <SummaryProfileCard plan={plan} profile={profile} />
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-xl font-black">สรุป</h2>
-        <button type="button" className="inline-flex h-10 items-center gap-2 rounded-md border border-black/10 bg-white px-4 text-sm font-black shadow-sm">
-          26 มิ.ย. - 30 มิ.ย. 2569
+        <h2 className="shrink-0 text-xl font-black">สรุป</h2>
+        <button type="button" className="inline-flex min-h-10 max-w-[72%] items-center justify-end gap-2 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-black leading-tight shadow-sm">
+          <span className="min-w-0 text-right">26 มิ.ย. - 30 มิ.ย. 2569</span>
           <ChevronRight className="h-4 w-4 rotate-90 text-[#8a928e]" />
         </button>
       </div>
@@ -430,7 +430,7 @@ function SummaryScreen({
             <p className="text-base font-bold text-[#151b18]">เหลือเก็บ</p>
             <span className="rounded-md border border-black/10 bg-white px-2 py-1 text-sm font-black shadow-sm">รอบงบนี้ ⇄</span>
           </div>
-          <p className={`mt-2 text-3xl font-black leading-none ${isPositive ? "text-[#10b95f]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
+          <p className={`money-value mt-2 text-3xl leading-none ${isPositive ? "text-[#10b95f]" : "text-[#DC143C]"}`}>{formatBaht(net)}</p>
         </div>
         <div className="mt-8 grid grid-cols-2 gap-3">
           <MetricBox active={summaryFocus === "expense"} label="รายจ่าย" onClick={() => setSummaryFocus("expense")} value={expense} tone="expense" />
@@ -479,9 +479,9 @@ function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData 
       {insightMode === "cashflow" ? (
         <>
           <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
-              <div className="grid grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="min-w-0 flex-1 text-xl font-black leading-tight">ประวัติรายรับรายจ่าย</h2>
+              <div className="grid shrink-0 grid-cols-2 rounded-md border border-black/10 bg-white p-1 shadow-sm">
                 <button type="button" onClick={() => setChartMode("monthly")} className={`h-8 rounded px-3 text-sm font-black ${chartMode === "monthly" ? "bg-[#f4f7f5] text-[#151b18]" : "text-[#8a928e]"}`}>
                   รายเดือน
                 </button>
@@ -490,7 +490,7 @@ function InsightsScreen({ dashboard, transactions }: { dashboard: DashboardData 
                 </button>
               </div>
             </div>
-            <div className="mt-6 h-80">
+            <div className="mt-6 h-64 sm:h-80">
               <IncomeExpenseHistoryChart key={chartMode} budgetLimit={expenseBudgetLimit} mode={chartMode} transactions={transactions} />
             </div>
           </section>
@@ -615,10 +615,10 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       </div>
       {kind === "expense" && (
         <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-          <div className="grid grid-cols-[1fr_124px] gap-4">
+          <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-[minmax(0,1fr)_124px]">
             <button type="button" onClick={() => budgetMode === "total" && setShowTotalBudgetModal(true)} className="rounded-md text-left focus:outline-none focus:ring-2 focus:ring-[#DC143C]/30">
               <p className="text-sm font-black text-[#151b18]">งบที่ตั้งไว้</p>
-              <p className={`mt-1 text-3xl font-black leading-none ${displayedBudget > 0 ? "text-[#DC143C]" : "text-[#9aa1a0]"}`}>{displayedBudget > 0 ? formatBaht(displayedBudget) : "ยังไม่ได้ตั้งงบ"}</p>
+              <p className={`mt-1 leading-tight ${displayedBudget > 0 ? "money-value text-2xl text-[#DC143C]" : "text-base font-semibold text-[#9aa1a0]"}`}>{displayedBudget > 0 ? formatBaht(displayedBudget) : "ยังไม่ได้ตั้งงบ"}</p>
               <p className="mt-2 text-xs font-semibold text-[#8a928e]">ใช้ไป {formatBaht(displayedSpent)} · {budgetUsagePercent}%</p>
             </button>
             <div>
@@ -720,7 +720,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
               if (budgetMode === "total") return;
               setSelectedExpenseCategory(item);
             }}
-            className={`flex min-h-16 w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm ${kind === "expense" && budgetMode === "total" ? "cursor-default" : ""}`}
+            className={`grid min-h-16 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-base font-black shadow-sm ${kind === "expense" && budgetMode === "total" ? "cursor-default" : ""}`}
           >
             {kind === "expense" ? (
               <>
@@ -728,9 +728,9 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
                   <span className="h-3 w-3 shrink-0 rounded-full bg-[#DC143C]" />
                   <span className="truncate">{item}</span>
                 </span>
-                <span className="flex shrink-0 items-center gap-3 text-sm">
+                <span className="flex max-w-[52vw] shrink-0 items-center justify-end gap-2 text-right text-sm sm:max-w-none">
                   <span className="font-semibold text-[#8a928e]">งบ</span>
-                  <span className={expenseBudgets[item] > 0 ? "font-bold text-[#151b18]" : "font-semibold text-[#8a928e]"}>
+                  <span className={expenseBudgets[item] > 0 ? "money-value font-bold text-[#151b18]" : "line-clamp-2 font-semibold leading-tight text-[#8a928e]"}>
                     {budgetMode === "total" ? "ใช้งบรวม" : expenseBudgets[item] > 0 ? formatBudgetAmount(expenseBudgets[item]) : "ไม่มีตั้งงบ"}
                   </span>
                   {budgetMode === "category" && <ChevronRight className="h-5 w-5 text-[#9aa1a0]" />}
@@ -1783,9 +1783,9 @@ function TransactionsScreen({
       {!multiSelectMode && (
         <>
       <section className="rounded-md border border-black/10 bg-white p-3 shadow-sm">
-        <button type="button" onClick={() => setShowDatePicker(true)} className="flex h-12 w-full items-center justify-center gap-3 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#151b18] shadow-sm">
-            <span>{formatThaiDateRange(startDate, endDate)}</span>
-            <CalendarDays className="h-5 w-5 text-[#6b756f]" />
+        <button type="button" onClick={() => setShowDatePicker(true)} className="flex min-h-12 w-full items-center justify-center gap-3 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-black leading-tight text-[#151b18] shadow-sm">
+            <span className="min-w-0 text-center">{formatThaiDateRange(startDate, endDate)}</span>
+            <CalendarDays className="h-5 w-5 shrink-0 text-[#6b756f]" />
         </button>
         <div className="mt-3 flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -1824,11 +1824,11 @@ function TransactionsScreen({
           </div>
         </section>
       )}
-      <div className="flex items-center justify-between gap-3">
-        <button type="button" onClick={enterMultiSelectMode} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
+      <div className="grid grid-cols-2 gap-3">
+        <button type="button" onClick={enterMultiSelectMode} className="min-h-10 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-black leading-tight text-[#6b756f] shadow-sm">
           เลือกหลายรายการ
         </button>
-        <button type="button" onClick={() => setShowRecurringScreen(true)} className="h-9 rounded-md border border-black/10 bg-white px-3 text-sm font-black text-[#8a928e] shadow-sm">
+        <button type="button" onClick={() => setShowRecurringScreen(true)} className="min-h-10 rounded-md border border-black/10 bg-white px-3 py-2 text-sm font-black leading-tight text-[#6b756f] shadow-sm">
           ตั้งรายการจดประจำ
         </button>
       </div>
@@ -1836,7 +1836,7 @@ function TransactionsScreen({
       )}
       <div className="flex items-end justify-between border-b border-[#9aa1a0] pb-2">
         <p className="text-xs font-semibold text-[#8a928e]">{formatThaiShortDate(startDate)} - {formatThaiShortDate(endDate)}</p>
-        <p className={"text-xs font-black " + (filteredTotal >= 0 ? "text-[#10b95f]" : "text-[#DC143C]")}>รวม: {filteredTotal >= 0 ? "+" : "-"}{formatBaht(Math.abs(filteredTotal))}</p>
+        <p className={"money-value shrink-0 text-right text-xs " + (filteredTotal >= 0 ? "text-[#10b95f]" : "text-[#DC143C]")}>รวม: {filteredTotal >= 0 ? "+" : "-"}{formatBaht(Math.abs(filteredTotal))}</p>
       </div>
       {filteredTransactions.length > 0 ? (
         multiSelectMode ? (
@@ -1848,7 +1848,7 @@ function TransactionsScreen({
         <EmptyState title="ไม่มีข้อมูลรายการ" body="ลองเปลี่ยนวันที่ ประเภท หรือหมวดเพื่อดูรายการอื่น" />
       )}
       {!multiSelectMode && (
-      <button type="button" onClick={onCreate} aria-label="เพิ่มรายการ" className="fixed bottom-24 right-[calc(50%-11.5rem)] grid h-14 w-14 place-items-center rounded-full bg-[#DC143C] text-3xl font-light text-white shadow-xl">
+      <button type="button" onClick={onCreate} aria-label="เพิ่มรายการ" className="moneytrack-fab fixed z-20 grid h-14 w-14 place-items-center rounded-full bg-[#DC143C] text-3xl font-light text-white shadow-xl">
         +
       </button>
       )}
@@ -1994,20 +1994,20 @@ function RecurringTransactionsScreen({
       </div>
       {error && <p className="rounded-md bg-[#FCECEF] p-3 text-sm font-bold text-[#DC143C]">{error}</p>}
 
-      <section className="grid grid-cols-[1fr_1fr_auto] items-center gap-3 rounded-md border border-black/10 bg-white p-3 shadow-sm">
+      <section className="grid grid-cols-2 items-center gap-3 rounded-md border border-black/10 bg-white p-3 shadow-sm sm:grid-cols-[1fr_1fr_auto]">
         <RecurringStat label="รายจ่ายเฉลี่ยต่อเดือน" amount={monthlyExpense} count={items.filter((item) => item.type === "expense").length} tone="expense" />
         <RecurringStat label="รายรับเฉลี่ยต่อเดือน" amount={monthlyIncome} count={items.filter((item) => item.type === "income").length} tone="income" />
-        <div className="text-right">
-          <button type="button" onClick={() => openCreateModal()} className="h-11 rounded-md bg-[#DC143C] px-4 text-sm font-black text-white shadow-sm">
+        <div className="col-span-2 flex items-center justify-between gap-3 text-right sm:col-span-1 sm:block">
+          <button type="button" onClick={() => openCreateModal()} className="h-11 shrink-0 rounded-md bg-[#DC143C] px-4 text-sm font-black text-white shadow-sm">
             เพิ่มรายการ
           </button>
-          <p className="mt-2 text-xs font-semibold text-[#8a928e]">เหลืออีก {Math.max(0, 20 - items.length)} รายการ</p>
+          <p className="text-xs font-semibold text-[#8a928e] sm:mt-2">เหลืออีก {Math.max(0, 20 - items.length)} รายการ</p>
         </div>
       </section>
 
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
-        <div className="flex items-start justify-between gap-4">
-          <div>
+        <div className="flex flex-col gap-4 min-[380px]:flex-row min-[380px]:items-start min-[380px]:justify-between">
+          <div className="min-w-0 flex-1">
             <h2 className="text-lg font-black text-[#1f2a44]">เวลาจด</h2>
             <p className="mt-2 text-xs font-semibold leading-relaxed text-[#4b5563]">เมื่อถึงเวลาที่ตั้ง ระบบจะจดรายการที่ถูกกำหนดไว้สำหรับวันนั้นและส่งข้อความให้ในแชท</p>
           </div>
@@ -3034,16 +3034,16 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
       <div className="flex items-center gap-4">
         <Image src={profile.picture_url || "/brand/moneytrack-pro.png"} alt={profile.display_name || "ผู้ใช้งาน LINE"} width={64} height={64} className="h-16 w-16 rounded-full object-cover" unoptimized={Boolean(profile.picture_url)} />
         <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-black">{profile.display_name || "ผู้ใช้งาน LINE"}</h2>
-          <p className="truncate text-sm font-semibold text-[#8a928e]">ผู้ใช้งานฟรี · เชื่อมต่อ LINE แล้ว</p>
+          <h2 className="line-clamp-2 text-xl font-black leading-tight">{profile.display_name || "ผู้ใช้งาน LINE"}</h2>
+          <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug text-[#8a928e]">ผู้ใช้งานฟรี · เชื่อมต่อ LINE แล้ว</p>
         </div>
       </div>
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center gap-5">
           <Image src="/brand/moneytrack-pro.png" alt="" width={80} height={80} className="h-20 w-20 rounded-md object-cover opacity-80" />
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xl font-black">จดต่อเนื่องมา</p>
-            <p className="mt-1 text-4xl font-black">{streakDays} วัน</p>
+            <p className="money-value mt-1 text-4xl">{streakDays} วัน</p>
             <p className="mt-1 text-sm text-[#555f5b]">
               {streakDays === 0 ? "เริ่มจดวันนี้เพื่อสร้างนิสัยใหม่" : streakDays < streakGoal ? `อีก ${streakGoal - streakDays} วันจะครบเป้าหมาย` : "ทำเป้าหมาย 7 วันสำเร็จแล้ว"}
             </p>
@@ -3074,10 +3074,10 @@ function SettingsScreen({ profile, transactions }: { profile: LineProfile; trans
               if (item.id === "timezone") setShowTimezoneScreen(true);
               if (item.id === "language") setShowLanguageScreen(true);
             }}
-            className="flex min-h-14 w-full items-center justify-between rounded-md border border-black/10 bg-white px-4 py-3 text-left text-sm font-bold shadow-sm transition hover:border-[#6dc5ad]/60 hover:bg-[#fbfdfc] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 sm:text-base"
+            className="grid min-h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left text-sm font-bold shadow-sm transition hover:border-[#6dc5ad]/60 hover:bg-[#fbfdfc] active:scale-[0.99] disabled:cursor-wait disabled:opacity-60 sm:text-base"
           >
-            <span>{item.label}</span>
-            <span className="flex items-center gap-2">
+            <span className="line-clamp-2 min-w-0 leading-snug">{item.label}</span>
+            <span className="flex shrink-0 items-center justify-end gap-2">
               {item.id === "daily-reminder" && (
                 <span className={`rounded-full px-2 py-1 text-xs font-black ${reminderSettings.enabled ? "bg-[#EAF8F4] text-[#0D4A2B]" : "bg-[#f0f2f1] text-[#8a928e]"}`}>
                   {reminderSettings.enabled ? `${reminderSettings.reminder_time} น.` : "ปิดอยู่"}
@@ -3737,8 +3737,8 @@ function SummaryProfileCard({ plan, profile }: { plan: UserPlan; profile: LinePr
     <section className="flex items-center gap-3 rounded-md border border-black/10 bg-white p-4 shadow-sm">
       <Image src={profile.picture_url || "/brand/moneytrack-pro.png"} alt={profile.display_name} width={48} height={48} className="h-12 w-12 rounded-full object-cover" unoptimized={Boolean(profile.picture_url)} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-2xl font-black">{profile.display_name}</p>
-        <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{planLabel} · ID {formatLineUserId(profile.line_user_id)}</p>
+        <p className="line-clamp-2 text-xl font-black leading-tight">{profile.display_name}</p>
+        <p className="mt-1 line-clamp-2 text-xs font-semibold text-[#8a928e]">{planLabel} · ID {formatLineUserId(profile.line_user_id)}</p>
       </div>
       <Image src="/brand/moneytrack-pro.png" alt="" width={32} height={32} className="h-8 w-8 rounded-full object-cover opacity-80" />
     </section>
@@ -3763,7 +3763,7 @@ function MetricBox({
   return (
     <button type="button" onClick={onClick} className={`rounded-md border-2 p-3 text-left shadow-sm transition active:scale-[0.99] ${classes} ${activeClass}`}>
       <p className="text-xs font-bold text-[#55605b]">{label}</p>
-      <p className="mt-2 truncate text-xl font-black">{formatBaht(value)}</p>
+      <p className="money-value mt-2 truncate text-xl">{formatBaht(value)}</p>
     </button>
   );
 }
@@ -3798,30 +3798,30 @@ function SummaryExpandedChart({
 
   return (
     <div className="mt-8 space-y-6">
-      <div className="grid grid-cols-[150px_1fr] items-center gap-5">
-        <div className="grid h-36 w-36 place-items-center rounded-full" style={donutStyle}>
+      <div className="grid grid-cols-1 items-center gap-5 min-[390px]:grid-cols-[150px_1fr]">
+        <div className="mx-auto grid h-36 w-36 place-items-center rounded-full" style={donutStyle}>
           <div className="h-20 w-20 rounded-full bg-white" />
         </div>
         <dl className="space-y-3 text-xs">
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[#7a817d]">{isIncome ? "รายรับในรอบนี้" : "จดต่อเนื่องมา"}</dt>
-            <dd className="font-black text-[#151b18]">{isIncome ? formatBaht(spentInPeriod) : `🔥 ${streakDays} วัน`}</dd>
+            <dd className="money-value shrink-0 text-right text-[#151b18]">{isIncome ? formatBaht(spentInPeriod) : `🔥 ${streakDays} วัน`}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[#7a817d]">จำนวนรายการ</dt>
-            <dd className="font-black text-[#151b18]">{transactionCount}</dd>
+            <dd className="money-value shrink-0 text-right text-[#151b18]">{transactionCount}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[#7a817d]">{isIncome ? "หมวดสูงสุด" : "งบที่ตั้งไว้"}</dt>
-            <dd className="font-black text-[#151b18]">{isIncome ? (topCategory?.[0] ?? "-") : budgetLimit > 0 ? formatBaht(budgetLimit) : "-"}</dd>
+            <dd className="money-value max-w-[55%] text-right text-[#151b18]">{isIncome ? (topCategory?.[0] ?? "-") : budgetLimit > 0 ? formatBaht(budgetLimit) : "-"}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[#7a817d]">{isIncome ? "ยอดหมวดสูงสุด" : "งบคงเหลือ"}</dt>
-            <dd className="font-black text-[#151b18]">{isIncome ? formatBaht(topCategory?.[1] ?? 0) : budgetLimit > 0 ? formatBaht(remainingBudget) : "-"}</dd>
+            <dd className="money-value shrink-0 text-right text-[#151b18]">{isIncome ? formatBaht(topCategory?.[1] ?? 0) : budgetLimit > 0 ? formatBaht(remainingBudget) : "-"}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-[#7a817d]">{isIncome ? "รับแล้ว" : "ใช้ไปแล้ว"}</dt>
-            <dd className="font-black text-[#151b18]">{formatBaht(spentInPeriod)}</dd>
+            <dd className="money-value shrink-0 text-right text-[#151b18]">{formatBaht(spentInPeriod)}</dd>
           </div>
         </dl>
       </div>
@@ -3881,7 +3881,7 @@ function IncomeExpenseHistoryChart({
   const points = mode === "daily" ? buildDailyHistoryPoints(transactions, dailyYear, dailyMonthIndex) : buildMonthlyHistoryPoints(transactions, monthlyYear);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const activePoint = activeIndex === null ? null : points[Math.min(activeIndex, points.length - 1)] ?? null;
-  const tooltipLeft = activeIndex === null ? 0 : Math.min(70, Math.max(8, (activeIndex / Math.max(1, points.length - 1)) * 100 - 10));
+  const tooltipPosition = activeIndex === null ? 0 : (activeIndex / Math.max(1, points.length - 1)) * 100;
   const max = Math.max(1, budgetLimit, ...points.flatMap((item) => [item.income, item.expense]));
   const budgetLineTop = budgetLimit > 0 ? Math.min(94, Math.max(6, 94 - (budgetLimit / max) * 88)) : null;
   const averageExpense = points.reduce((sum, item) => sum + item.expense, 0) / Math.max(1, points.length);
@@ -3929,7 +3929,7 @@ function IncomeExpenseHistoryChart({
         </button>
       </div>
 
-      <div className="relative mt-4 min-h-0 flex-1 px-2 pb-7 pt-2" onPointerLeave={() => setActiveIndex(null)}>
+      <div className="relative mt-4 min-h-0 flex-1 overflow-hidden px-2 pb-7 pt-2" onPointerLeave={() => setActiveIndex(null)}>
         <div className="pointer-events-none absolute inset-x-2 top-2 h-[calc(100%-2rem)] rounded-sm">
           <div className="absolute inset-x-0 top-0 border-t border-dashed border-[#e8ecea]" />
           <div className="absolute inset-x-0 top-1/3 border-t border-dashed border-[#e8ecea]" />
@@ -3973,8 +3973,8 @@ function IncomeExpenseHistoryChart({
 
         {activePoint && (
           <div
-            className="pointer-events-none absolute top-6 z-20 min-w-36 rounded-md border border-black/10 bg-white px-3 py-2 text-xs shadow-lg"
-            style={{ left: `${tooltipLeft}%` }}
+            className="pointer-events-none absolute top-6 z-20 w-36 max-w-[calc(100%_-_1rem)] rounded-md border border-black/10 bg-white px-3 py-2 text-xs shadow-lg"
+            style={{ left: `clamp(0.5rem, ${tooltipPosition}%, calc(100% - 9.5rem))` }}
           >
             <p className="font-bold text-[#151b18]">{activePoint.tooltipTitle}</p>
             <p className="mt-1 font-medium text-[#6b756f]">รายจ่าย: {formatBaht(activePoint.expense)}</p>
@@ -4193,7 +4193,7 @@ function ExpenseCategoryDonut({ categories }: { categories: { category: string; 
         <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
           <div>
             <p className="text-[11px] font-bold text-[#8a928e]">รวมรายจ่าย</p>
-            <p className="text-lg font-black text-[#151b18]">{formatBaht(total)}</p>
+            <p className="money-value text-lg text-[#151b18]">{formatBaht(total)}</p>
           </div>
         </div>
       </div>
@@ -4202,8 +4202,8 @@ function ExpenseCategoryDonut({ categories }: { categories: { category: string; 
           <div className="rounded-md border border-[#F5C6D0] bg-[#FCECEF] p-3">
             <p className="text-xs font-bold text-[#8a5260]">หมวดที่ใช้เยอะสุด</p>
             <div className="mt-1 flex items-end justify-between gap-3">
-              <p className="text-base font-black text-[#151b18]">{top.name}</p>
-              <p className="text-lg font-black text-[#DC143C]">{formatBaht(top.value)}</p>
+              <p className="min-w-0 line-clamp-2 text-base font-black leading-snug text-[#151b18]">{top.name}</p>
+              <p className="money-value shrink-0 text-right text-lg text-[#DC143C]">{formatBaht(top.value)}</p>
             </div>
           </div>
         )}
@@ -4266,7 +4266,7 @@ function ExpenseComparePanel({ comparison }: { comparison: ExpenseComparison }) 
   return (
     <div className="mt-5">
       <h3 className="text-base font-black text-[#151b18]">เทียบรายจ่าย</h3>
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
         <ExpenseCompareCard label="เดือนนี้" value={comparison.currentExpense} helper={`${comparison.transactionCount} รายการ`} tone="primary" />
         <ExpenseCompareCard label="เดือนก่อน" value={comparison.previousExpense} helper={comparison.previousExpense > 0 ? `ต่าง ${formatBaht(Math.abs(comparison.change))}` : "ยังไม่มีข้อมูล"} tone="muted" />
         <ExpenseCompareCard label="การเปลี่ยนแปลง" textValue={changeLabel} helper={isHigher ? "ใช้มากขึ้น" : comparison.change < 0 ? "ใช้ลดลง" : "ใกล้เคียงเดิม"} tone={isHigher ? "danger" : "good"} />
@@ -4416,7 +4416,7 @@ function SavingsInsightPanel({ insight }: { insight: SavingsInsight }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[360px]:grid-cols-2">
             <SavingsMetric label="ออมเดือนนี้" value={formatBaht(insight.savings)} tone={savingsPositive ? "good" : "danger"} />
             <SavingsMetric label="เป้าหมายออม" value={formatBaht(insight.targetSavings)} tone="muted" />
             <SavingsMetric label="อัตราออม" value={`${Math.round(insight.savingsRate)}%`} tone={insight.savingsRate >= 20 ? "good" : insight.savingsRate >= 10 ? "warning" : "danger"} />
@@ -4428,7 +4428,7 @@ function SavingsInsightPanel({ insight }: { insight: SavingsInsight }) {
       <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
         <h3 className="text-base font-black">สรุปเงินออม</h3>
         <p className="mt-3 rounded-md bg-[#f7f8f7] p-3 text-sm font-semibold leading-6 text-[#4f5b56]">{insight.summary}</p>
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+        <div className="mt-4 grid grid-cols-1 gap-3 text-sm min-[360px]:grid-cols-2">
           <div className="rounded-md border border-black/10 p-3">
             <p className="text-xs font-bold text-[#8a928e]">รายรับเดือนนี้</p>
             <p className="mt-1 font-black text-[#0d4a2b]">{formatBaht(insight.income)}</p>
@@ -4465,7 +4465,7 @@ function SavingsMetric({ label, value, tone }: { label: string; value: string; t
   return (
     <div className={`min-h-20 rounded-md border p-3 shadow-sm ${toneClass}`}>
       <p className="text-[11px] font-bold text-[#6b756f]">{label}</p>
-      <p className="mt-2 truncate text-lg font-black">{value}</p>
+      <p className="money-value mt-2 text-base leading-tight">{value}</p>
     </div>
   );
 }
@@ -4475,11 +4475,11 @@ function TransactionList({ transactions, onEdit }: { transactions: Transaction[]
     <div className="overflow-hidden rounded-md border border-black/10 bg-white shadow-sm">
       {transactions.map((transaction) => (
         <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 border-b border-black/5 px-4 py-3 text-left last:border-b-0 active:bg-[#f7f8f7]">
-          <div className="min-w-0">
-            <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
-            <p className="mt-1 truncate text-xs font-semibold text-[#8a928e]">{transaction.date} · {displayCategory(transaction.category, transaction.type)}{transaction.payment_channel ? ` · ${transaction.payment_channel}` : ""}</p>
+          <div className="min-w-0 flex-1">
+            <p className="line-clamp-2 text-base font-black leading-snug">{transaction.description || transaction.category}</p>
+            <p className="mt-1 line-clamp-2 text-xs font-semibold leading-snug text-[#8a928e]">{transaction.date} · {displayCategory(transaction.category, transaction.type)}{transaction.payment_channel ? ` · ${transaction.payment_channel}` : ""}</p>
           </div>
-          <p className={`shrink-0 text-base font-black ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
+          <p className={`money-value shrink-0 text-right text-base ${transaction.type === "income" ? "text-[#0d4a2b]" : "text-[#DC143C]"}`}>
             {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
           </p>
         </button>
@@ -4495,16 +4495,16 @@ function SummaryTransactionList({ transactions, onEdit }: { transactions: Transa
       <div className="space-y-2 border-t border-black/10 pt-2">
         {transactions.map((transaction) => (
           <button key={transaction.id} type="button" onClick={() => onEdit(transaction)} className="flex w-full items-center justify-between gap-3 rounded-md border border-black/10 bg-white px-4 py-3 text-left shadow-sm active:bg-[#f7f8f7]">
-            <div className="min-w-0">
-              <p className="truncate text-base font-black">{transaction.description || transaction.category}</p>
-              <div className="mt-2 flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-base font-black leading-snug">{transaction.description || transaction.category}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-[#8a928e]">{formatTimeFallback(transaction.date)}</span>
                 <span className="rounded-md bg-[#f0f2f1] px-2 py-1 text-xs font-black text-[#6b756f]">{displayCategory(transaction.category, transaction.type)}</span>
                 {transaction.payment_channel && <span className="max-w-24 truncate rounded-md bg-[#eaf8f4] px-2 py-1 text-xs font-black text-[#0d4a2b]">{transaction.payment_channel}</span>}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <p className={`text-sm font-black ${transaction.type === "income" ? "text-[#10b95f]" : "text-[#DC143C]"}`}>
+              <p className={`money-value text-right text-sm ${transaction.type === "income" ? "text-[#10b95f]" : "text-[#DC143C]"}`}>
                 {transaction.type === "income" ? "+" : "-"}{formatBaht(transaction.amount)}
               </p>
               <ChevronRight className="h-4 w-4 text-[#9aa1a0]" />
@@ -4861,9 +4861,9 @@ function ConfirmDeleteDialog({
 
 function SectionTitle({ title, action, actionHref }: { title: string; action: string; actionHref: string }) {
   return (
-    <div className="flex items-center justify-between">
-      <h2 className="text-xl font-black">{title}</h2>
-      <Link href={actionHref} className="rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-black text-[#55605b] shadow-sm">
+    <div className="flex items-center justify-between gap-3">
+      <h2 className="min-w-0 flex-1 text-xl font-black leading-tight">{title}</h2>
+      <Link href={actionHref} className="shrink-0 rounded-md border border-black/10 bg-white px-3 py-2 text-xs font-black text-[#55605b] shadow-sm">
         {action}
       </Link>
     </div>
@@ -4873,10 +4873,10 @@ function SectionTitle({ title, action, actionHref }: { title: string; action: st
 function Segmented({ first, second, active, onFirst, onSecond }: { first: string; second: string; active: "first" | "second"; onFirst?: () => void; onSecond?: () => void }) {
   return (
     <div className="grid grid-cols-2 rounded-md bg-[#eef1ef] p-1">
-      <button type="button" onClick={onFirst} className={`h-10 rounded-md text-sm font-black ${active === "first" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" onClick={onFirst} className={`min-h-10 rounded-md px-2 py-2 text-sm font-black leading-tight ${active === "first" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
         {first}
       </button>
-      <button type="button" onClick={onSecond} className={`h-10 rounded-md text-sm font-black ${active === "second" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
+      <button type="button" onClick={onSecond} className={`min-h-10 rounded-md px-2 py-2 text-sm font-black leading-tight ${active === "second" ? "bg-white text-[#151b18] shadow-sm" : "text-[#7f8884]"}`}>
         {second}
       </button>
     </div>
@@ -4933,14 +4933,14 @@ function restartLineAuthentication() {
 
 function BottomNav({ active }: { active: LiffTab }) {
   return (
-    <nav className="fixed bottom-0 left-1/2 z-30 grid h-20 w-full max-w-md -translate-x-1/2 grid-cols-5 border-t border-black/10 bg-white">
+    <nav className="moneytrack-bottom-nav" aria-label="เมนูหลัก">
       {tabs.map((tab) => {
         const Icon = tab.icon;
         const isActive = tab.id === active;
         return (
-          <Link key={tab.id} href={tab.href} className={`flex flex-col items-center justify-center gap-1 text-xs font-black ${isActive ? "text-[#0d4a2b]" : "text-[#9aa1a0]"}`}>
+          <Link key={tab.id} href={tab.href} className={`moneytrack-nav-link text-xs font-black ${isActive ? "bg-[#eaf8f4] text-[#0d4a2b]" : "text-[#7f8a84]"}`} aria-current={isActive ? "page" : undefined}>
             <Icon className="h-6 w-6" />
-            {tab.label}
+            <span className="moneytrack-nav-label">{tab.label}</span>
           </Link>
         );
       })}

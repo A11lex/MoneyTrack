@@ -146,7 +146,7 @@ export default function EditTransactionPage() {
     if (loadFailure) {
       const content = transactionLoadFailureContent(loadFailure);
       return (
-        <main className="grid min-h-screen place-items-center bg-[#f8faf9] px-5 text-[#151b18]">
+        <main className="moneytrack-liff grid min-h-screen place-items-center bg-[#f8faf9] px-5 text-[#151b18]">
           <section className="w-full max-w-sm rounded-md border border-black/10 bg-white p-6 text-center shadow-sm">
             <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#FDECEF] text-xl font-black text-[#DC143C]">!</div>
             <h1 className="mt-4 text-xl font-black">{content.title}</h1>
@@ -170,7 +170,7 @@ export default function EditTransactionPage() {
       );
     }
     return (
-      <main className="grid min-h-screen place-items-center bg-white text-[#151b18]">
+      <main className="moneytrack-liff grid min-h-screen place-items-center bg-white text-[#151b18]">
         <div className="text-center">
           <Loader2 className="mx-auto h-10 w-10 animate-spin text-[#6DC5AD]" />
           <p className="mt-3 text-lg font-black">{error || "กำลังโหลดรายการ"}</p>
@@ -180,8 +180,8 @@ export default function EditTransactionPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#151b18]">
-      <div className="mx-auto min-h-screen w-full max-w-md px-4 py-5">
+    <main className="moneytrack-liff min-h-screen bg-[#f8faf9] text-[#151b18]">
+      <div className="mx-auto min-h-screen w-full max-w-xl bg-white px-4 py-5 sm:px-6 sm:py-6">
         <header className="flex items-center justify-between">
           <h1 className="text-2xl font-black">แก้ไขรายการ</h1>
           <button

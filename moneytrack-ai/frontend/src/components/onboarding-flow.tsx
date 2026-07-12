@@ -260,24 +260,17 @@ export function OnboardingFlow() {
   }
 
   return (
-    <main className="min-h-screen bg-white text-[#1b1405]">
-      <div className="fixed inset-0 pointer-events-none overflow-hidden" aria-hidden="true">
-        <div className="absolute -top-24 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-[#6dc5ad]/18 blur-3xl" />
-        <div className="absolute left-5 top-28 rotate-[-18deg] text-5xl text-[#6dc5ad]/20">฿</div>
-        <div className="absolute right-8 top-36 rotate-12 text-4xl text-[#6dc5ad]/24">฿</div>
-        <div className="absolute bottom-28 left-10 rotate-6 text-5xl text-[#0d3b22]/8">฿</div>
-      </div>
-
-      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col bg-white shadow-[0_0_50px_rgba(13,74,43,0.08)]">
-        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#0d4a2b]/10 bg-white/95 px-5 py-4 backdrop-blur">
-          <div className="flex items-center gap-3">
+    <main className="moneytrack-liff min-h-screen bg-[#f8faf9] text-[#1b1405]">
+      <div className="moneytrack-onboarding-shell">
+        <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-[#0d4a2b]/10 bg-white/95 px-4 py-3 backdrop-blur sm:px-5 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
             <Image src="/brand/moneytrack-pro.png" alt="เงินไปไหน" width={44} height={44} className="h-11 w-11 rounded-full object-cover ring-2 ring-white" priority />
-            <div>
-              <p className="text-lg font-black leading-none text-[#251704]">เงินไปไหน?</p>
-              <p className="mt-1 text-xs font-bold text-[#0d4a2b]">จัดการง่าย เห็นภาพชัด</p>
+            <div className="min-w-0">
+              <p className="truncate text-lg font-black leading-tight text-[#251704]">เงินไปไหน?</p>
+              <p className="truncate text-xs font-bold text-[#0d4a2b]">จัดการง่าย เห็นภาพชัด</p>
             </div>
           </div>
-          <div className="flex rounded-full bg-[#eaf8f4] p-1 text-sm font-black text-[#0d4a2b]">
+          <div className="flex shrink-0 rounded-full bg-[#eaf8f4] p-1 text-sm font-black text-[#0d4a2b]">
             <button type="button" onClick={() => setLanguage("th")} className={`rounded-full px-3 py-2 ${language === "th" ? "bg-white text-[#1b1405] shadow-sm" : ""}`}>
               ไทย
             </button>
@@ -475,7 +468,7 @@ function CategoryGrid({
             <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-full ${isSelected ? "bg-white/30" : "bg-[#eaf8f4]"}`}>
               <Icon className="h-6 w-6" />
             </span>
-            <span className="min-w-0 truncate">{item.text}</span>
+            <span className="min-w-0 flex-1 text-base leading-snug">{item.text}</span>
             {item.recommended && <span className="ml-auto text-[#0d4a2b]">★</span>}
           </button>
         );
