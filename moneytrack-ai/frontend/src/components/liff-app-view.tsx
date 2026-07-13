@@ -222,11 +222,18 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
   useEffect(() => {
     let mounted = true;
     let loginRedirecting = false;
+    let loginRedirectTimer: number | undefined;
     void warmBackend(API_BASE_URL).catch(() => undefined);
     loadLineProfile().then(async (loadedProfile) => {
       if (!mounted) return Promise.reject(new Error("unmounted"));
       if (loadedProfile === null) {
         loginRedirecting = true;
+        loginRedirectTimer = window.setTimeout(() => {
+          if (!mounted) return;
+          loginRedirecting = false;
+          setAppFailure("authentication");
+          setLoading(false);
+        }, 10000);
         return Promise.resolve<[DashboardData | null, Transaction[]]>([null, []]);
       }
       setProfile(loadedProfile);
@@ -272,6 +279,7 @@ export function LiffAppView({ tab }: { tab: LiffTab }) {
       });
     return () => {
       mounted = false;
+      if (loginRedirectTimer !== undefined) window.clearTimeout(loginRedirectTimer);
     };
   }, []);
 
