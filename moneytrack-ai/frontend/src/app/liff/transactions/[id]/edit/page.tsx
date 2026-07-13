@@ -6,6 +6,7 @@ import { CalendarDays, Loader2, Trash2 } from "lucide-react";
 
 import { deleteTransaction, getLineUserSetup, getTransaction, getUserSettings, updateTransaction } from "@/lib/api";
 import { classifyAppError, type AppErrorKind } from "@/lib/app-flow";
+import { canonicalLineUserId } from "@/lib/line-profile";
 import type { Transaction, TransactionInput } from "@/lib/types";
 
 const accent = "#DC143C";
@@ -410,13 +411,7 @@ async function loadLineUserId(): Promise<string> {
     return "";
   }
 
-  try {
-    const contextUserId = lineWindow.liff.getContext?.()?.userId;
-    const profile = await lineWindow.liff.getProfile();
-    return contextUserId || profile.userId;
-  } catch {
-    return lineWindow.liff.getContext?.()?.userId || lineWindow.liff.getDecodedIDToken?.()?.sub || "";
-  }
+  return canonicalLineUserId(lineWindow.liff.getDecodedIDToken?.() ?? null);
 }
 
 function resolveLiffId() {

@@ -3,14 +3,13 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from .database import (
-    create_transaction,
+    create_recurring_occurrence_transaction,
     get_user_settings,
     list_recurring_transactions,
-    mark_recurring_transaction_run,
 )
 from .line_messages import build_transaction_success_flex, build_transaction_success_with_budget_flex
 from .line_service import _budget_context_after_transaction
-from .models import RecurringTransaction, TransactionCreate
+from .models import RecurringTransaction
 
 BANGKOK_TZ = ZoneInfo("Asia/Bangkok")
 
@@ -31,19 +30,9 @@ def run_due_recurring_transactions(
         if not _is_due(item, current_date, current_time):
             continue
 
-        transaction = create_transaction(
-            TransactionCreate(
-                date=current_date,
-                type=item.type,
-                amount=item.amount,
-                category=item.category,
-                description=item.description,
-                mode=item.mode,
-            ),
-            db_path,
-            line_user_id=item.line_user_id,
-        )
-        mark_recurring_transaction_run(item.id, item.line_user_id, current_date, db_path)
+        transaction = create_recurring_occurrence_transaction(item, current_date, db_path)
+        if transaction is None:
+            continue
 
         line_message = _build_recurring_success_message(item.line_user_id, transaction, db_path)
         if push_message is not None:

@@ -138,3 +138,9 @@ python scripts/migrate_sqlite_to_postgres.py --source moneytrack.db
 Use Render's **External Database URL** only for this local migration command; the deployed backend should keep using the Internal Database URL. The migration is safe to rerun: existing primary keys and unique rows are skipped. Back up the SQLite file before running it. Do not expose `DATABASE_URL` in screenshots or commit it to Git.
 
 After migration, verify that users, transactions, categories, budgets, recurring entries, reminders, and settings have non-zero row counts before redeploying the backend.
+
+## Release verification
+
+Every push and pull request is verified by `.github/workflows/ci.yml`. Before exposing the LINE Official Account publicly, complete [release-checklist.md](release-checklist.md), including the two-account isolation test on real phones.
+
+Render's free web service can sleep when inactive. This delays the first request and pauses the in-process recurring worker. Use a dedicated Render Cron Job or another reliable scheduler before treating recurring entries and reminders as production guarantees.

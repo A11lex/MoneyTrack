@@ -51,6 +51,14 @@ def init_db(db_path: str | None = None) -> None:
             _INITIALIZED_DATABASES.add(target)
 
 
+def check_database_connection(db_path: str | None = None) -> None:
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        row = conn.execute("SELECT 1 AS ready").fetchone()
+        if row is None or int(row["ready"]) != 1:
+            raise RuntimeError("Database readiness check failed")
+
+
 def _initialize_database(db_path: str | None = None) -> None:
     with get_connection(db_path) as conn:
         conn.execute(
@@ -136,6 +144,21 @@ def _initialize_database(db_path: str | None = None) -> None:
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS recurring_transaction_runs (
+                recurring_id BIGINT NOT NULL,
+                line_user_id TEXT NOT NULL,
+                run_date TEXT NOT NULL,
+                transaction_id BIGINT,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY(recurring_id, run_date),
+                FOREIGN KEY(recurring_id) REFERENCES recurring_transactions(id),
+                FOREIGN KEY(line_user_id) REFERENCES line_users(line_user_id),
+                FOREIGN KEY(transaction_id) REFERENCES transactions(id)
             )
             """
         )
@@ -370,6 +393,61 @@ def create_transaction(payload: TransactionCreate, db_path: str | None = None, l
                 payload.mode.value,
                 payload.payment_channel,
             ),
+        )
+        row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
+        return row_to_transaction(row)
+
+
+def create_recurring_occurrence_transaction(
+    item: RecurringTransaction,
+    run_date: date,
+    db_path: str | None = None,
+) -> Transaction | None:
+    """Create one recurring occurrence atomically, even with concurrent workers."""
+    init_db(db_path)
+    with get_connection(db_path) as conn:
+        claim = conn.execute(
+            """
+            INSERT OR IGNORE INTO recurring_transaction_runs (recurring_id, line_user_id, run_date)
+            VALUES (?, ?, ?)
+            """,
+            (item.id, item.line_user_id, run_date.isoformat()),
+        )
+        if claim.rowcount == 0:
+            return None
+
+        transaction_id = inserted_id(
+            conn,
+            """
+            INSERT INTO transactions (line_user_id, date, type, amount, category, description, mode, payment_channel)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                item.line_user_id,
+                run_date.isoformat(),
+                item.type.value,
+                item.amount,
+                item.category,
+                item.description,
+                item.mode.value,
+                None,
+            ),
+        )
+        conn.execute(
+            """
+            UPDATE recurring_transaction_runs
+            SET transaction_id = ?
+            WHERE recurring_id = ? AND run_date = ?
+            """,
+            (transaction_id, item.id, run_date.isoformat()),
+        )
+        conn.execute(
+            """
+            UPDATE recurring_transactions
+            SET last_run_date = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ? AND line_user_id = ?
+            """,
+            (run_date.isoformat(), item.id, item.line_user_id),
         )
         row = conn.execute("SELECT * FROM transactions WHERE id = ?", (transaction_id,)).fetchone()
         return row_to_transaction(row)

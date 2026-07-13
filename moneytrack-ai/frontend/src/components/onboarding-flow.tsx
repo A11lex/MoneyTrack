@@ -29,6 +29,7 @@ import { API_BASE_URL, getLineUserSetup, saveLineUserOnboarding, upsertLineUser 
 import { classifyAppError } from "@/lib/app-flow";
 import { warmBackend } from "@/lib/backend-warmup";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
+import { buildCanonicalLineProfile } from "@/lib/line-profile";
 import { hasCompletedOnboarding } from "@/lib/user-flow";
 
 type Step = "welcome" | "source" | "expense" | "income" | "done";
@@ -37,7 +38,6 @@ const steps: Step[] = ["welcome", "source", "expense", "income", "done"];
 
 type LineProfile = {
   line_user_id: string;
-  alternate_line_user_id?: string | null;
   display_name: string;
   picture_url: string | null;
 };
@@ -622,44 +622,10 @@ async function loadLineProfile(): Promise<LineIdentityResult> {
 }
 
 async function resolveLineUserSetup(profile: LineProfile) {
-  const primarySetup = await getLineUserSetup(profile.line_user_id);
-  if (primarySetup?.onboarding_completed) {
-    if (!profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
-      return primarySetup;
-    }
-    return saveLineUserOnboarding(profile.line_user_id, {
-      discovery_source: primarySetup.discovery_source,
-      expense_categories: primarySetup.expense_categories,
-      income_categories: primarySetup.income_categories,
-      monthly_budgets: primarySetup.monthly_budgets,
-      budget_cycle: primarySetup.budget_cycle,
-      budget_start_day: primarySetup.budget_start_day,
-      merge_from_line_user_id: profile.alternate_line_user_id,
-    });
-  }
-  if (!profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
-    return primarySetup;
-  }
-
-  const alternateSetup = await getLineUserSetup(profile.alternate_line_user_id);
-  if (!alternateSetup?.onboarding_completed) {
-    return primarySetup;
-  }
-
-  await upsertLineUser(profile);
-  return saveLineUserOnboarding(profile.line_user_id, {
-    discovery_source: alternateSetup.discovery_source,
-    expense_categories: alternateSetup.expense_categories,
-    income_categories: alternateSetup.income_categories,
-    monthly_budgets: alternateSetup.monthly_budgets,
-    budget_cycle: alternateSetup.budget_cycle,
-    budget_start_day: alternateSetup.budget_start_day,
-    merge_from_line_user_id: profile.alternate_line_user_id,
-  });
+  return getLineUserSetup(profile.line_user_id);
 }
 
 async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
-  const context = liff.getContext?.();
   const token = liff.getDecodedIDToken?.();
   let liffProfile: LiffProfile | null = null;
 
@@ -669,28 +635,7 @@ async function readLineProfileFromLiff(liff: LiffClient): Promise<LineProfile> {
     console.warn("LINE getProfile failed; falling back to ID token/context", error);
   }
 
-  const lineUserId = context?.userId || liffProfile?.userId || token?.sub || "";
-  if (!lineUserId) {
-    throw new Error("LINE profile is unavailable");
-  }
-
-  const profileName = liffProfile?.displayName?.trim();
-  const tokenName = token?.name?.trim();
-  return {
-    line_user_id: lineUserId,
-    alternate_line_user_id: context?.userId && liffProfile?.userId && context.userId !== liffProfile.userId ? liffProfile.userId : null,
-    display_name: firstSpecificLineName(profileName, tokenName) || "ผู้ใช้งาน",
-    picture_url: liffProfile?.pictureUrl ?? token?.picture ?? null,
-  };
-}
-
-function isGenericLineName(value?: string) {
-  if (!value) return true;
-  return ["ผู้ใช้งาน", "LINE User"].includes(value);
-}
-
-function firstSpecificLineName(...values: Array<string | undefined>) {
-  return values.find((value) => value && !isGenericLineName(value));
+  return buildCanonicalLineProfile({ token: token ?? null, profile: liffProfile });
 }
 
 function resolveLiffId() {

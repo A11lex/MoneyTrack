@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .database import (
     DATABASE_URL,
+    check_database_connection,
     create_recurring_transaction,
     create_transaction,
     delete_recurring_transaction,
@@ -156,7 +157,12 @@ def _run_due_daily_reminders_and_push() -> dict[str, Any]:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok"}
+    try:
+        check_database_connection()
+    except Exception as error:
+        logger.exception("Database health check failed")
+        raise HTTPException(status_code=503, detail="Database is unavailable") from error
+    return {"status": "ok", "database": "ok"}
 
 
 @app.get("/categories")

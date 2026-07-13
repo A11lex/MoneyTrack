@@ -53,6 +53,7 @@ import {
 import { classifyAppError, type AppErrorKind } from "@/lib/app-flow";
 import { warmBackend } from "@/lib/backend-warmup";
 import { ensureLiffAuthenticated } from "@/lib/liff-auth";
+import { buildCanonicalLineProfile } from "@/lib/line-profile";
 import type { DailyReminderSettingsInput, DashboardData, LineUserSetup, RecurringTransactionInput, Transaction, TransactionInput, UserSettingsInput } from "@/lib/types";
 import { hasCompletedOnboarding } from "@/lib/user-flow";
 
@@ -112,7 +113,6 @@ type RecurringItem = {
 };
 type LineProfile = {
   line_user_id: string;
-  alternate_line_user_id?: string | null;
   display_name: string;
   picture_url: string | null;
 };
@@ -541,6 +541,7 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
   const [budgetStartDay, setBudgetStartDay] = useState(() => loadStoredBudgetStartDay());
   const [expenseBudgets, setExpenseBudgets] = useState<Record<string, number>>(() => loadStoredExpenseBudgets());
   const [totalBudget, setTotalBudget] = useState(() => loadStoredTotalBudget());
+  const [budgetSyncState, setBudgetSyncState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const items = kind === "expense" ? storedExpenseCategories : storedIncomeCategories;
   const budgetCycleLabel = budgetCycle === "daily" ? "รายวัน" : budgetCycle === "weekly" ? "รายสัปดาห์" : "รายเดือน";
   const budgetStartDayLabel = budgetStartDay === 1 ? "วันที่ 1" : `วันที่ ${budgetStartDay}`;
@@ -561,6 +562,17 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
       ? Object.values(expenseSpentByCategory).reduce((sum, value) => sum + value, 0)
       : storedExpenseCategories.reduce((sum, category) => sum + (expenseSpentByCategory[category] ?? 0), 0);
   const budgetUsagePercent = displayedBudget > 0 ? Math.min(100, Math.round((displayedSpent / displayedBudget) * 100)) : 0;
+
+  useEffect(() => {
+    function handleBudgetSync(event: Event) {
+      const detail = (event as CustomEvent<BudgetSyncEventDetail>).detail;
+      if (detail.lineUserId === profile.line_user_id) {
+        setBudgetSyncState(detail.status);
+      }
+    }
+    window.addEventListener(BUDGET_SYNC_EVENT, handleBudgetSync);
+    return () => window.removeEventListener(BUDGET_SYNC_EVENT, handleBudgetSync);
+  }, [profile.line_user_id]);
 
   useEffect(() => {
     if (!profile.line_user_id) return;
@@ -616,6 +628,28 @@ function CategoriesScreen({ profile, transactions }: { profile: LineProfile; tra
         <button type="button" onClick={() => setKind("income")} className={`h-12 rounded-md border text-base font-black ${kind === "income" ? "border-[#6dc5ad] bg-white text-[#6dc5ad]" : "border-[#d8eee8] bg-white text-[#6dc5ad]"}`}>
           รายรับ
         </button>
+      </div>
+      <div aria-live="polite" className="min-h-5 text-right text-xs font-semibold">
+        {budgetSyncState === "saving" && <span className="text-[#64748b]">กำลังบันทึก...</span>}
+        {budgetSyncState === "saved" && <span className="text-[#16845f]">บันทึกแล้ว</span>}
+        {budgetSyncState === "error" && (
+          <button
+            type="button"
+            className="font-bold text-[#DC143C] underline underline-offset-2"
+            onClick={() => void syncLineBudgetSettings({
+              profile,
+              expenseCategories: storedExpenseCategories,
+              incomeCategories: storedIncomeCategories,
+              budgetMode,
+              budgetCycle,
+              budgetStartDay,
+              expenseBudgets,
+              totalBudget,
+            })}
+          >
+            บันทึกไม่สำเร็จ กดลองอีกครั้ง
+          </button>
+        )}
       </div>
       {kind === "expense" && (
         <section className="rounded-md border border-black/10 bg-white p-4 shadow-sm">
@@ -5322,7 +5356,21 @@ function setScopedLocalStorageItem(baseKey: string, value: string) {
   window.localStorage.setItem(scopedLocalStorageKey(baseKey), value);
 }
 
-async function syncLineBudgetSettings({
+const BUDGET_SYNC_EVENT = "moneytrack:budget-sync";
+type BudgetSyncEventDetail = {
+  lineUserId: string;
+  status: "saving" | "saved" | "error";
+};
+let budgetSyncRevision = 0;
+let budgetSyncQueue: Promise<void> = Promise.resolve();
+
+function emitBudgetSyncStatus(detail: BudgetSyncEventDetail) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(BUDGET_SYNC_EVENT, { detail }));
+  }
+}
+
+function syncLineBudgetSettings({
   profile,
   expenseCategories,
   incomeCategories,
@@ -5340,8 +5388,8 @@ async function syncLineBudgetSettings({
   budgetStartDay?: number;
   expenseBudgets: Record<string, number>;
   totalBudget: number;
-}) {
-  if (!profile.line_user_id) return;
+}): Promise<void> {
+  if (!profile.line_user_id) return Promise.resolve();
 
   const monthlyBudgets =
     budgetMode === "total"
@@ -5350,23 +5398,36 @@ async function syncLineBudgetSettings({
         : {}
       : Object.fromEntries(Object.entries(expenseBudgets).filter(([, value]) => value > 0));
 
-  try {
-    await upsertLineUser({
-      line_user_id: profile.line_user_id,
-      display_name: profile.display_name,
-      picture_url: profile.picture_url,
-    });
-    await saveLineUserOnboarding(profile.line_user_id, {
-      discovery_source: "liff_categories",
-      expense_categories: expenseCategories,
-      income_categories: incomeCategories,
-      monthly_budgets: monthlyBudgets,
-      budget_cycle: budgetCycle,
-      budget_start_day: budgetStartDay,
-    });
-  } catch {
-    // Keep local budget settings usable even if the backend is temporarily unavailable.
-  }
+  const revision = ++budgetSyncRevision;
+  emitBudgetSyncStatus({ lineUserId: profile.line_user_id, status: "saving" });
+
+  budgetSyncQueue = budgetSyncQueue.then(async () => {
+    if (revision !== budgetSyncRevision) return;
+    try {
+      await upsertLineUser({
+        line_user_id: profile.line_user_id,
+        display_name: profile.display_name,
+        picture_url: profile.picture_url,
+      });
+      await saveLineUserOnboarding(profile.line_user_id, {
+        discovery_source: "liff_categories",
+        expense_categories: expenseCategories,
+        income_categories: incomeCategories,
+        monthly_budgets: monthlyBudgets,
+        budget_cycle: budgetCycle,
+        budget_start_day: budgetStartDay,
+      });
+      if (revision === budgetSyncRevision) {
+        emitBudgetSyncStatus({ lineUserId: profile.line_user_id, status: "saved" });
+      }
+    } catch (error) {
+      console.error("Failed to save LINE budget settings", error);
+      if (revision === budgetSyncRevision) {
+        emitBudgetSyncStatus({ lineUserId: profile.line_user_id, status: "error" });
+      }
+    }
+  });
+  return budgetSyncQueue;
 }
 
 function todayInputValue() {
@@ -5463,44 +5524,7 @@ function dateWithClampedDay(year: number, monthIndex: number, day: number) {
 }
 
 async function resolveLineUserSetup(profile: LineProfile): Promise<LineUserSetup | null> {
-  const primarySetup = await getLineUserSetup(profile.line_user_id);
-  if (primarySetup?.onboarding_completed) {
-    if (!profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
-      return primarySetup;
-    }
-    return saveLineUserOnboarding(profile.line_user_id, {
-      discovery_source: primarySetup.discovery_source,
-      expense_categories: primarySetup.expense_categories,
-      income_categories: primarySetup.income_categories,
-      monthly_budgets: primarySetup.monthly_budgets,
-      budget_cycle: primarySetup.budget_cycle,
-      budget_start_day: primarySetup.budget_start_day,
-      merge_from_line_user_id: profile.alternate_line_user_id,
-    });
-  }
-  if (!profile.alternate_line_user_id || profile.alternate_line_user_id === profile.line_user_id) {
-    return primarySetup;
-  }
-
-  const alternateSetup = await getLineUserSetup(profile.alternate_line_user_id);
-  if (!alternateSetup?.onboarding_completed) {
-    return primarySetup;
-  }
-
-  await upsertLineUser({
-    line_user_id: profile.line_user_id,
-    display_name: profile.display_name,
-    picture_url: profile.picture_url,
-  });
-  return saveLineUserOnboarding(profile.line_user_id, {
-    discovery_source: alternateSetup.discovery_source,
-    expense_categories: alternateSetup.expense_categories,
-    income_categories: alternateSetup.income_categories,
-    monthly_budgets: alternateSetup.monthly_budgets,
-    budget_cycle: alternateSetup.budget_cycle,
-    budget_start_day: alternateSetup.budget_start_day,
-    merge_from_line_user_id: profile.alternate_line_user_id,
-  });
+  return getLineUserSetup(profile.line_user_id);
 }
 
 function applyLineUserSetupToLocalStorage(setup: LineUserSetup) {
@@ -5539,10 +5563,6 @@ function isGenericLineName(value?: string) {
   return ["ผู้ใช้งาน", "LINE User"].includes(value);
 }
 
-function firstSpecificLineName(...values: Array<string | undefined>) {
-  return values.find((value) => value && !isGenericLineName(value));
-}
-
 function formatLineUserId(value: string) {
   if (!value) return "-";
   if (value.length <= 12) return value;
@@ -5571,7 +5591,6 @@ async function loadLineProfile(): Promise<LineProfile | null> {
 }
 
 async function readLineProfileFromLiff(liff: NonNullable<Window["liff"]>): Promise<LineProfile> {
-  const context = liff.getContext?.();
   const token = liff.getDecodedIDToken?.();
   let liffProfile: Awaited<ReturnType<NonNullable<Window["liff"]>["getProfile"]>> | null = null;
 
@@ -5581,24 +5600,8 @@ async function readLineProfileFromLiff(liff: NonNullable<Window["liff"]>): Promi
     console.warn("LINE getProfile failed; falling back to ID token/context", error);
   }
 
-  const lineUserId = context?.userId || liffProfile?.userId || token?.sub || "";
-  if (!lineUserId) {
-    throw new Error("LINE profile is unavailable");
-  }
-
   const cached = getCachedLineProfile();
-  const profileName = liffProfile?.displayName?.trim();
-  const tokenName = token?.name?.trim();
-  const cachedName = cached.line_user_id === lineUserId ? cached.display_name : "";
-  const displayName = firstSpecificLineName(profileName, tokenName, cachedName) || "ผู้ใช้งาน";
-  const pictureUrl = liffProfile?.pictureUrl ?? token?.picture ?? (cached.line_user_id === lineUserId ? cached.picture_url : null);
-
-  return {
-    line_user_id: lineUserId,
-    alternate_line_user_id: context?.userId && liffProfile?.userId && context.userId !== liffProfile.userId ? liffProfile.userId : null,
-    display_name: displayName,
-    picture_url: pictureUrl,
-  };
+  return buildCanonicalLineProfile({ token: token ?? null, profile: liffProfile, cachedProfile: cached });
 }
 
 function resolveLiffId() {

@@ -1,4 +1,5 @@
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 from zoneinfo import ZoneInfo
 
 from app.database import create_recurring_transaction, list_transactions, upsert_line_user
@@ -76,4 +77,34 @@ def test_run_due_recurring_transactions_does_not_run_before_notify_time_or_twice
     assert early_result["processed_count"] == 0
     assert first_result["processed_count"] == 1
     assert second_result["processed_count"] == 0
+    assert len(list_transactions(db_path, line_user_id="line-user-001")) == 1
+
+
+def test_concurrent_recurring_workers_create_one_occurrence(tmp_path) -> None:
+    db_path = str(tmp_path / "moneytrack.db")
+    upsert_line_user(LineUserUpsert(line_user_id="line-user-001", display_name="Tester"), db_path)
+    create_recurring_transaction(
+        RecurringTransactionCreate(
+            type="expense",
+            amount=80,
+            category="Food",
+            description="Lunch",
+            mode="personal",
+            interval="daily",
+            notify_time="10:00",
+        ),
+        line_user_id="line-user-001",
+        db_path=db_path,
+    )
+    now = datetime(2026, 6, 28, 10, 0, tzinfo=ZoneInfo("Asia/Bangkok"))
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(
+            executor.map(
+                lambda _: run_due_recurring_transactions(now=now, db_path=db_path, push_message=lambda *_: None),
+                range(2),
+            )
+        )
+
+    assert sum(result["processed_count"] for result in results) == 1
     assert len(list_transactions(db_path, line_user_id="line-user-001")) == 1

@@ -121,6 +121,15 @@ def test_app_data_returns_dashboard_and_transactions_from_one_request(tmp_path, 
     assert payload["transactions"][0]["amount"] == 80
 
 
+def test_health_checks_the_database(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(database, "DATABASE_URL", str(tmp_path / "health.db"))
+
+    response = TestClient(app).get("/health")
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "database": "ok"}
+
+
 def test_line_webhook_verifies_signature_and_sends_reply_when_env_is_configured(tmp_path, monkeypatch) -> None:
     db_path = str(tmp_path / "api-line-signed.db")
     monkeypatch.setattr(database, "DATABASE_URL", db_path)
